@@ -1,68 +1,71 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=JetBrains+Mono:wght@400;700&display=swap');
+
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+  /* --- PALETTE: Terminal Chic --- */
+  --bg-dark: #0d1117;       /* GitHub Dark Dimmed */
+  --bg-surface: #161b22;    /* Card Background */
+  --bg-panel: #21262d;      /* Slide-out / Modals */
+  
+  --border-subtle: #30363d;
+  --border-active: #8b949e;
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  /* --- ACCENTS --- */
+  --neon-cyan: #00f2ff;
+  --neon-purple: #bc13fe;
+  --neon-green: #2ea043;    /* Success */
+  --neon-red: #da3633;      /* Error */
+  
+  /* --- TEXT --- */
+  --text-main: #c9d1d9;
+  --text-muted: #8b949e;
+  --text-header: #f0f6fc;
 
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
+  /* --- FONTS --- */
+  --font-body: 'Inter', sans-serif;
+  --font-code: 'JetBrains Mono', monospace;
 }
 
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
+  padding: 0;
+  background-color: var(--bg-dark);
+  color: var(--text-main);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden; /* App handles scroll */
 }
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-dark); 
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-subtle); 
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted); 
+}
+
+h1, h2, h3, h4, h5, h6 {
+  color: var(--text-header);
+  font-family: var(--font-code);
+  margin: 0;
+}
+
+a {
+  color: var(--neon-cyan);
+  text-decoration: none;
+  transition: 0.2s;
+}
+a:hover {
+  text-shadow: 0 0 8px var(--neon-cyan);
 }
 
 button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
+  font-family: var(--font-code);
   cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
 }

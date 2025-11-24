@@ -1,0 +1,26 @@
+{
+  "name": "What's Next",
+  "short_name": "What's Next",
+  "description": "AI-Powered Career Roadmap Platform - Your personalized path to tech success",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#0d1117",
+  "theme_color": "#00f2ff",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["education", "productivity", "utilities"],
+  "screenshots": []
+}

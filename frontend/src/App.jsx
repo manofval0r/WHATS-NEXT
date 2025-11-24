@@ -1,6 +1,11 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import Signup from './Signup'; // Ensure you have this file (provided in previous step)
+import Signup from './AuthPage'; 
 import Dashboard from './Dashboard';
+import Profile from './Profile';
+import Settings from './Settings';
+import Community from './Community';  
+import Resources from './Resources';
+import MainLayout from './MainLayout';
 
 // Wrapper to check if user is logged in
 function ProtectedRoute({ children }) {
@@ -8,7 +13,7 @@ function ProtectedRoute({ children }) {
   if (!token) {
     return <Navigate to="/" replace />;
   }
-  return children;
+  return <MainLayout>{children}</MainLayout>;
 }
 
 export default function App() {
@@ -18,12 +23,37 @@ export default function App() {
         {/* Public Route */}
         <Route path="/" element={<Signup />} />
         
-        {/* Private Route */}
+        {/* Private Routes */}
         <Route path="/dashboard" element={
           <ProtectedRoute>
             <Dashboard />
           </ProtectedRoute>
         } />
+
+        <Route path="/profile" element={
+          <ProtectedRoute>
+            <Profile />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/settings" element={
+          <ProtectedRoute>
+            <Settings />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/community" element={
+          <ProtectedRoute>
+            <Community />
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/resources" element={
+          <ProtectedRoute>
+            <Resources />
+          </ProtectedRoute>
+        } />
+
       </Routes>
     </Router>
   );
