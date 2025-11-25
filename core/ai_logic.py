@@ -1,14 +1,3 @@
-import os
-import json
-import requests
-from dotenv import load_dotenv
-from jsonschema import validate, ValidationError
-from .youtube_logic import search_youtube_videos
-
-load_dotenv()
-api_key = os.getenv("GEMINI_API_KEY")
-GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
-
 # JSON Schema for validating AI-generated roadmap modules
 MODULE_SCHEMA = {
     "type": "object",
