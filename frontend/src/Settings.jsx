@@ -26,7 +26,7 @@ export default function Settings() {
     setLoading(true);
     const token = localStorage.getItem('access_token');
     try {
-        const res = await axios.post('http://127.0.0.1:8000/api/settings/pivot/', { new_career: pivotCareer }, {
+        const res = await axios.post('http://127.0.0.1:8000/api/pivot-career/', { new_career: pivotCareer }, {
             headers: { Authorization: `Bearer ${token}` }
         });
         alert(`Success! ${res.data.transferred_skills} skills transferred to your new path.`);

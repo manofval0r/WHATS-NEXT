@@ -22,6 +22,29 @@ class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
 
 # ==========================================
+# 1b. COURSE NORMALIZATION (Smart Onboarding)
+# ==========================================
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def normalize_course(request):
+    """
+    Uses AI to normalize and clean university course input.
+    """
+    from .ai_logic import normalize_university_course
+    
+    raw_course = request.data.get('course_name', '')
+    if not raw_course or len(raw_course.strip()) == 0:
+        return Response({"normalized": ""})
+    
+    try:
+        normalized = normalize_university_course(raw_course)
+        return Response({"normalized": normalized})
+    except Exception as e:
+        print(f"Normalization error: {e}")
+        return Response({"normalized": raw_course})  # Return original if AI fails
+
+# ==========================================
 # 2. ROADMAP ENGINE (ASYNC)
 # ==========================================
 
@@ -135,9 +158,27 @@ def check_roadmap_status(request, task_id):
 def submit_project(request, node_id):
     user = request.user
     submission_link = request.data.get('link')
-    if not submission_link: return Response({"error": "Link required"}, status=400)
+    if not submission_link:
+        return Response({"error": "Link required"}, status=400)
+    
+    # Basic URL validation
+    if not submission_link.startswith(('http://', 'https://')):
+        return Response({"error": "Link must be a valid URL (http:// or https://)"}, status=400)
+    
+    if len(submission_link) > 2048:
+        return Response({"error": "Link exceeds maximum length"}, status=400)
 
-    node = get_object_or_404(UserRoadmapItem, id=node_id, user=user)
+    try:
+        node = get_object_or_404(UserRoadmapItem, id=node_id, user=user)
+    except:
+        return Response({"error": "Module not found"}, status=404)
+    
+    # Auto-score GitHub submissions
+    score_info = None
+    if 'github.com' in submission_link.lower():
+        from .project_scoring import score_github_project
+        score_info = score_github_project(submission_link)
+    
     node.project_submission_link = submission_link
     node.status = 'completed'
     node.save()
@@ -154,7 +195,7 @@ def submit_project(request, node_id):
     activity.count += 1
     activity.save()
 
-    return Response({"message": "Submitted", "node_id": str(node.id), "status": "completed", "next_node": next_data})
+    return Response({"message": "Submitted", "node_id": str(node.id), "status": "completed", "next_node": next_data, "score_info": score_info})
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -191,6 +232,205 @@ def get_user_streak(request):
         check_date -= timedelta(days=1)
         
     return Response({"streak": current_streak})
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_analytics_dashboard(request):
+    """
+    Returns comprehensive learning analytics for the user.
+    """
+    from django.db.models import Avg, Count
+    from datetime import datetime, timedelta
+    
+    user = request.user
+    all_items = UserRoadmapItem.objects.filter(user=user)
+    completed_items = all_items.filter(status='completed')
+    total_items = all_items.count()
+    completed_count = completed_items.count()
+    
+    # Progress
+    progress_percent = 0
+    if total_items > 0:
+        progress_percent = round((completed_count / total_items) * 100)
+    
+    # Time-to-complete stats
+    time_stats = {
+        'avg_days_per_module': 0,
+        'fastest_module': None,
+        'slowest_module': None
+    }
+    
+    if completed_items.exists():
+        # Calculate days to complete for each module
+        module_times = []
+        for item in all_items.filter(step_order__gt=0):
+            prev_item = all_items.filter(step_order=item.step_order - 1).first()
+            if prev_item and prev_item.submitted_at and item.submitted_at:
+                days = (item.submitted_at - prev_item.submitted_at).days
+                if days >= 0:
+                    module_times.append({'label': item.label, 'days': days})
+        
+        if module_times:
+            avg_days = sum([m['days'] for m in module_times]) / len(module_times)
+            time_stats['avg_days_per_module'] = round(avg_days, 1)
+            time_stats['fastest_module'] = min(module_times, key=lambda x: x['days'])['label']
+            time_stats['slowest_module'] = max(module_times, key=lambda x: x['days'])['label']
+    
+    # Recent activity (last 30 days)
+    cutoff_date = datetime.now().date() - timedelta(days=30)
+    recent_activities = UserActivity.objects.filter(user=user, date__gte=cutoff_date)
+    total_recent = sum([a.count for a in recent_activities])
+    
+    # Quiz performance
+    quiz_stats = {'attempts': 0, 'passed': 0, 'avg_score': 0}
+    from .models import Quiz
+    quizzes = Quiz.objects.filter(roadmap_item__user=user)
+    if quizzes.exists():
+        quiz_stats['attempts'] = sum([q.attempts for q in quizzes])
+        quiz_stats['passed'] = quizzes.filter(passed=True).count()
+        quiz_stats['avg_score'] = round(quizzes.aggregate(Avg('score'))['score__avg'] or 0, 1)
+    
+    # Market value distribution
+    market_values = all_items.values_list('market_value', flat=True)
+    market_dist = {
+        'Low': market_values.count('Low'),
+        'Med': market_values.count('Med'),
+        'High': market_values.count('High')
+    }
+    
+    # Recommendations
+    recommendations = []
+    if progress_percent < 25:
+        recommendations.append("Keep up the momentum! You're just getting started. 🚀")
+    elif progress_percent < 50:
+        recommendations.append("Great progress! Focus on completing a project for each module to build your portfolio.")
+    elif progress_percent < 75:
+        recommendations.append("You're more than halfway there! Consider starting to apply to internships.")
+    else:
+        recommendations.append("Excellent work! You're nearly job-ready. Consider building a capstone project.")
+    
+    if quiz_stats['avg_score'] > 0 and quiz_stats['avg_score'] < 70:
+        recommendations.append("Your quiz scores could use improvement. Review weak topics before moving forward.")
+    
+    if total_recent < 5:
+        recommendations.append("Try to be consistent! Even small weekly progress builds momentum.")
+    
+    return Response({
+        "progress": {
+            "completed": completed_count,
+            "total": total_items,
+            "percentage": progress_percent
+        },
+        "time_stats": time_stats,
+        "recent_activity_30d": total_recent,
+        "quiz_stats": quiz_stats,
+        "market_value_distribution": market_dist,
+        "recommendations": recommendations,
+        "reputation_score": user.reputation_score,
+        "learning_level": user.current_level
+    })
+
+# ==========================================
+# 7. EMPLOYER API (Job Listings & Matching)
+# ==========================================
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_job_listings(request):
+    """
+    Return job listings relevant to the user's career path with skill matching.
+    """
+    from .models import JobPosting, CandidateApplication
+    
+    user = request.user
+    career = user.target_career.lower() if user.target_career else ""
+    
+    # Get active job postings for early-level positions
+    jobs = JobPosting.objects.filter(
+        is_active=True,
+        level__in=['intern', 'entry', 'junior']
+    ).select_related('employer').order_by('-created_at')[:50]
+    
+    # Get user's completed modules (skills)
+    user_skills = set()
+    for item in UserRoadmapItem.objects.filter(user=user, status='completed'):
+        words = item.label.lower().split()
+        user_skills.update([w for w in words if len(w) > 2])
+    
+    # Calculate match scores and check for existing applications
+    job_listings = []
+    existing_applications = set(
+        CandidateApplication.objects.filter(candidate=user).values_list('job_posting_id', flat=True)
+    )
+    
+    for job in jobs:
+        # Simple skill match: count matching words
+        required_skills = [s.lower() for s in job.required_skills] if job.required_skills else []
+        matches = sum(1 for skill in required_skills if skill in user_skills)
+        match_score = round((matches / max(len(required_skills), 1)) * 100) if required_skills else 50
+        
+        # Filter: only show if career or skills partially match
+        if match_score >= 30 or career in job.title.lower():
+            job_listings.append({
+                "id": job.id,
+                "title": job.title,
+                "company": job.employer.company_name,
+                "level": job.get_level_display(),
+                "location": job.location,
+                "salary_range": job.salary_range or "Competitive",
+                "match_score": match_score,
+                "required_skills": required_skills[:8],
+                "is_applied": job.id in existing_applications,
+                "posted": job.created_at.strftime("%d %b")
+            })
+    
+    # Sort by match score
+    job_listings.sort(key=lambda x: x['match_score'], reverse=True)
+    
+    return Response(job_listings[:20])
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def apply_to_job(request, job_id):
+    """
+    Submit application to a job posting.
+    """
+    from .models import JobPosting, CandidateApplication
+    
+    user = request.user
+    
+    try:
+        job = JobPosting.objects.get(id=job_id, is_active=True)
+    except JobPosting.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    
+    # Check for existing application
+    existing = CandidateApplication.objects.filter(candidate=user, job_posting=job).first()
+    if existing:
+        return Response({"error": "You've already applied to this job"}, status=400)
+    
+    # Calculate match score
+    user_skills = set()
+    for item in UserRoadmapItem.objects.filter(user=user, status='completed'):
+        words = item.label.lower().split()
+        user_skills.update([w for w in words if len(w) > 2])
+    
+    required_skills = [s.lower() for s in job.required_skills] if job.required_skills else []
+    matches = sum(1 for skill in required_skills if skill in user_skills)
+    match_score = round((matches / max(len(required_skills), 1)) * 100) if required_skills else 50
+    
+    # Create application
+    application = CandidateApplication.objects.create(
+        job_posting=job,
+        candidate=user,
+        match_score=match_score
+    )
+    
+    return Response({
+        "message": "Application submitted!",
+        "match_score": match_score,
+        "status": "applied"
+    })
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -291,6 +531,34 @@ def update_cv_text(request, item_id):
         item.custom_cv_text = new_text
         item.save()
     return Response({"message": "CV Bullet updated"})
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def export_portfolio_html(request):
+    """
+    Generate and return a portable HTML portfolio page.
+    """
+    from .portfolio_generator import create_portfolio_html
+    from django.http import HttpResponse
+    
+    user = request.user
+    completed_items = UserRoadmapItem.objects.filter(user=user, status='completed').order_by('-submitted_at')
+    
+    # Format for portfolio generator
+    formatted_items = []
+    for item in completed_items:
+        formatted_items.append({
+            'module_title': item.label,
+            'cv_text': item.custom_cv_text or item.project_prompt,
+            'date': item.submitted_at.strftime("%b %Y") if item.submitted_at else "Recently",
+            'link': item.project_submission_link
+        })
+    
+    html_content = create_portfolio_html(user, formatted_items)
+    
+    response = HttpResponse(html_content, content_type='text/html')
+    response['Content-Disposition'] = f'attachment; filename="{user.username}_portfolio.html"'
+    return response
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -495,11 +763,22 @@ def submit_quiz(request, item_id):
     
     user_answers = request.data.get('answers', [])
     
+    # Validate answers format
+    if not isinstance(user_answers, list):
+        return Response({"error": "Answers must be a list of indices"}, status=400)
+    
     correct_count = 0
     results = []
     
     for i, question in enumerate(quiz.questions):
-        user_answer = user_answers[i] if i < len(user_answers) else -1
+        # Safely access answer with bounds checking
+        if i >= len(user_answers):
+            user_answer = -1
+        else:
+            try:
+                user_answer = int(user_answers[i])
+            except (ValueError, TypeError):
+                user_answer = -1
         is_correct = user_answer == question['correct']
         
         if is_correct:

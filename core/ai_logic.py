@@ -2,11 +2,33 @@ import os
 import json
 import requests
 from dotenv import load_dotenv
+from jsonschema import validate, ValidationError
 from .youtube_logic import search_youtube_videos
 
 load_dotenv()
 api_key = os.getenv("GEMINI_API_KEY")
 GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
+
+# JSON Schema for validating AI-generated roadmap modules
+MODULE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "label": {"type": "string", "maxLength": 200},
+        "description": {"type": "string", "maxLength": 1000},
+        "status": {"type": "string", "enum": ["locked", "active", "completed"]},
+        "market_value": {"type": "string", "enum": ["Low", "Med", "High"]},
+        "resources": {"type": "object"},
+        "project_prompt": {"type": "string", "maxLength": 500}
+    },
+    "required": ["label", "description", "status", "market_value", "resources", "project_prompt"]
+}
+
+ROADMAP_SCHEMA = {
+    "type": "array",
+    "items": MODULE_SCHEMA,
+    "minItems": 1,
+    "maxItems": 20
+}
 
 def generate_detailed_roadmap(niche, uni_course, budget):
     """
@@ -63,16 +85,24 @@ def generate_detailed_roadmap(niche, uni_course, budget):
 
         result = response.json()
         text = result['candidates'][0]['content']['parts'][0]['text']
-        clean_text = text.replace("```json", "").replace("```", "").strip()
+        clean_text = safe_parse_json(text)
         
-        if clean_text.endswith(",]"): 
-            clean_text = clean_text.replace(",]", "]")
+        if clean_text is None:
+            print("Failed to parse JSON; using fallback")
+            return get_fallback_roadmap(niche, uni_course)
         
-        modules_list = json.loads(clean_text)
+        # Validate against schema
+        try:
+            validate(instance=clean_text, schema=ROADMAP_SCHEMA)
+        except ValidationError as e:
+            print(f"Schema validation failed: {e}")
+            return get_fallback_roadmap(niche, uni_course)
+        
+        modules_list = clean_text
         
         print("Fetching YouTube videos for modules...")
         for module in modules_list:
-            videos = search_youtube_videos(module['label'], max_results=3)
+            videos = search_youtube_videos(module.get('label', ''), max_results=3)
             if not isinstance(module.get('resources'), dict):
                 module['resources'] = {"main": "", "alt": ""}
             module['resources']['videos'] = videos
@@ -82,6 +112,34 @@ def generate_detailed_roadmap(niche, uni_course, budget):
     except Exception as e:
         print(f"AI Logic Failed: {e}")
         return get_fallback_roadmap(niche, uni_course)
+
+def safe_parse_json(text):
+    """
+    Safely parse JSON from AI output with error handling.
+    """
+    try:
+        # Remove markdown code blocks if present
+        clean_text = text.replace("```json", "").replace("```", "").strip()
+        
+        # Handle trailing comma before closing bracket
+        if clean_text.endswith(",]"): 
+            clean_text = clean_text.replace(",]", "]")
+        
+        # Parse and validate JSON
+        data = json.loads(clean_text)
+        
+        # Ensure it's a list
+        if not isinstance(data, list):
+            print("JSON is not a list")
+            return None
+        
+        return data
+    except json.JSONDecodeError as e:
+        print(f"JSON decode error: {e}")
+        return None
+    except Exception as e:
+        print(f"Unexpected error during JSON parsing: {e}")
+        return None
 
 def layout_engine(modules_list):
     """
@@ -150,6 +208,45 @@ def get_fallback_roadmap(niche, uni_course):
         }
     ]
     return layout_engine(dummy_data)
+
+def normalize_university_course(raw_course):
+    """
+    Uses AI to normalize raw university course input (e.g. "Bsc Accounting" -> "Accounting").
+    Returns a clean, standard version of the course name.
+    """
+    if not raw_course or len(raw_course.strip()) < 2:
+        return ""
+    
+    prompt = f"""
+    Normalize this university course name into a standard, clean format.
+    Input: "{raw_course}"
+    
+    Return ONLY the normalized course name, nothing else. Examples:
+    - "Bsc Acctng" -> "Accounting"
+    - "M.Sc. Data Science" -> "Data Science"
+    - "BS Comp Sci" -> "Computer Science"
+    
+    Return just the clean name, no quotes or extra text:
+    """
+    
+    try:
+        payload = {{ 
+            "contents": [{{ "parts": [{{"text": prompt}}] }}],
+            "generationConfig": {{ "temperature": 0.3 }}
+        }}
+        response = requests.post(GEMINI_URL, json=payload, timeout=10)
+        
+        if response.status_code == 200:
+            result = response.json()
+            text = result['candidates'][0]['content']['parts'][0]['text'].strip()
+            # Clean up any quotes or extra whitespace
+            cleaned = text.strip('"\'').strip()
+            return cleaned if cleaned else raw_course
+        else:
+            return raw_course
+    except Exception as e:
+        print(f"Course normalization error: {e}")
+        return raw_course
 
 def generate_quiz(module_label, description):
     """

@@ -23,3 +23,20 @@ class RegisterSerializer(serializers.ModelSerializer):
             budget_preference=validated_data.get('budget_preference', 'FREE')
         )
         return user
+
+class JobPostingSerializer(serializers.Serializer):
+    """Serializer for job postings to be returned to candidates."""
+    id = serializers.IntegerField()
+    title = serializers.CharField()
+    description = serializers.CharField()
+    company_name = serializers.CharField(source='employer.company_name')
+    level = serializers.CharField()
+    location = serializers.CharField()
+    salary_range = serializers.CharField()
+    required_skills = serializers.ListField()
+    created_at = serializers.DateTimeField()
+    match_score = serializers.SerializerMethodField()
+    
+    def get_match_score(self, obj):
+        # Calculated at view level
+        return getattr(obj, '_match_score', 0)

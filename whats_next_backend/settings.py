@@ -4,15 +4,16 @@ Django settings for whats_next_backend project.
 
 from pathlib import Path
 from datetime import timedelta
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = 'django-insecure-s^j3dyj&h-t)*7$k6&zvhowf8tk(*#sbuyf_-7jpqn-t3b-^#s'
-CELERY_BROKER_URL = 'redis-11366.crce214.us-east-1-3.ec2.cloud.redislabs.com:11366'
-
-DEBUG = True
-
-ALLOWED_HOSTS = []
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-change-me-in-production')
+DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 # Application definition
 INSTALLED_APPS = [
@@ -110,7 +111,7 @@ AUTH_USER_MODEL = 'core.User'
 # ==========================================
 # CELERY CONFIGURATION
 # ==========================================
-CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')
 CELERY_RESULT_BACKEND = 'django-db'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
