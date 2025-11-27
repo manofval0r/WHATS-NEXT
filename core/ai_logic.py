@@ -1,3 +1,16 @@
+import os
+import json
+import requests
+from jsonschema import validate, ValidationError
+from dotenv import load_dotenv
+from .youtube_logic import search_youtube_videos
+
+load_dotenv()
+
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+# Use the latest available Gemini 2.5 Flash model
+GEMINI_URL = f"https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
+
 # JSON Schema for validating AI-generated roadmap modules
 MODULE_SCHEMA = {
     "type": "object",
@@ -5,7 +18,7 @@ MODULE_SCHEMA = {
         "label": {"type": "string", "maxLength": 200},
         "description": {"type": "string", "maxLength": 1000},
         "status": {"type": "string", "enum": ["locked", "active", "completed"]},
-        "market_value": {"type": "string", "enum": ["Low", "Med", "High"]},
+        "market_value": {"type": "string", "enum": ["Low", "Med", "High", "Low-Med", "Med-High"]},
         "resources": {"type": "object"},
         "project_prompt": {"type": "string", "maxLength": 500}
     },
@@ -66,40 +79,61 @@ def generate_detailed_roadmap(niche, uni_course, budget):
             "contents": [{ "parts": [{"text": prompt}] }],
             "generationConfig": { "temperature": 0.7 }
         }
-        response = requests.post(GEMINI_URL, json=payload, timeout=20)
+        print(f"[AI] Calling Gemini API at {GEMINI_URL}")
+        print(f"[AI] Payload: {json.dumps(payload, indent=2)[:200]}...")
+        response = requests.post(GEMINI_URL, json=payload, timeout=30)
+        print(f"[AI] Response status: {response.status_code}")
         
         if response.status_code != 200:
-            print(f"API Error: {response.text}")
+            print(f"[AI] API Error: {response.text}")
             return get_fallback_roadmap(niche, uni_course)
 
         result = response.json()
+        print(f"[AI] Got response from API, parsing JSON...")
         text = result['candidates'][0]['content']['parts'][0]['text']
+        print(f"[AI] Raw text from API: {text[:200]}...")
         clean_text = safe_parse_json(text)
         
         if clean_text is None:
-            print("Failed to parse JSON; using fallback")
+            print(f"[AI] Failed to parse JSON; using fallback")
             return get_fallback_roadmap(niche, uni_course)
+        
+        print(f"[AI] Parsed {len(clean_text)} modules from API")
         
         # Validate against schema
         try:
             validate(instance=clean_text, schema=ROADMAP_SCHEMA)
+            print(f"[AI] Schema validation passed")
         except ValidationError as e:
-            print(f"Schema validation failed: {e}")
+            print(f"[AI] Schema validation failed: {e}")
             return get_fallback_roadmap(niche, uni_course)
         
         modules_list = clean_text
         
-        print("Fetching YouTube videos for modules...")
-        for module in modules_list:
-            videos = search_youtube_videos(module.get('label', ''), max_results=3)
-            if not isinstance(module.get('resources'), dict):
-                module['resources'] = {"main": "", "alt": ""}
-            module['resources']['videos'] = videos
+        print(f"[AI] Fetching YouTube videos for {len(modules_list)} modules...")
+        try:
+            for i, module in enumerate(modules_list):
+                print(f"[AI]   Module {i+1}: Searching YouTube for '{module.get('label', '')[:50]}'...")
+                videos = search_youtube_videos(module.get('label', ''), max_results=3)
+                print(f"[AI]   Module {i+1}: Found {len(videos)} videos")
+                if not isinstance(module.get('resources'), dict):
+                    module['resources'] = {"main": "", "alt": ""}
+                module['resources']['videos'] = videos
+            print(f"[AI] YouTube fetch complete!")
+        except Exception as youtube_err:
+            print(f"[AI] YouTube fetch error: {type(youtube_err).__name__}: {youtube_err}")
+            import traceback
+            traceback.print_exc()
+            # Continue anyway - don't fail the whole roadmap just because YouTube search failed
         
+        print(f"[AI] Roadmap generation successful!")
+        print(f"[AI] Returning {len(modules_list)} modules")
         return layout_engine(modules_list)
 
     except Exception as e:
-        print(f"AI Logic Failed: {e}")
+        print(f"[AI] AI Logic Failed: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
         return get_fallback_roadmap(niche, uni_course)
 
 def safe_parse_json(text):
@@ -132,38 +166,17 @@ def safe_parse_json(text):
 
 def layout_engine(modules_list):
     """
-    Takes a list of data and calculates specific X/Y coordinates.
+    Takes a list of modules and returns just the modules (not nodes/edges).
+    The views.py handles the nodes/edges formatting.
     """
-    nodes = []
-    edges = []
+    # Ensure each module has required fields
+    for module in modules_list:
+        if module.get('status') is None:
+            module['status'] = 'locked'
+        if module.get('resources') is None:
+            module['resources'] = {}
     
-    x_pos = 250
-    y_start = 500
-    y_gap = 150
-    
-    for index, module in enumerate(modules_list):
-        if index == 0:
-            module['status'] = 'active'
-        
-        node_id = str(index + 1)
-        nodes.append({
-            "id": node_id,
-            "type": "customNode",
-            "position": { "x": x_pos, "y": y_start + (index * y_gap) }, 
-            "data": module
-        })
-        
-        if index > 0:
-            prev_id = str(index)
-            edges.append({
-                "id": f"e{prev_id}-{node_id}",
-                "source": prev_id,
-                "target": node_id,
-                "animated": True,
-                "style": { "stroke": "#00f2ff", "strokeWidth": 2 }
-            })
-            
-    return { "nodes": nodes, "edges": edges }
+    return modules_list
 
 def get_fallback_roadmap(niche, uni_course):
     """

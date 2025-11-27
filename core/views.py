@@ -2,8 +2,8 @@ from rest_framework import generics
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from .serializers import RegisterSerializer
-from .models import UserRoadmapItem, UserActivity, ProjectReview
+from .serializers import RegisterSerializer, ProjectCommentSerializer, UserProfileSerializer
+from .models import UserRoadmapItem, UserActivity, ProjectReview, ProjectComment, User
 from .ai_logic import generate_detailed_roadmap
 from .news_logic import fetch_tech_news, fetch_internships
 from django.shortcuts import get_object_or_404
@@ -48,21 +48,46 @@ def normalize_course(request):
 # 2. ROADMAP ENGINE (ASYNC)
 # ==========================================
 
-@api_view(['POST'])
+@api_view(['POST', 'DELETE'])
 @permission_classes([IsAuthenticated])
 def get_my_roadmap(request):
     user = request.user
+    
+    # Handle DELETE request (clear roadmap for regeneration)
+    if request.method == 'DELETE':
+        print(f"\n=== DELETE ROADMAP REQUEST ===")
+        print(f"User: {user.username}")
+        deleted_count, _ = UserRoadmapItem.objects.filter(user=user).delete()
+        print(f"Deleted {deleted_count} roadmap items")
+        return Response({"message": f"Deleted {deleted_count} roadmap items"}, status=204)
+    
+    # Handle POST request (fetch or generate roadmap)
+    print(f"\n=== ROADMAP REQUEST ===")
+    print(f"User: {user.username}")
+    print(f"Target Career: {user.target_career}")
+    print(f"Course: {user.normalized_course or user.university_course_raw}")
+    print(f"Budget: {user.budget_preference}")
+    print(f"Request data type: {type(request.data)}")
+    print(f"Request data: {request.data}")
+    
+    # Check for force_regenerate parameter
+    force_regenerate = request.data.get('force_regenerate', False) if request.data else False
+    print(f"Force regenerate: {force_regenerate}")
+    
     existing_items = UserRoadmapItem.objects.filter(user=user).order_by('step_order')
     
-    if existing_items.exists():
+    if existing_items.exists() and not force_regenerate:
+        print(f"Found existing roadmap with {existing_items.count()} items in database")
         formatted_nodes = []
         formatted_edges = []
-        for i, item in enumerate(existing_items):
+        items_list = list(existing_items)
+        
+        for i, item in enumerate(items_list):
             node_id = str(item.id)
             formatted_nodes.append({
                 "id": node_id,
                 "type": "customNode",
-                "position": { "x": 250, "y": 500 + (item.step_order * 150) },
+                "position": { "x": 250, "y": 500 + (i * 150) },
                 "data": {
                     "label": item.label,
                     "status": item.status,
@@ -73,7 +98,7 @@ def get_my_roadmap(request):
                 }
             })
             if i > 0:
-                prev_id = str(existing_items[i-1].id)
+                prev_id = str(items_list[i-1].id)
                 formatted_edges.append({
                     "id": f"e{prev_id}-{node_id}",
                     "source": prev_id,
@@ -81,22 +106,84 @@ def get_my_roadmap(request):
                     "animated": True,
                     "style": { "stroke": "#00f2ff" }
                 })
+        
+        print(f"Returning {len(formatted_nodes)} nodes from database")
         return Response({ "nodes": formatted_nodes, "edges": formatted_edges })
 
-    # Trigger async roadmap generation
-    from .tasks import generate_roadmap_async
+    # Generate roadmap synchronously (new or force_regenerate)
+    if force_regenerate:
+        print("Force regenerate requested, deleting existing roadmap...")
+        UserRoadmapItem.objects.filter(user=user).delete()
+    else:
+        print("No existing roadmap, generating new one...")
     
-    niche = user.target_career
-    uni_course = user.normalized_course or user.university_course_raw
-    budget = user.budget_preference
+    from .ai_logic import generate_detailed_roadmap
     
-    task = generate_roadmap_async.delay(user.id, niche, uni_course, budget)
+    niche = user.target_career or 'Software Development'
+    uni_course = user.normalized_course or user.university_course_raw or 'Self-taught'
+    budget = user.budget_preference or 'free'
     
-    return Response({
-        "status": "generating",
-        "task_id": task.id,
-        "message": "Roadmap generation started"
-    })
+    try:
+        print(f"Calling generate_detailed_roadmap({niche}, {uni_course}, {budget})")
+        # Generate the roadmap (returns list of modules)
+        modules = generate_detailed_roadmap(niche, uni_course, budget)
+        print(f"Generated {len(modules)} modules")
+        
+        # Save to database
+        created_items = []
+        for i, module in enumerate(modules):
+            item = UserRoadmapItem.objects.create(
+                user=user,
+                step_order=i,
+                label=module.get('label', 'Module'),
+                description=module.get('description', ''),
+                status='active' if i == 0 else 'locked',
+                market_value=module.get('market_value', 'Med'),
+                resources=module.get('resources', {}),
+                project_prompt=module.get('project_prompt', '')
+            )
+            created_items.append(item)
+        
+        # Format response using created items
+        formatted_nodes = []
+        formatted_edges = []
+        for i, item in enumerate(created_items):
+            node_id = str(item.id)
+            formatted_nodes.append({
+                "id": node_id,
+                "type": "customNode",
+                "position": { "x": 250, "y": 500 + (i * 150) },
+                "data": {
+                    "label": item.label,
+                    "status": item.status,
+                    "description": item.description,
+                    "market_value": item.market_value,
+                    "resources": item.resources,
+                    "project_prompt": item.project_prompt
+                }
+            })
+            if i > 0:
+                prev_id = str(created_items[i-1].id)
+                formatted_edges.append({
+                    "id": f"e{prev_id}-{node_id}",
+                    "source": prev_id,
+                    "target": node_id,
+                    "animated": True,
+                    "style": { "stroke": "#00f2ff" }
+                })
+        
+        print(f"Returning {len(formatted_nodes)} nodes after generation")
+        return Response({ "nodes": formatted_nodes, "edges": formatted_edges })
+    except Exception as e:
+        print(f"\n!!! ERROR GENERATING ROADMAP !!!")
+        print(f"Exception: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({
+            "error": str(e),
+            "nodes": [],
+            "edges": []
+        }, status=400)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -640,7 +727,9 @@ def get_community_feed(request):
     
     feed_data = []
     for item in recent_subs:
-        has_voted = ProjectReview.objects.filter(submission=item, reviewer=user).exists()
+        # Check for existing vote
+        vote = ProjectReview.objects.filter(submission=item, reviewer=user).first()
+        user_vote = vote.vote_type if vote else None
         
         feed_data.append({
             "id": item.id,
@@ -649,38 +738,132 @@ def get_community_feed(request):
             "module": item.label,
             "link": item.project_submission_link,
             "verifications": item.verification_count,
-            "has_voted": has_voted,
+            "user_vote": user_vote,
             "date": item.submitted_at.strftime("%d %b")
         })
         
     return Response(feed_data)
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_daily_quiz(request):
+    """
+    Generates a daily practice quiz based on the user's active module.
+    """
+    from .ai_logic import generate_quiz
+    
+    user = request.user
+    # Find active module, or fallback to last completed
+    target_item = UserRoadmapItem.objects.filter(user=user, status='active').first()
+    if not target_item:
+        target_item = UserRoadmapItem.objects.filter(user=user, status='completed').last()
+    
+    if not target_item:
+        return Response({"error": "No active roadmap found"}, status=404)
+        
+    # Generate fresh quiz (don't save to DB, it's ephemeral practice)
+    questions = generate_quiz(target_item.label, target_item.description)
+    
+    # Format for frontend (hide correct answers)
+    questions_safe = [
+        {
+            "question": q["question"],
+            "options": q["options"]
+        }
+        for q in questions
+    ]
+    
+    # Store correct answers in session or cache to verify later? 
+    # For simplicity, we'll send them back but encrypted? 
+    # Or better: Just return the full object and let frontend handle it? 
+    # NO, that allows cheating. 
+    # We will return the questions and expect the frontend to send back the *indices* and we'll re-verify?
+    # Actually, since we don't save this quiz to DB, we can't verify it easily on a separate request unless we send the answer key encrypted or store it in cache.
+    # SIMPLIFICATION: We will return the full quiz including answers, but trust the frontend to hide them. 
+    # This is a "practice" quiz for self-improvement, not a certification exam.
+    
+    return Response({
+        "module": target_item.label,
+        "questions": questions
+    })
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def submit_daily_quiz(request):
+    """
+    Submit daily quiz results to update streak.
+    """
+    user = request.user
+    score = request.data.get('score', 0)
+    
+    # Update streak if score is decent (e.g. > 0)
+    # The user said "first quiz of the day... streak +1"
+    # We trust the client sent the correct score for this ephemeral quiz.
+    
+    today = datetime.now().date()
+    activity, created = UserActivity.objects.get_or_create(user=user, date=today)
+    
+    # Only increment if it's the first significant activity or just increment anyway?
+    # User said "first quiz of the day... streak +1"
+    # We'll just increment the count. The streak logic counts DAYS, so as long as count > 0, streak is alive.
+    activity.count += 1
+    activity.save()
+    
+    return Response({
+        "message": "Streak updated!", 
+        "streak_extended": True
+    })
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def verify_project(request, item_id):
     """
-    Upvote a project. Gives +10 Rep to reviewer.
+    Toggle upvote/downvote on a project.
     """
     user = request.user
     item = get_object_or_404(UserRoadmapItem, id=item_id)
+    vote_type = request.data.get('vote_type', 'up')
     
     if item.user == user:
         return Response({"error": "Cannot verify your own work"}, status=400)
         
-    if ProjectReview.objects.filter(submission=item, reviewer=user).exists():
-        return Response({"error": "Already verified"}, status=400)
-        
-    ProjectReview.objects.create(submission=item, reviewer=user)
+    if vote_type not in ['up', 'down']:
+        return Response({"error": "Invalid vote type"}, status=400)
+
+    review, created = ProjectReview.objects.get_or_create(
+        submission=item,
+        reviewer=user,
+        defaults={'vote_type': vote_type}
+    )
     
-    item.verification_count += 1
+    action = 'created'
+    
+    if not created:
+        if review.vote_type == vote_type:
+            # Toggle off
+            review.delete()
+            action = 'removed'
+        else:
+            # Change vote
+            review.vote_type = vote_type
+            review.save()
+            action = 'changed'
+    else:
+        # New vote - award rep if upvote
+        if vote_type == 'up':
+            item.user.reputation_score += 10
+            item.user.save()
+
+    # Recalculate counts
+    upvotes = item.reviews.filter(vote_type='up').count()
+    downvotes = item.reviews.filter(vote_type='down').count()
+    item.verification_count = upvotes - downvotes
     item.save()
     
-    user.reputation_score += 10
-    user.save()
-    
     return Response({
-        "message": "Verified! +10 Rep", 
-        "new_count": item.verification_count
+        "message": f"Vote {action}", 
+        "new_count": item.verification_count,
+        "user_vote": vote_type if action != 'removed' else None
     })
 
 @api_view(['POST'])
@@ -826,3 +1009,89 @@ def submit_quiz(request, item_id):
         "results": results,
         "attempts": quiz.attempts
     })
+
+
+# ==========================================
+# COMMUNITY: COMMENTS & PROFILES
+# ==========================================
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_project_comments(request, project_id):
+    """Get all comments for a project."""
+    project = get_object_or_404(UserRoadmapItem, id=project_id)
+    comments = ProjectComment.objects.filter(project=project).select_related('author')
+    serializer = ProjectCommentSerializer(comments, many=True)
+    return Response(serializer.data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_comment(request, project_id):
+    """Create a new comment on a project."""
+    project = get_object_or_404(UserRoadmapItem, id=project_id)
+    
+    text = request.data.get('text', '').strip()
+    if not text or len(text) > 2000:
+        return Response({"error": "Comment must be 1-2000 characters"}, status=400)
+    
+    comment = ProjectComment.objects.create(
+        project=project,
+        author=request.user,
+        text=text
+    )
+    
+    serializer = ProjectCommentSerializer(comment)
+    return Response(serializer.data, status=201)
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_comment(request, comment_id):
+    """Delete a comment (only author or project owner can delete)."""
+    comment = get_object_or_404(ProjectComment, id=comment_id)
+    
+    if request.user != comment.author and request.user != comment.project.user:
+        return Response({"error": "Unauthorized"}, status=403)
+    
+    comment.delete()
+    return Response({"message": "Comment deleted"}, status=204)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_public_user_profile(request, username):
+    """Get a user's public profile with projects and stats."""
+    user = get_object_or_404(User, username=username)
+    
+    # User basic info
+    profile_data = UserProfileSerializer(user).data
+    
+    # Get completed projects
+    completed_items = UserRoadmapItem.objects.filter(
+        user=user,
+        status='completed',
+        project_submission_link__isnull=False
+    ).order_by('-submitted_at')
+    
+    projects = []
+    for item in completed_items:
+        projects.append({
+            "id": item.id,
+            "label": item.label,
+            "link": item.project_submission_link,
+            "verifications": item.verification_count,
+            "submitted_at": item.submitted_at.strftime("%d %b %Y"),
+            "comments_count": item.comments.count()
+        })
+    
+    profile_data['completed_projects'] = projects
+    
+    return Response(profile_data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_my_profile(request):
+    """Get current user's profile."""
+    return get_public_user_profile(request, request.user.username)

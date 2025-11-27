@@ -1,11 +1,13 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import Signup from './AuthPage'; 
+import Landing from './Landing';
+import Signup from './AuthPage';
 import Dashboard from './Dashboard';
 import Profile from './Profile';
 import Settings from './Settings';
-import Community from './Community';  
+import Community from './Community';
 import Resources from './Resources';
 import MainLayout from './MainLayout';
+import UserProfile from './UserProfile';
 
 // Wrapper to check if user is logged in
 function ProtectedRoute({ children }) {
@@ -16,13 +18,25 @@ function ProtectedRoute({ children }) {
   return <MainLayout>{children}</MainLayout>;
 }
 
+// Landing page (redirect to dashboard if already authenticated)
+function LandingRoute() {
+  const token = localStorage.getItem('access_token');
+  if (token) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return <Landing />;
+}
+
 export default function App() {
   return (
     <Router>
       <Routes>
-        {/* Public Route */}
-        <Route path="/" element={<Signup />} />
-        
+        {/* Public Route - Landing Page */}
+        <Route path="/" element={<LandingRoute />} />
+
+        {/* Auth Route - Sign up/Login */}
+        <Route path="/auth" element={<Signup />} />
+
         {/* Private Routes */}
         <Route path="/dashboard" element={
           <ProtectedRoute>
@@ -47,10 +61,16 @@ export default function App() {
             <Community />
           </ProtectedRoute>
         } />
-        
+
         <Route path="/resources" element={
           <ProtectedRoute>
             <Resources />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/u/:username" element={
+          <ProtectedRoute>
+            <UserProfile />
           </ProtectedRoute>
         } />
 

@@ -11,7 +11,7 @@ import {
   ChevronRight,
   Pin,
   PinOff,
-  Flame // Import Flame icon
+  Flame
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
@@ -21,12 +21,27 @@ export default function Sidebar() {
   const location = useLocation();
   const [isExpanded, setIsExpanded] = useState(false);
   const [isPinned, setIsPinned] = useState(false);
-  const [streak, setStreak] = useState(0); // Streak state
+  const [streak, setStreak] = useState(0);
+  const [userData, setUserData] = useState(null);
   const sidebarRef = useRef(null);
   const timeoutRef = useRef(null);
 
-  // Fetch Streak
+  // Fetch User Data & Streak
   useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const token = localStorage.getItem('access_token');
+        if (token) {
+          const response = await axios.get('http://127.0.0.1:8000/api/profile/', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          setUserData(response.data.profile || response.data);
+        }
+      } catch (error) {
+        console.error("Error fetching user data:", error);
+      }
+    };
+
     const fetchStreak = async () => {
       try {
         const token = localStorage.getItem('access_token');
@@ -41,9 +56,12 @@ export default function Sidebar() {
       }
     };
 
+    fetchUserData();
     fetchStreak();
-    // Refresh streak every minute to keep it updated if user submits something
-    const interval = setInterval(fetchStreak, 60000);
+    const interval = setInterval(() => {
+      fetchUserData();
+      fetchStreak();
+    }, 60000);
     return () => clearInterval(interval);
   }, []);
 
@@ -109,26 +127,58 @@ export default function Sidebar() {
         overflow: 'hidden'
       }}
     >
-      {/* Header / Pin Toggle */}
+      {/* Header / User Avatar + Pin Toggle */}
       <div style={{ 
         height: '60px', 
         display: 'flex', 
         alignItems: 'center', 
         justifyContent: isExpanded || isPinned ? 'space-between' : 'center',
-        padding: isExpanded || isPinned ? '0 20px' : '0',
-        borderBottom: '1px solid var(--border-subtle)'
+        padding: isExpanded || isPinned ? '0 16px' : '0',
+        borderBottom: '1px solid var(--border-subtle)',
+        gap: '12px'
       }}>
-        {(isExpanded || isPinned) && (
-          <span style={{ 
-            fontFamily: 'JetBrains Mono', 
-            fontWeight: 'bold', 
-            color: 'var(--neon-cyan)',
-            whiteSpace: 'nowrap'
+        {/* User Avatar */}
+        {userData && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            flex: 1,
+            minWidth: 0
           }}>
-            WHAT'S NEXT v1.2
-          </span>
+            <div style={{
+              width: '32px',
+              height: '32px',
+              minWidth: '32px',
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, var(--neon-cyan), var(--electric-purple))',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              color: '#0d1117',
+              boxShadow: '0 0 10px rgba(0, 242, 255, 0.2)'
+            }}>
+              {userData.first_name ? userData.first_name.charAt(0).toUpperCase() : userData.username?.charAt(0).toUpperCase() || '?'}
+            </div>
+            {(isExpanded || isPinned) && (
+              <span style={{ 
+                fontFamily: 'Inter', 
+                fontWeight: '600', 
+                color: 'var(--text-main)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                fontSize: '13px'
+              }}>
+                {userData.first_name || userData.username || 'User'}
+              </span>
+            )}
+          </div>
         )}
         
+        {/* Pin Toggle */}
         <button 
           onClick={() => setIsPinned(!isPinned)}
           style={{
@@ -141,7 +191,8 @@ export default function Sidebar() {
             justifyContent: 'center',
             padding: '8px',
             borderRadius: '4px',
-            transition: 'all 0.2s'
+            transition: 'all 0.2s',
+            flexShrink: 0
           }}
         >
           {isPinned ? <Pin size={16} /> : (isExpanded ? <PinOff size={16} /> : <div style={{width: 16, height: 16}} />)}

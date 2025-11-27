@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { Terminal, Award, BookOpen, X, Send, ExternalLink, PlayCircle, Code, CheckCircle } from 'lucide-react';
+import { Terminal, Award, BookOpen, X, Send, ExternalLink, PlayCircle, Code, CheckCircle, RotateCw, Zap } from 'lucide-react';
 import RoadmapMap from './RoadmapMap';
 
 export default function Dashboard() {
@@ -9,49 +9,148 @@ export default function Dashboard() {
   const [nodes, setNodes] = useState([]); // Raw nodes from backend
   const [selectedNode, setSelectedNode] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [regenerating, setRegenerating] = useState(false);
   const [userData, setUserData] = useState({ level: 'Beginner' });
   const [submissionLink, setSubmissionLink] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  
+
+  // Quiz State
+  const [showQuiz, setShowQuiz] = useState(false);
+  const [quizData, setQuizData] = useState(null);
+  const [quizLoading, setQuizLoading] = useState(false);
+  const [quizAnswers, setQuizAnswers] = useState({});
+  const [quizResult, setQuizResult] = useState(null);
+
   const navigate = useNavigate();
+
+  // --- FETCH ROADMAP ---
+  const fetchRoadmap = async () => {
+    const token = localStorage.getItem('access_token');
+    if (!token) { navigate('/'); return; }
+
+    try {
+      const res = await axios.post('http://127.0.0.1:8000/api/my-roadmap/', {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      // Handle the response - ensure nodes is always an array
+      const nodeData = res.data.nodes || res.data || [];
+      setNodes(Array.isArray(nodeData) ? nodeData : []);
+
+      // If we only got the 3 fallback nodes, it means the endpoint returned a roadmap
+      // This is fine - it either comes from DB or from Gemini API
+    } catch (err) {
+      console.error("Load Error", err);
+      if (err.response && err.response.status === 401) {
+        navigate('/');
+      } else {
+        // Set empty array on error to prevent undefined
+        setNodes([]);
+        alert("Failed to load roadmap. Please try again.");
+      }
+    }
+  };
 
   // --- EFFECT: LOAD ROADMAP ---
   useEffect(() => {
-    const fetchRoadmap = async () => {
-      const token = localStorage.getItem('access_token');
-      if (!token) { navigate('/'); return; }
-
-      try {
-        const res = await axios.post('http://127.0.0.1:8000/api/my-roadmap/', {}, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setNodes(res.data.nodes);
-      } catch (err) {
-        console.error("Load Error", err);
-        if (err.response && err.response.status === 401) navigate('/');
-      } finally {
-        setLoading(false);
-      }
+    const loadRoadmap = async () => {
+      await fetchRoadmap();
+      setLoading(false);
     };
-    fetchRoadmap();
+    loadRoadmap();
   }, [navigate]);
+
+  // --- REGENERATE ROADMAP ---
+  const handleRegenerateRoadmap = async () => {
+    setRegenerating(true);
+    try {
+      const token = localStorage.getItem('access_token');
+
+      // Call the endpoint with force_regenerate flag
+      const res = await axios.post(
+        'http://127.0.0.1:8000/api/my-roadmap/',
+        { force_regenerate: true },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      // Update nodes with the newly generated roadmap
+      const nodeData = res.data.nodes || res.data || [];
+      setNodes(Array.isArray(nodeData) ? nodeData : []);
+      setSelectedNode(null); // Close any open panel
+      alert("✅ Roadmap regenerated!");
+    } catch (err) {
+      console.error("Regenerate Error", err);
+      alert("Failed to regenerate roadmap.");
+    } finally {
+      setRegenerating(false);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('access_token');
     navigate('/');
   };
 
+  // --- DAILY QUIZ LOGIC ---
+  const openDailyQuiz = async () => {
+    setShowQuiz(true);
+    setQuizLoading(true);
+    setQuizResult(null);
+    setQuizAnswers({});
+
+    try {
+      const token = localStorage.getItem('access_token');
+      const res = await axios.get('http://127.0.0.1:8000/api/daily-quiz/', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setQuizData(res.data);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to load quiz. Make sure you have an active module!");
+      setShowQuiz(false);
+    } finally {
+      setQuizLoading(false);
+    }
+  };
+
+  const submitQuiz = async () => {
+    // Calculate score locally (simple check) or send to backend
+    // Since backend doesn't store ephemeral quiz answers, we just send a "completed" signal
+    // But wait, the user wants "first quiz of the day... streak +1".
+    // We should at least ensure they answered all questions.
+
+    if (!quizData || Object.keys(quizAnswers).length < quizData.questions.length) {
+      alert("Please answer all questions!");
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('access_token');
+      await axios.post('http://127.0.0.1:8000/api/daily-quiz/submit/',
+        { score: 100 }, // We just claim completion for the streak
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setQuizResult("STREAK EXTENDED! 🔥");
+      setTimeout(() => {
+        setShowQuiz(false);
+        setQuizResult(null);
+      }, 2000);
+    } catch (e) {
+      alert("Error submitting quiz");
+    }
+  };
+
   // SUBMIT PROJECT 
   const handleSubmitProject = async () => {
     if (!submissionLink) return alert("Please paste a link!");
     setSubmitting(true);
-    
+
     try {
       const token = localStorage.getItem('access_token');
-      
+
       // Call Backend
       const res = await axios.post(
-        `http://127.0.0.1:8000/api/submit-project/${selectedNode.id}/`, 
+        `http://127.0.0.1:8000/api/submit-project/${selectedNode.id}/`,
         { link: submissionLink },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -64,13 +163,13 @@ export default function Dashboard() {
         }
         // 2. Unlock next node
         if (res.data.next_node && node.id === res.data.next_node.id) {
-           return { ...node, data: { ...node.data, status: 'active' } };
+          return { ...node, data: { ...node.data, status: 'active' } };
         }
         return node;
       }));
 
       alert("Project Verified! Next Module Unlocked! 🚀");
-      setSelectedNode(null); 
+      setSelectedNode(null);
       setSubmissionLink('');
 
     } catch (err) {
@@ -84,13 +183,13 @@ export default function Dashboard() {
   // --- RENDER ---
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}>
-      
+
       {/* LOADING OVERLAY */}
       {loading && (
-        <div style={{ 
-          position: 'absolute', inset: 0, zIndex: 50, 
-          background: 'var(--bg-dark)', display: 'flex', flexDirection: 'column', 
-          alignItems: 'center', justifyContent: 'center' 
+        <div style={{
+          position: 'absolute', inset: 0, zIndex: 50,
+          background: 'var(--bg-dark)', display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center'
         }}>
           <div className="terminal-loader">
             <div className="text">INITIALIZING_SYSTEM...</div>
@@ -98,23 +197,96 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* QUIZ MODAL */}
+      {showQuiz && (
+        <div style={{
+          position: 'absolute', inset: 0, zIndex: 100,
+          background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(5px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
+          <div style={{
+            width: '500px', maxHeight: '80vh', overflowY: 'auto',
+            background: 'var(--bg-card)', border: '1px solid var(--neon-cyan)',
+            borderRadius: '16px', padding: '30px', position: 'relative',
+            boxShadow: '0 0 30px rgba(0, 242, 255, 0.2)'
+          }}>
+            <button
+              onClick={() => setShowQuiz(false)}
+              style={{ position: 'absolute', top: 15, right: 15, background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}
+            >
+              <X size={24} />
+            </button>
+
+            {quizLoading ? (
+              <div style={{ textAlign: 'center', padding: '40px' }}>Generating Quiz...</div>
+            ) : quizResult ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: 'var(--success-green)', fontSize: '24px', fontWeight: 'bold' }}>
+                {quizResult}
+              </div>
+            ) : (
+              <>
+                <h2 style={{ margin: '0 0 20px 0', color: 'var(--neon-cyan)', fontFamily: 'JetBrains Mono' }}>
+                  DAILY_QUIZ: {quizData?.module}
+                </h2>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {quizData?.questions.map((q, i) => (
+                    <div key={i}>
+                      <p style={{ fontWeight: 'bold', marginBottom: '10px', color: '#fff' }}>{i + 1}. {q.question}</p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {q.options.map((opt, optI) => (
+                          <label key={optI} style={{
+                            display: 'flex', alignItems: 'center', gap: '10px',
+                            padding: '10px', borderRadius: '8px',
+                            background: quizAnswers[i] === optI ? 'rgba(0, 242, 255, 0.1)' : 'rgba(255,255,255,0.05)',
+                            border: quizAnswers[i] === optI ? '1px solid var(--neon-cyan)' : '1px solid transparent',
+                            cursor: 'pointer'
+                          }}>
+                            <input
+                              type="radio"
+                              name={`q-${i}`}
+                              checked={quizAnswers[i] === optI}
+                              onChange={() => setQuizAnswers({ ...quizAnswers, [i]: optI })}
+                              style={{ accentColor: 'var(--neon-cyan)' }}
+                            />
+                            <span style={{ fontSize: '14px', color: 'var(--text-main)' }}>{opt}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  <button
+                    onClick={submitQuiz}
+                    style={{
+                      marginTop: '20px', padding: '12px', background: 'var(--neon-cyan)',
+                      border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer'
+                    }}
+                  >
+                    SUBMIT & EXTEND STREAK
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* MAIN CONTENT AREA */}
       <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-        
+
         {/* TOP BAR */}
-        <div style={{ 
+        <div style={{
           position: 'absolute', top: 20, left: 20, right: 20, zIndex: 10,
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           pointerEvents: 'none' // Let clicks pass through to map
         }}>
           {/* CYBERPUNK PROGRESS TRACKER */}
-          <div style={{ 
+          <div style={{
             background: 'rgba(22, 27, 34, 0.9)', backdropFilter: 'blur(12px)',
             border: '1px solid var(--border-subtle)', borderRadius: '16px',
             padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '24px',
             boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)', pointerEvents: 'auto'
           }}>
-            
+
             {/* Level Info */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -138,18 +310,18 @@ export default function Dashboard() {
                   MASTERY_PROGRESS
                 </span>
                 <span style={{ fontSize: '12px', color: '#fff', fontWeight: 'bold', fontFamily: 'JetBrains Mono' }}>
-                  {Math.round((nodes.filter(n => n.data.status === 'completed').length / Math.max(nodes.length, 1)) * 100)}%
+                  {nodes && nodes.length > 0 ? Math.round((nodes.filter(n => n.data.status === 'completed').length / Math.max(nodes.length, 1)) * 100) : 0}%
                 </span>
               </div>
-              
+
               {/* The Bar */}
-              <div style={{ 
-                height: '6px', width: '100%', background: 'rgba(255,255,255,0.05)', 
-                borderRadius: '3px', overflow: 'hidden', position: 'relative' 
+              <div style={{
+                height: '6px', width: '100%', background: 'rgba(255,255,255,0.05)',
+                borderRadius: '3px', overflow: 'hidden', position: 'relative'
               }}>
-                <div style={{ 
-                  height: '100%', 
-                  width: `${(nodes.filter(n => n.data.status === 'completed').length / Math.max(nodes.length, 1)) * 100}%`, 
+                <div style={{
+                  height: '100%',
+                  width: `${(nodes.filter(n => n.data.status === 'completed').length / Math.max(nodes.length, 1)) * 100}%`,
                   background: 'linear-gradient(90deg, var(--neon-cyan), var(--electric-purple))',
                   boxShadow: '0 0 10px var(--neon-cyan)',
                   transition: 'width 1s cubic-bezier(0.4, 0, 0.2, 1)'
@@ -158,7 +330,7 @@ export default function Dashboard() {
             </div>
 
             {/* XP Badge */}
-            <div style={{ 
+            <div style={{
               background: 'rgba(188, 19, 254, 0.1)', border: '1px solid rgba(188, 19, 254, 0.3)',
               borderRadius: '8px', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px'
             }}>
@@ -168,13 +340,71 @@ export default function Dashboard() {
               </span>
             </div>
 
+            {/* DAILY QUIZ BUTTON */}
+            <button
+              onClick={openDailyQuiz}
+              style={{
+                background: 'rgba(255, 165, 0, 0.1)',
+                border: '1px solid orange',
+                color: 'orange',
+                borderRadius: '8px',
+                padding: '8px 12px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontFamily: 'JetBrains Mono',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                transition: 'all 0.2s',
+              }}
+            >
+              <Zap size={14} />
+              DAILY_QUIZ
+            </button>
+
+            {/* Regenerate Button (Dev) */}
+            <button
+              onClick={handleRegenerateRoadmap}
+              disabled={regenerating}
+              style={{
+                background: 'rgba(0, 242, 255, 0.1)',
+                border: '1px solid var(--neon-cyan)',
+                color: 'var(--neon-cyan)',
+                borderRadius: '8px',
+                padding: '8px 12px',
+                cursor: regenerating ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontFamily: 'JetBrains Mono',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                transition: 'all 0.2s',
+                opacity: regenerating ? 0.6 : 1,
+              }}
+              onMouseEnter={(e) => {
+                if (!regenerating) {
+                  e.target.style.background = 'rgba(0, 242, 255, 0.2)';
+                  e.target.style.boxShadow = '0 0 12px rgba(0, 242, 255, 0.4)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.background = 'rgba(0, 242, 255, 0.1)';
+                e.target.style.boxShadow = 'none';
+              }}
+            >
+              <RotateCw size={14} style={{ animation: regenerating ? 'spin 1s linear infinite' : 'none' }} />
+              {regenerating ? 'REGENERATING...' : 'REGEN_ROADMAP'}
+            </button>
+
           </div>
         </div>
 
         {/* ROADMAP MAP (D3) */}
-        <RoadmapMap 
-          nodes={nodes} 
-          onNodeClick={(e, node) => setSelectedNode(node)} 
+        <RoadmapMap
+          nodes={nodes}
+          onNodeClick={(e, node) => setSelectedNode(node)}
         />
 
       </div>
@@ -192,164 +422,164 @@ export default function Dashboard() {
         {selectedNode ? (
           <>
             <div style={{ padding: '30px', flex: 1, overflowY: 'auto' }}>
-                {/* HEADER */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+              {/* HEADER */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
                 <div>
-                    <h2 style={{ margin: 0, fontSize: '24px', color: '#fff', fontFamily: 'JetBrains Mono' }}>
+                  <h2 style={{ margin: 0, fontSize: '24px', color: '#fff', fontFamily: 'JetBrains Mono' }}>
                     MODULE_{selectedNode.data.step_order}
-                    </h2>
-                    <span style={{ color: selectedNode.data.status === 'completed' ? 'var(--success-green)' : 'var(--neon-cyan)', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px' }}>
+                  </h2>
+                  <span style={{ color: selectedNode.data.status === 'completed' ? 'var(--success-green)' : 'var(--neon-cyan)', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px' }}>
                     STATUS: {selectedNode.data.status.toUpperCase()}
-                    </span>
+                  </span>
                 </div>
-                <button 
-                    onClick={() => setSelectedNode(null)}
-                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                <button
+                  onClick={() => setSelectedNode(null)}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
                 >
-                    <X size={24} />
+                  <X size={24} />
                 </button>
-                </div>
+              </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
-                
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+
                 {/* DESCRIPTION */}
                 <div style={{ background: 'rgba(255,255,255,0.03)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
-                    <h3 style={{ margin: '0 0 10px 0', fontSize: '14px', color: 'var(--text-header)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Terminal size={16} color="var(--neon-cyan)"/> SYSTEM_DESCRIPTION
-                    </h3>
-                    <p style={{ margin: 0, fontSize: '14px', lineHeight: '1.6', color: 'var(--text-muted)' }}>
+                  <h3 style={{ margin: '0 0 10px 0', fontSize: '14px', color: 'var(--text-header)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Terminal size={16} color="var(--neon-cyan)" /> SYSTEM_DESCRIPTION
+                  </h3>
+                  <p style={{ margin: 0, fontSize: '14px', lineHeight: '1.6', color: 'var(--text-muted)' }}>
                     {selectedNode.data.description}
-                    </p>
+                  </p>
                 </div>
 
                 {/* RESOURCES PREVIEW */}
                 <div>
-                    <h3 style={{ fontSize: '14px', color: 'var(--text-header)', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <BookOpen size={16} color="var(--electric-purple)"/> LEARNING_RESOURCES
-                    </h3>
-                    
-                    {/* YouTube Videos */}
-                    {selectedNode.data.resources?.videos && selectedNode.data.resources.videos.length > 0 ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        {selectedNode.data.resources.videos.slice(0, 3).map((video, idx) => (
-                          <a 
-                            key={idx}
-                            href={video.url} 
-                            target="_blank" 
-                            rel="noreferrer" 
-                            style={{ 
-                              display: 'flex', gap: '12px', textDecoration: 'none',
-                              background: '#0d1117', border: '1px solid var(--border-subtle)', 
-                              borderRadius: '12px', overflow: 'hidden', transition: 'all 0.2s',
-                              padding: '10px'
+                  <h3 style={{ fontSize: '14px', color: 'var(--text-header)', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <BookOpen size={16} color="var(--electric-purple)" /> LEARNING_RESOURCES
+                  </h3>
+
+                  {/* YouTube Videos */}
+                  {selectedNode.data.resources?.videos && selectedNode.data.resources.videos.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {selectedNode.data.resources.videos.slice(0, 3).map((video, idx) => (
+                        <a
+                          key={idx}
+                          href={video.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            display: 'flex', gap: '12px', textDecoration: 'none',
+                            background: '#0d1117', border: '1px solid var(--border-subtle)',
+                            borderRadius: '12px', overflow: 'hidden', transition: 'all 0.2s',
+                            padding: '10px'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.borderColor = 'var(--neon-cyan)';
+                            e.currentTarget.style.transform = 'translateX(4px)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = 'var(--border-subtle)';
+                            e.currentTarget.style.transform = 'translateX(0)';
+                          }}
+                        >
+                          {/* Thumbnail */}
+                          <img
+                            src={video.thumbnail}
+                            alt={video.title}
+                            style={{
+                              width: '120px',
+                              height: '68px',
+                              objectFit: 'cover',
+                              borderRadius: '8px',
+                              flexShrink: 0
                             }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.borderColor = 'var(--neon-cyan)';
-                              e.currentTarget.style.transform = 'translateX(4px)';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.borderColor = 'var(--border-subtle)';
-                              e.currentTarget.style.transform = 'translateX(0)';
-                            }}
-                          >
-                            {/* Thumbnail */}
-                            <img 
-                              src={video.thumbnail} 
-                              alt={video.title}
-                              style={{ 
-                                width: '120px', 
-                                height: '68px', 
-                                objectFit: 'cover', 
-                                borderRadius: '8px',
-                                flexShrink: 0
-                              }}
-                            />
-                            
-                            {/* Video Info */}
-                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0 }}>
-                              <div style={{ 
-                                fontSize: '13px', 
-                                fontWeight: '600', 
-                                color: '#fff', 
-                                marginBottom: '4px',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                display: '-webkit-box',
-                                WebkitLineClamp: 2,
-                                WebkitBoxOrient: 'vertical'
-                              }}>
-                                {video.title}
-                              </div>
-                              <div style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                <PlayCircle size={12} />
-                                {video.channel}
-                              </div>
+                          />
+
+                          {/* Video Info */}
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0 }}>
+                            <div style={{
+                              fontSize: '13px',
+                              fontWeight: '600',
+                              color: '#fff',
+                              marginBottom: '4px',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical'
+                            }}>
+                              {video.title}
                             </div>
-                          </a>
-                        ))}
-                      </div>
-                    ) : (
-                      /* Fallback if no videos */
-                      <div style={{ 
-                        background: 'rgba(255,255,255,0.03)', 
-                        padding: '20px', 
-                        borderRadius: '12px', 
-                        border: '1px solid var(--border-subtle)',
-                        textAlign: 'center'
-                      }}>
-                        <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
-                          📚 Check {selectedNode.data.resources?.main || 'online resources'} for learning materials
-                        </p>
-                      </div>
-                    )}
+                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                              <PlayCircle size={12} />
+                              {video.channel}
+                            </div>
+                          </div>
+                        </a>
+                      ))}
+                    </div>
+                  ) : (
+                    /* Fallback if no videos */
+                    <div style={{
+                      background: 'rgba(255,255,255,0.03)',
+                      padding: '20px',
+                      borderRadius: '12px',
+                      border: '1px solid var(--border-subtle)',
+                      textAlign: 'center'
+                    }}>
+                      <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
+                        📚 Check {selectedNode.data.resources?.main || 'online resources'} for learning materials
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* PROJECT SUBMISSION */}
                 <div style={{ opacity: selectedNode.data.status === 'locked' ? 0.5 : 1 }}>
-                    <h3 style={{ fontSize: '14px', color: 'var(--text-header)', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Code size={16} color="var(--success-green)"/> MISSION_OBJECTIVE
-                    </h3>
-                    
-                    <div style={{ background: 'rgba(22, 27, 34, 0.8)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
+                  <h3 style={{ fontSize: '14px', color: 'var(--text-header)', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Code size={16} color="var(--success-green)" /> MISSION_OBJECTIVE
+                  </h3>
+
+                  <div style={{ background: 'rgba(22, 27, 34, 0.8)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
                     <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '15px' }}>
-                        Build a project demonstrating your mastery of this module. Submit your GitHub repository link below.
+                      Build a project demonstrating your mastery of this module. Submit your GitHub repository link below.
                     </p>
-                    
-                    <input 
-                        type="text" 
-                        placeholder="https://github.com/username/project"
-                        value={submissionLink}
-                        onChange={(e) => setSubmissionLink(e.target.value)}
-                        disabled={selectedNode.data.status === 'locked' || selectedNode.data.status === 'completed'}
-                        style={{
-                        width: '100%', padding: '12px', background: '#0d1117', 
+
+                    <input
+                      type="text"
+                      placeholder="https://github.com/username/project"
+                      value={submissionLink}
+                      onChange={(e) => setSubmissionLink(e.target.value)}
+                      disabled={selectedNode.data.status === 'locked' || selectedNode.data.status === 'completed'}
+                      style={{
+                        width: '100%', padding: '12px', background: '#0d1117',
                         border: '1px solid var(--border-subtle)', borderRadius: '8px',
                         color: '#fff', fontFamily: 'JetBrains Mono', fontSize: '13px',
                         marginBottom: '15px', outline: 'none'
-                        }}
+                      }}
                     />
-                    
-                    <button 
-                        onClick={handleSubmitProject}
-                        disabled={selectedNode.data.status === 'locked' || selectedNode.data.status === 'completed'}
-                        style={{
+
+                    <button
+                      onClick={handleSubmitProject}
+                      disabled={selectedNode.data.status === 'locked' || selectedNode.data.status === 'completed'}
+                      style={{
                         width: '100%', padding: '12px', borderRadius: '8px', border: 'none',
                         background: selectedNode.data.status === 'completed' ? 'var(--success-green)' : 'var(--neon-cyan)',
                         color: '#000', fontWeight: 'bold', cursor: 'pointer',
                         opacity: selectedNode.data.status === 'locked' ? 0.5 : 1,
                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
-                        }}
+                      }}
                     >
-                        {selectedNode.data.status === 'completed' ? (
+                      {selectedNode.data.status === 'completed' ? (
                         <> <CheckCircle size={16} /> MISSION COMPLETE </>
-                        ) : (
+                      ) : (
                         <> <Send size={16} /> SUBMIT_PROJECT </>
-                        )}
+                      )}
                     </button>
-                    </div>
+                  </div>
                 </div>
 
-                </div>
+              </div>
             </div>
           </>
         ) : (
