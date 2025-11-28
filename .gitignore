@@ -1,1 +1,65 @@
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# -------------------------
+# Python / Django / Flask
+# -------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+*.log
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Django specific
+db.sqlite3
+media/
+staticfiles/
+
+# Flask specific
+instance/
+*.db
+
+# Environment variables
 .env
+
+# -------------------------
+# Node.js / React / Vite
+# -------------------------
+node_modules/
+dist/
+build/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# -------------------------
+# OS / Editor files
+# -------------------------
+Thumbs.db
+*.swp
+*.swo
