@@ -63,3 +63,10 @@ pnpm-debug.log*
 Thumbs.db
 *.swp
 *.swo
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Redis
+dump.rdb
