@@ -30,6 +30,7 @@ urlpatterns = [
     path('api/profile/<str:username>/', views.get_public_user_profile),
     path('api/analytics/', views.get_analytics_dashboard),
     path('api/pivot-career/', views.pivot_career),
+    path('api/settings/', views.update_settings),  # Handles both GET and POST
     path('api/settings/update/', views.update_settings),
     path('api/account/delete/', views.delete_account),
     path('api/account/export/', views.export_account_data),

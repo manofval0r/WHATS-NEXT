@@ -10,6 +10,7 @@ export default function Dashboard() {
   const [selectedNode, setSelectedNode] = useState(null);
   const [loading, setLoading] = useState(true);
   const [regenerating, setRegenerating] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState(0);
   const [userData, setUserData] = useState({ level: 'Beginner' });
   const [submissionLink, setSubmissionLink] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -66,6 +67,19 @@ export default function Dashboard() {
   // --- REGENERATE ROADMAP ---
   const handleRegenerateRoadmap = async () => {
     setRegenerating(true);
+    setGenerationProgress(0);
+
+    // Progress timer (60 seconds total)
+    const progressInterval = setInterval(() => {
+      setGenerationProgress(prev => {
+        if (prev >= 100) {
+          clearInterval(progressInterval);
+          return 100;
+        }
+        return prev + (100 / 60); // Increment every second for 60 seconds
+      });
+    }, 1000);
+
     try {
       const token = localStorage.getItem('access_token');
 
@@ -79,12 +93,21 @@ export default function Dashboard() {
       const nodeData = res.data.nodes || res.data || [];
       setNodes(Array.isArray(nodeData) ? nodeData : []);
       setSelectedNode(null); // Close any open panel
-      alert("✅ Roadmap regenerated!");
+      clearInterval(progressInterval);
+      setGenerationProgress(100);
+
+      setTimeout(() => {
+        alert("✅ Roadmap regenerated!");
+      }, 500);
     } catch (err) {
       console.error("Regenerate Error", err);
+      clearInterval(progressInterval);
       alert("Failed to regenerate roadmap.");
     } finally {
-      setRegenerating(false);
+      setTimeout(() => {
+        setRegenerating(false);
+        setGenerationProgress(0);
+      }, 1000);
     }
   };
 
@@ -206,6 +229,63 @@ export default function Dashboard() {
         }}>
           <div className="terminal-loader">
             <div className="text">INITIALIZING_SYSTEM...</div>
+          </div>
+        </div>
+      )}
+
+      {/* REGENERATION PROGRESS OVERLAY */}
+      {regenerating && (
+        <div style={{
+          position: 'absolute', inset: 0, zIndex: 50,
+          background: 'rgba(0,0,0,0.95)', backdropFilter: 'blur(10px)',
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', gap: '30px'
+        }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{
+              fontSize: '24px',
+              fontFamily: 'JetBrains Mono',
+              color: 'var(--neon-cyan)',
+              marginBottom: '10px',
+              textShadow: '0 0 10px rgba(0, 242, 255, 0.5)'
+            }}>
+              GENERATING_ROADMAP...
+            </div>
+            <div style={{
+              fontSize: '14px',
+              color: 'var(--text-muted)',
+              fontFamily: 'JetBrains Mono'
+            }}>
+              Estimated time: ~60 seconds
+            </div>
+          </div>
+
+          {/* Progress Bar */}
+          <div style={{
+            width: '400px',
+            height: '8px',
+            background: 'rgba(255,255,255,0.1)',
+            borderRadius: '4px',
+            overflow: 'hidden',
+            border: '1px solid var(--border-subtle)'
+          }}>
+            <div style={{
+              width: `${generationProgress}%`,
+              height: '100%',
+              background: 'linear-gradient(90deg, var(--neon-cyan), var(--electric-purple))',
+              transition: 'width 0.3s ease',
+              boxShadow: '0 0 10px rgba(0, 242, 255, 0.5)'
+            }} />
+          </div>
+
+          {/* Progress Percentage */}
+          <div style={{
+            fontSize: '16px',
+            fontFamily: 'JetBrains Mono',
+            color: '#fff',
+            fontWeight: 'bold'
+          }}>
+            {Math.round(generationProgress)}%
           </div>
         </div>
       )}

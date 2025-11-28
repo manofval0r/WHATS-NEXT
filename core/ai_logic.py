@@ -112,7 +112,7 @@ def generate_detailed_roadmap(niche, uni_course, budget):
         }
         print(f"[AI] Calling Gemini API at {GEMINI_URL}")
         print(f"[AI] Payload: {json.dumps(payload, indent=2)[:200]}...")
-        response = requests.post(GEMINI_URL, json=payload, timeout=30)
+        response = requests.post(GEMINI_URL, json=payload, timeout=60)
         print(f"[AI] Response status: {response.status_code}")
         
         if response.status_code != 200:
