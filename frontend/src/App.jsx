@@ -10,6 +10,8 @@ import MainLayout from './MainLayout';
 import UserProfile from './UserProfile';
 import ActivityLog from './ActivityLog';
 
+import AuthCallback from './AuthCallback';
+
 // Wrapper to check if user is logged in
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem('access_token');
@@ -37,6 +39,7 @@ export default function App() {
 
         {/* Auth Route - Sign up/Login */}
         <Route path="/auth" element={<Signup />} />
+        <Route path="/auth-callback" element={<AuthCallback />} />
 
         {/* Private Routes */}
         <Route path="/dashboard" element={

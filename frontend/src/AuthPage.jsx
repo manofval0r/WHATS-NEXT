@@ -146,8 +146,9 @@ export default function AuthPage() {
   };
 
   const handleSocialLogin = (provider) => {
-    // Placeholder for OAuth implementation
-    alert(`${provider} login coming soon! This requires OAuth setup.`);
+    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+    const providerPath = provider.toLowerCase();
+    window.location.href = `${API_BASE_URL}/accounts/${providerPath}/login/`;
   };
 
   const handleErrors = (err) => {

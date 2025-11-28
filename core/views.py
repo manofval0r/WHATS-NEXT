@@ -10,9 +10,34 @@ from django.shortcuts import get_object_or_404
 from datetime import datetime, timedelta
 from django.db import transaction
 
+
 # ==========================================
 # 1. AUTHENTICATION
 # ==========================================
+
+from django.shortcuts import redirect
+from django.conf import settings
+from rest_framework_simplejwt.tokens import RefreshToken
+from django.contrib.auth.decorators import login_required
+
+@login_required
+def social_login_success(request):
+    """
+    Callback after successful social login.
+    Generates JWT tokens and redirects to frontend with tokens in URL.
+    """
+    user = request.user
+    refresh = RefreshToken.for_user(user)
+    access_token = str(refresh.access_token)
+    refresh_token = str(refresh)
+    
+    # Determine frontend URL based on environment
+    # In production, settings.DEBUG is False
+    frontend_url = "https://whats-next-1.onrender.com/auth-callback"
+    if settings.DEBUG:
+        frontend_url = "http://localhost:5173/auth-callback"
+        
+    return redirect(f"{frontend_url}?access={access_token}&refresh={refresh_token}")
 
 class RegisterView(generics.CreateAPIView):
     """
@@ -20,6 +45,19 @@ class RegisterView(generics.CreateAPIView):
     """
     permission_classes = [AllowAny]
     serializer_class = RegisterSerializer
+
+    def create(self, request, *args, **kwargs):
+        try:
+            return super().create(request, *args, **kwargs)
+        except Exception as e:
+            import traceback
+            print(f"REGISTER ERROR: {str(e)}")
+            traceback.print_exc()
+            return Response({
+                "error": str(e),
+                "type": type(e).__name__,
+                "trace": traceback.format_exc()
+            }, status=500)
 
 # ==========================================
 # 1b. COURSE NORMALIZATION (Smart Onboarding)

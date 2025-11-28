@@ -1,5 +1,5 @@
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from core import views
 
@@ -11,6 +11,10 @@ urlpatterns = [
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/normalize-course/', views.normalize_course, name='normalize_course'),
+
+    # --- OAUTH ---
+    path('accounts/', include('allauth.urls')),
+    path('api/auth/social/success/', views.social_login_success, name='social_login_success'),
 
     # --- APPLICATION (The Dashboard) ---
     path('api/my-roadmap/', views.get_my_roadmap),
