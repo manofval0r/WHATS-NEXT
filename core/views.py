@@ -213,15 +213,17 @@ def get_my_roadmap(request):
         print(f"Returning {len(formatted_nodes)} nodes after generation")
         return Response({ "nodes": formatted_nodes, "edges": formatted_edges })
     except Exception as e:
+        import traceback
         print(f"\n!!! ERROR GENERATING ROADMAP !!!")
         print(f"Exception: {type(e).__name__}: {str(e)}")
-        import traceback
         traceback.print_exc()
         return Response({
             "error": str(e),
+            "type": type(e).__name__,
+            "trace": traceback.format_exc(),
             "nodes": [],
             "edges": []
-        }, status=400)
+        }, status=500)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -336,27 +338,36 @@ def get_user_streak(request):
     """
     Returns the user's current streak count.
     """
-    user = request.user
-    today = datetime.now().date()
-    
-    dates = list(UserActivity.objects.filter(user=user).values_list('date', flat=True).order_by('-date'))
-    
-    if not dates:
-        return Response({"streak": 0})
+    try:
+        user = request.user
+        today = datetime.now().date()
         
-    current_streak = 0
-    check_date = today
-    
-    if today not in dates:
-        check_date = today - timedelta(days=1)
-        if check_date not in dates:
-             return Response({"streak": 0})
-    
-    while check_date in dates:
-        current_streak += 1
-        check_date -= timedelta(days=1)
+        dates = list(UserActivity.objects.filter(user=user).values_list('date', flat=True).order_by('-date'))
         
-    return Response({"streak": current_streak})
+        if not dates:
+            return Response({"streak": 0})
+            
+        current_streak = 0
+        check_date = today
+        
+        if today not in dates:
+            check_date = today - timedelta(days=1)
+            if check_date not in dates:
+                 return Response({"streak": 0})
+        
+        while check_date in dates:
+            current_streak += 1
+            check_date -= timedelta(days=1)
+            
+        return Response({"streak": current_streak})
+    except Exception as e:
+        import traceback
+        print(f"STREAK ERROR: {e}")
+        return Response({
+            "error": str(e),
+            "type": type(e).__name__,
+            "trace": traceback.format_exc()
+        }, status=500)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -635,8 +646,14 @@ def get_user_profile(request):
         })
 
     except Exception as e:
+        import traceback
         print(f"PROFILE GENERATION ERROR: {e}")
-        return Response({"error": str(e)}, status=500)
+        traceback.print_exc()
+        return Response({
+            "error": str(e),
+            "type": type(e).__name__,
+            "trace": traceback.format_exc()
+        }, status=500)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])

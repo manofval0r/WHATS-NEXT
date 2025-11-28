@@ -33,6 +33,9 @@ export default function UserProfile() {
             setProfile(response.data);
         } catch (err) {
             console.error("Error fetching profile:", err);
+            if (err.response?.data) {
+                console.error("BACKEND ERROR DETAILS:", err.response.data);
+            }
             setError("User not found");
         } finally {
             setLoading(false);

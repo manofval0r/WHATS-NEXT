@@ -22,6 +22,7 @@ export default function Profile() {
 
     const navigate = useNavigate();
     const cvRef = useRef();
+
     const handleExportPDF = () => {
         const element = cvRef.current;
         const opt = {
@@ -32,6 +33,54 @@ export default function Profile() {
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
         };
         html2pdf().from(element).save();
+    };
+
+    useEffect(() => {
+        fetchData();
+    }, []);
+
+    const fetchData = async () => {
+        try {
+            const res = await api.get('/api/profile/');
+            setData(res.data);
+            setSocialForm({
+                github: res.data.profile.github || '',
+                linkedin: res.data.profile.linkedin || ''
+            });
+        } catch (err) {
+            console.error("Error loading profile:", err);
+            if (err.response?.data) {
+                console.error("BACKEND ERROR DETAILS:", err.response.data);
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSaveSocials = async () => {
+        try {
+            await api.post('/api/profile/socials/', socialForm);
+            setData(prev => ({
+                ...prev,
+                profile: { ...prev.profile, ...socialForm }
+            }));
+            setEditingSocials(false);
+        } catch (err) {
+            alert("Failed to save socials");
+        }
+    };
+
+    const handleSaveCVText = async (itemId) => {
+        try {
+            await api.post(`/api/profile/cv/${itemId}/`, { text: editText });
+            setData(prev => ({
+                ...prev,
+                projects: prev.projects.map(p => p.id === itemId ? { ...p, cv_text: editText } : p)
+            }));
+            setEditingItem(null);
+        } catch (err) {
+            alert("Failed to save text");
+        }
     };
 
     if (loading) return (
@@ -252,7 +301,7 @@ export default function Profile() {
                                     <div style={cvSectionStyle}>
                                         <h3 style={cvHeaderStyle}>TECHNICAL SKILLS</h3>
                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                                            {projects.flatMap(p => p.tags).filter((v, i, a) => a.indexOf(v) === i).map((tag, i) => (
+                                            {projects.flatMap(p => p.tags || []).filter((v, i, a) => a.indexOf(v) === i).map((tag, i) => (
                                                 <span key={i} style={{ background: '#f0f0f0', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', color: '#333' }}>
                                                     {tag}
                                                 </span>

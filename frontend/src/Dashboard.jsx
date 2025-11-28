@@ -41,12 +41,15 @@ export default function Dashboard() {
       // This is fine - it either comes from DB or from Gemini API
     } catch (err) {
       console.error("Load Error", err);
+      if (err.response?.data) {
+        console.error("BACKEND ERROR DETAILS:", err.response.data);
+      }
       if (err.response && err.response.status === 401) {
         navigate('/');
       } else {
         // Set empty array on error to prevent undefined
         setNodes([]);
-        alert("Failed to load roadmap. Please try again.");
+        alert("Failed to load roadmap. Please check console for details.");
       }
     }
   };
