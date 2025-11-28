@@ -1,4 +1,3 @@
-// theme.js - utility to apply predefined themes
 export const themes = {
     "github-dark": {
         "--bg-dark": "#0d1117",
@@ -7,7 +6,8 @@ export const themes = {
         "--text-main": "#c9d1d9",
         "--border-subtle": "#30363d",
         "--neon-cyan": "#58a6ff",
-        "--neon-red": "#ff7b72"
+        "--neon-red": "#ff7b72",
+        "--neon-green": "#238636"
     },
     "github-light": {
         "--bg-dark": "#ffffff",
@@ -16,7 +16,18 @@ export const themes = {
         "--text-main": "#24292f",
         "--border-subtle": "#d0d7de",
         "--neon-cyan": "#0969da",
-        "--neon-red": "#cf222e"
+        "--neon-red": "#cf222e",
+        "--neon-green": "#1a7f37"
+    },
+    "monokai-pro": {
+        "--bg-dark": "#2d2a2e",
+        "--bg-surface": "#403e41",
+        "--text-header": "#fcfcfa",
+        "--text-main": "#fcfcfa",
+        "--border-subtle": "#727072",
+        "--neon-cyan": "#78dce8",
+        "--neon-red": "#ff6188",
+        "--neon-green": "#a9dc76"
     },
     "dark-not-boring": {
         "--bg-dark": "#1e1e2e",
@@ -25,16 +36,8 @@ export const themes = {
         "--text-main": "#cdd6f4",
         "--border-subtle": "#45475a",
         "--neon-cyan": "#89b4fa",
-        "--neon-red": "#f38ba8"
-    },
-    "serious-light": {
-        "--bg-dark": "#fafafa",
-        "--bg-surface": "#e0e0e0",
-        "--text-header": "#212121",
-        "--text-main": "#212121",
-        "--border-subtle": "#bdbdbd",
-        "--neon-cyan": "#009688",
-        "--neon-red": "#d32f2f"
+        "--neon-red": "#f38ba8",
+        "--neon-green": "#a6e3a1"
     }
 };
 

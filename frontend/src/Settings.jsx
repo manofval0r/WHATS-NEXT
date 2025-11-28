@@ -1,47 +1,52 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, RefreshCw, Save, AlertTriangle, Wallet, LogOut, Trash2, Download, Activity, Palette } from 'lucide-react';
+import { ArrowLeft, Save, Wallet, LogOut, Trash2, Download, Activity, Palette, Shield, Bell } from 'lucide-react';
 import { initTheme, applyTheme } from './theme';
 
 export default function Settings() {
-    const [pivotCareer, setPivotCareer] = useState('');
     const [budget, setBudget] = useState('FREE');
     const [loading, setLoading] = useState(false);
     const [selectedTheme, setSelectedTheme] = useState('dark-not-boring');
+    const [isPublic, setIsPublic] = useState(true);
+    const [emailNotifications, setEmailNotifications] = useState(true);
     const navigate = useNavigate();
 
     useEffect(() => {
         initTheme();
         const saved = localStorage.getItem('selectedTheme') || 'dark-not-boring';
         setSelectedTheme(saved);
+        fetchSettings();
     }, []);
 
-    const handleUpdateBudget = async () => {
+    const fetchSettings = async () => {
         const token = localStorage.getItem('access_token');
         try {
-            await axios.post('http://127.0.0.1:8000/api/settings/update/', { budget }, {
+            const res = await axios.get('http://127.0.0.1:8000/api/settings/', {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            alert("Preferences saved!");
-        } catch (e) { alert("Error saving settings"); }
+            setBudget(res.data.budget_preference || 'FREE');
+            setIsPublic(res.data.is_public !== undefined ? res.data.is_public : true);
+            setEmailNotifications(res.data.email_notifications !== undefined ? res.data.email_notifications : true);
+        } catch (e) {
+            console.error('Failed to fetch settings');
+        }
     };
 
-    const handlePivot = async () => {
-        if (!pivotCareer) return alert("Enter a new career name");
-        if (!window.confirm("Are you sure? This will generate a new roadmap. Completed skills will transfer if they match.")) return;
-
-        setLoading(true);
+    const handleUpdateSettings = async () => {
         const token = localStorage.getItem('access_token');
+        setLoading(true);
         try {
-            const res = await axios.post('http://127.0.0.1:8000/api/pivot-career/', { new_career: pivotCareer }, {
+            await axios.post('http://127.0.0.1:8000/api/settings/update/', {
+                budget,
+                is_public: isPublic,
+                email_notifications: emailNotifications
+            }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            alert(`Success! ${res.data.transferred_skills} skills transferred to your new path.`);
-            navigate('/dashboard');
+            alert("Settings saved!");
         } catch (e) {
-            console.error(e);
-            alert("Pivot failed. Server might be busy.");
+            alert("Error saving settings");
         } finally {
             setLoading(false);
         }
@@ -100,14 +105,14 @@ export default function Settings() {
         <div style={pageStyle}>
             <div style={containerStyle}>
                 <button onClick={() => navigate('/dashboard')} style={backBtnStyle}>
-                    <ArrowLeft size={18} /> Back to Map
+                    <ArrowLeft size={18} /> Back to Dashboard
                 </button>
 
-                <h1 style={{ color: 'var(--text-header)', marginBottom: '30px', fontFamily: 'var(--font-code)' }}>Account Settings</h1>
+                <h1 style={headerStyle}>Settings</h1>
 
                 {/* PREFERENCES CARD */}
                 <div style={cardStyle}>
-                    <h2 style={sectionTitle}><Wallet size={20} color="var(--neon-cyan)" /> Learning Preferences</h2>
+                    <h2 style={sectionTitle}><Wallet size={20} /> Learning Preferences</h2>
                     <div style={{ marginBottom: '15px' }}>
                         <label style={labelStyle}>Budget Type</label>
                         <select
@@ -115,18 +120,15 @@ export default function Settings() {
                             onChange={(e) => setBudget(e.target.value)}
                             style={selectStyle}
                         >
-                            <option value="FREE">I need Free Resources</option>
-                            <option value="PAID">I can buy courses</option>
+                            <option value="FREE">Free Resources Only</option>
+                            <option value="PAID">Can Purchase Courses</option>
                         </select>
                     </div>
-                    <button onClick={handleUpdateBudget} style={primaryBtnStyle}>
-                        <Save size={16} /> Save Preferences
-                    </button>
                 </div>
 
                 {/* THEME CARD */}
                 <div style={cardStyle}>
-                    <h2 style={sectionTitle}><Palette size={20} color="var(--neon-cyan)" /> Appearance</h2>
+                    <h2 style={sectionTitle}><Palette size={20} /> Appearance</h2>
                     <div style={{ marginBottom: '15px' }}>
                         <label style={labelStyle}>Theme</label>
                         <select
@@ -136,40 +138,63 @@ export default function Settings() {
                         >
                             <option value="github-dark">GitHub Dark</option>
                             <option value="github-light">GitHub Light</option>
+                            <option value="monokai-pro">Monokai Pro</option>
                             <option value="dark-not-boring">Dark Not Boring</option>
-                            <option value="serious-light">Serious Light</option>
                         </select>
                     </div>
                 </div>
 
-                {/* PIVOT CARD (Danger Zone) */}
-                <div style={{ ...cardStyle, border: '1px solid var(--neon-red)' }}>
-                    <h2 style={{ ...sectionTitle, color: 'var(--neon-red)' }}><RefreshCw size={20} /> Career Pivot</h2>
-                    <p style={{ color: 'var(--text-muted)', marginBottom: '20px' }}>
-                        Fed up with your current path? Enter a new goal. <br />
-                        <span style={{ color: 'var(--neon-green)', fontSize: '14px' }}>* We will try to keep your completed skills.</span>
-                    </p>
+                {/* PRIVACY & NOTIFICATIONS CARD */}
+                <div style={cardStyle}>
+                    <h2 style={sectionTitle}><Shield size={20} /> Privacy & Notifications</h2>
 
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                        <input
-                            placeholder="New Career (e.g. Data Scientist)"
-                            value={pivotCareer}
-                            onChange={(e) => setPivotCareer(e.target.value)}
-                            style={inputStyle}
-                        />
-                        <button
-                            onClick={handlePivot}
-                            disabled={loading}
-                            style={dangerBtnStyle}
-                        >
-                            {loading ? 'Rebuilding...' : 'Switch Career'}
-                        </button>
+                    <div style={toggleContainer}>
+                        <div style={toggleRow}>
+                            <div>
+                                <div style={toggleLabel}>Public Profile</div>
+                                <div style={toggleDescription}>Allow others to view your profile and progress</div>
+                            </div>
+                            <label style={switchStyle}>
+                                <input
+                                    type="checkbox"
+                                    checked={isPublic}
+                                    onChange={(e) => setIsPublic(e.target.checked)}
+                                    style={{ display: 'none' }}
+                                />
+                                <span style={isPublic ? switchSliderActive : switchSlider}></span>
+                            </label>
+                        </div>
+
+                        <div style={toggleRow}>
+                            <div>
+                                <div style={toggleLabel}>Email Notifications</div>
+                                <div style={toggleDescription}>Receive updates about your progress</div>
+                            </div>
+                            <label style={switchStyle}>
+                                <input
+                                    type="checkbox"
+                                    checked={emailNotifications}
+                                    onChange={(e) => setEmailNotifications(e.target.checked)}
+                                    style={{ display: 'none' }}
+                                />
+                                <span style={emailNotifications ? switchSliderActive : switchSlider}></span>
+                            </label>
+                        </div>
                     </div>
                 </div>
 
+                {/* SAVE BUTTON */}
+                <button
+                    onClick={handleUpdateSettings}
+                    disabled={loading}
+                    style={primaryBtnStyle}
+                >
+                    <Save size={16} /> {loading ? 'Saving...' : 'Save All Settings'}
+                </button>
+
                 {/* ACCOUNT ACTIONS CARD */}
-                <div style={cardStyle}>
-                    <h2 style={sectionTitle}><Activity size={20} color="var(--neon-cyan)" /> Account Actions</h2>
+                <div style={{ ...cardStyle, marginTop: '40px', borderTop: '2px solid var(--border-subtle)' }}>
+                    <h2 style={sectionTitle}><Activity size={20} /> Account Actions</h2>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                         <button onClick={handleActivityLog} style={secondaryBtnStyle}>
                             <Activity size={16} /> View Activity Log
@@ -193,15 +218,162 @@ export default function Settings() {
 }
 
 // --- STYLES ---
-const pageStyle = { minHeight: '100vh', background: 'var(--bg-dark)', padding: '40px', fontFamily: 'var(--font-body)' };
-const containerStyle = { maxWidth: '600px', margin: '0 auto' };
-const cardStyle = { background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', padding: '30px', borderRadius: '12px', marginBottom: '30px' };
-const sectionTitle = { display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-header)', fontSize: '20px', marginTop: 0, fontFamily: 'var(--font-code)' };
-const labelStyle = { display: 'block', color: 'var(--text-muted)', marginBottom: '8px', fontSize: '14px' };
-const inputStyle = { flex: 1, background: 'var(--bg-dark)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', padding: '12px', borderRadius: '6px', outline: 'none', fontFamily: 'var(--font-code)' };
-const selectStyle = { width: '100%', background: 'var(--bg-dark)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', padding: '12px', borderRadius: '6px', outline: 'none', fontFamily: 'var(--font-code)' };
+const pageStyle = {
+    minHeight: '100vh',
+    background: 'var(--bg-dark)',
+    padding: '40px',
+    fontFamily: 'system-ui, -apple-system, sans-serif'
+};
 
-const primaryBtnStyle = { background: 'var(--neon-cyan)', color: '#000', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', marginTop: '10px', fontFamily: 'var(--font-code)' };
-const secondaryBtnStyle = { background: 'var(--bg-dark)', color: 'var(--text-main)', border: '1px solid var(--border-subtle)', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontFamily: 'var(--font-code)' };
-const dangerBtnStyle = { background: 'var(--neon-red)', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontFamily: 'var(--font-code)', display: 'flex', alignItems: 'center' };
-const backBtnStyle = { background: 'none', color: 'var(--text-muted)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', fontFamily: 'var(--font-code)' };
+const containerStyle = { maxWidth: '700px', margin: '0 auto' };
+
+const headerStyle = {
+    color: 'var(--text-header)',
+    marginBottom: '30px',
+    fontSize: '32px',
+    fontWeight: '600'
+};
+
+const cardStyle = {
+    background: 'var(--bg-surface)',
+    border: '1px solid var(--border-subtle)',
+    padding: '24px',
+    borderRadius: '8px',
+    marginBottom: '20px'
+};
+
+const sectionTitle = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    color: 'var(--text-header)',
+    fontSize: '18px',
+    marginTop: 0,
+    marginBottom: '20px',
+    fontWeight: '600'
+};
+
+const labelStyle = {
+    display: 'block',
+    color: 'var(--text-main)',
+    marginBottom: '8px',
+    fontSize: '14px',
+    fontWeight: '500'
+};
+
+const selectStyle = {
+    width: '100%',
+    background: 'var(--bg-dark)',
+    border: '1px solid var(--border-subtle)',
+    color: 'var(--text-main)',
+    padding: '10px 12px',
+    borderRadius: '6px',
+    outline: 'none',
+    fontSize: '14px'
+};
+
+const toggleContainer = {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '20px'
+};
+
+const toggleRow = {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+};
+
+const toggleLabel = {
+    color: 'var(--text-main)',
+    fontSize: '14px',
+    fontWeight: '500',
+    marginBottom: '4px'
+};
+
+const toggleDescription = {
+    color: 'var(--text-muted)',
+    fontSize: '13px'
+};
+
+const switchStyle = {
+    position: 'relative',
+    display: 'inline-block',
+    width: '44px',
+    height: '24px',
+    cursor: 'pointer'
+};
+
+const switchSlider = {
+    position: 'absolute',
+    cursor: 'pointer',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'var(--border-subtle)',
+    transition: '0.3s',
+    borderRadius: '24px',
+    display: 'block'
+};
+
+const switchSliderActive = {
+    ...switchSlider,
+    backgroundColor: 'var(--neon-cyan)'
+};
+
+const primaryBtnStyle = {
+    background: 'var(--neon-cyan)',
+    color: '#000',
+    border: 'none',
+    padding: '12px 24px',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontWeight: '600',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    fontSize: '14px',
+    width: '100%',
+    justifyContent: 'center'
+};
+
+const secondaryBtnStyle = {
+    background: 'var(--bg-dark)',
+    color: 'var(--text-main)',
+    border: '1px solid var(--border-subtle)',
+    padding: '10px 16px',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    fontSize: '14px',
+    fontWeight: '500'
+};
+
+const dangerBtnStyle = {
+    background: 'var(--neon-red)',
+    color: '#fff',
+    border: 'none',
+    padding: '10px 16px',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontWeight: '600',
+    display: 'flex',
+    alignItems: 'center',
+    fontSize: '14px'
+};
+
+const backBtnStyle = {
+    background: 'none',
+    color: 'var(--text-muted)',
+    border: 'none',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    marginBottom: '20px',
+    fontSize: '14px',
+    padding: '8px 0'
+};

@@ -861,14 +861,30 @@ def verify_project(request, item_id):
         "user_vote": vote_type if action != 'removed' else None
     })
 
-@api_view(['POST'])
+@api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
 def update_settings(request):
     """
-    Simple profile updates (Budget, Username).
+    GET: Return current user settings
+    POST: Update user settings (Budget, Privacy, Notifications)
     """
     user = request.user
+    
+    if request.method == 'GET':
+        return Response({
+            "budget_preference": user.budget_preference,
+            "is_public": getattr(user, 'is_public', True),
+            "email_notifications": getattr(user, 'email_notifications', True)
+        })
+    
+    # POST - Update settings
     user.budget_preference = request.data.get('budget', user.budget_preference)
+    
+    if 'is_public' in request.data:
+        user.is_public = request.data['is_public']
+    if 'email_notifications' in request.data:
+        user.email_notifications = request.data['email_notifications']
+    
     user.save()
     return Response({"message": "Settings updated"})
 
