@@ -19,6 +19,8 @@ export default function Dashboard() {
   const [quizData, setQuizData] = useState(null);
   const [quizLoading, setQuizLoading] = useState(false);
   const [quizAnswers, setQuizAnswers] = useState({});
+  const [quizCompleted, setQuizCompleted] = useState(false);
+  const [showMoreResources, setShowMoreResources] = useState({});
   const [quizResult, setQuizResult] = useState(null);
 
   const navigate = useNavigate();
@@ -103,6 +105,15 @@ export default function Dashboard() {
       const res = await axios.get('http://127.0.0.1:8000/api/daily-quiz/', {
         headers: { Authorization: `Bearer ${token}` }
       });
+
+      // Check if quiz was already completed
+      if (res.data.quiz_completed) {
+        alert(res.data.message);
+        setShowQuiz(false);
+        setQuizCompleted(true);
+        return;
+      }
+
       setQuizData(res.data);
     } catch (e) {
       console.error(e);
@@ -134,10 +145,18 @@ export default function Dashboard() {
       setTimeout(() => {
         setShowQuiz(false);
         setQuizResult(null);
+        setQuizCompleted(true);
       }, 2000);
     } catch (e) {
       alert("Error submitting quiz");
     }
+  };
+
+  const toggleShowMore = (nodeId) => {
+    setShowMoreResources(prev => ({
+      ...prev,
+      [nodeId]: !prev[nodeId]
+    }));
   };
 
   // SUBMIT PROJECT 
@@ -341,27 +360,29 @@ export default function Dashboard() {
             </div>
 
             {/* DAILY QUIZ BUTTON */}
-            <button
-              onClick={openDailyQuiz}
-              style={{
-                background: 'rgba(255, 165, 0, 0.1)',
-                border: '1px solid orange',
-                color: 'orange',
-                borderRadius: '8px',
-                padding: '8px 12px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontFamily: 'JetBrains Mono',
-                fontSize: '12px',
-                fontWeight: 'bold',
-                transition: 'all 0.2s',
-              }}
-            >
-              <Zap size={14} />
-              DAILY_QUIZ
-            </button>
+            {!quizCompleted && (
+              <button
+                onClick={openDailyQuiz}
+                style={{
+                  background: 'rgba(255, 165, 0, 0.1)',
+                  border: '1px solid orange',
+                  color: 'orange',
+                  borderRadius: '8px',
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontFamily: 'JetBrains Mono',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                  transition: 'all 0.2s',
+                }}
+              >
+                <Zap size={14} />
+                DAILY_QUIZ
+              </button>
+            )}
 
             {/* Regenerate Button (Dev) */}
             <button
@@ -453,86 +474,170 @@ export default function Dashboard() {
                 </div>
 
                 {/* RESOURCES PREVIEW */}
-                <div>
-                  <h3 style={{ fontSize: '14px', color: 'var(--text-header)', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <BookOpen size={16} color="var(--electric-purple)" /> LEARNING_RESOURCES
-                  </h3>
+                {selectedNode?.data?.resources && (
+                  <div style={{ marginTop: '20px' }}>
+                    <h3 style={{ fontSize: '14px', color: 'var(--text-header)', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <BookOpen size={16} color="var(--electric-purple)" /> LEARNING_RESOURCES
+                    </h3>
 
-                  {/* YouTube Videos */}
-                  {selectedNode.data.resources?.videos && selectedNode.data.resources.videos.length > 0 ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                      {selectedNode.data.resources.videos.slice(0, 3).map((video, idx) => (
-                        <a
-                          key={idx}
-                          href={video.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          style={{
-                            display: 'flex', gap: '12px', textDecoration: 'none',
-                            background: '#0d1117', border: '1px solid var(--border-subtle)',
-                            borderRadius: '12px', overflow: 'hidden', transition: 'all 0.2s',
-                            padding: '10px'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.borderColor = 'var(--neon-cyan)';
-                            e.currentTarget.style.transform = 'translateX(4px)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.borderColor = 'var(--border-subtle)';
-                            e.currentTarget.style.transform = 'translateX(0)';
-                          }}
-                        >
-                          {/* Thumbnail */}
-                          <img
-                            src={video.thumbnail}
-                            alt={video.title}
+                    {/* PRIMARY RESOURCES (Always shown) */}
+                    {selectedNode.data.resources.primary && selectedNode.data.resources.primary.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
+                        {selectedNode.data.resources.primary.map((resource, idx) => (
+                          <a
+                            key={idx}
+                            href={resource.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
                             style={{
-                              width: '120px',
-                              height: '68px',
-                              objectFit: 'cover',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '10px',
+                              padding: '12px',
+                              background: 'rgba(0, 242, 255, 0.05)',
+                              border: '1px solid rgba(0, 242, 255, 0.2)',
                               borderRadius: '8px',
-                              flexShrink: 0
+                              color: 'var(--neon-cyan)',
+                              textDecoration: 'none',
+                              transition: 'all 0.2s'
                             }}
-                          />
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = 'rgba(0, 242, 255, 0.1)';
+                              e.currentTarget.style.borderColor = 'var(--neon-cyan)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = 'rgba(0, 242, 255, 0.05)';
+                              e.currentTarget.style.borderColor = 'rgba(0, 242, 255, 0.2)';
+                            }}
+                          >
+                            <span style={{ fontSize: '16px' }}>
+                              {resource.type === 'interactive' && '🎮'}
+                              {resource.type === 'docs' && '📖'}
+                              {resource.type === 'video' && '🎥'}
+                              {resource.type === 'course' && '🎓'}
+                            </span>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{resource.title}</div>
+                              <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                                {resource.type} • {idx === 0 ? 'RECOMMENDED' : 'ALTERNATIVE'}
+                              </div>
+                            </div>
+                            <ExternalLink size={14} />
+                          </a>
+                        ))}
+                      </div>
+                    )}
 
-                          {/* Video Info */}
-                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0 }}>
-                            <div style={{
-                              fontSize: '13px',
-                              fontWeight: '600',
-                              color: '#fff',
-                              marginBottom: '4px',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              display: '-webkit-box',
-                              WebkitLineClamp: 2,
-                              WebkitBoxOrient: 'vertical'
-                            }}>
-                              {video.title}
-                            </div>
-                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                              <PlayCircle size={12} />
-                              {video.channel}
-                            </div>
+                    {/* SHOW MORE BUTTON */}
+                    {selectedNode.data.resources.additional && selectedNode.data.resources.additional.length > 0 && (
+                      <>
+                        {!showMoreResources[selectedNode.id] && (
+                          <button
+                            onClick={() => toggleShowMore(selectedNode.id)}
+                            style={{
+                              width: '100%',
+                              padding: '10px',
+                              background: 'rgba(255,255,255,0.05)',
+                              border: '1px solid var(--border-subtle)',
+                              borderRadius: '8px',
+                              color: 'var(--text-main)',
+                              cursor: 'pointer',
+                              fontFamily: 'JetBrains Mono',
+                              fontSize: '12px',
+                              marginBottom: '12px'
+                            }}
+                          >
+                            SHOW_MORE ({selectedNode.data.resources.additional.length} more resources)
+                          </button>
+                        )}
+
+                        {/* ADDITIONAL RESOURCES (Shown when expanded) */}
+                        {showMoreResources[selectedNode.id] && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
+                            {selectedNode.data.resources.additional.map((resource, idx) => (
+                              <a
+                                key={idx}
+                                href={resource.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '10px',
+                                  padding: '10px',
+                                  background: 'rgba(255,255,255,0.03)',
+                                  border: '1px solid var(--border-subtle)',
+                                  borderRadius: '8px',
+                                  color: 'var(--text-main)',
+                                  textDecoration: 'none',
+                                  fontSize: '13px',
+                                  transition: 'all 0.2s'
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+                                }}
+                              >
+                                <span style={{ fontSize: '14px' }}>
+                                  {resource.type === 'interactive' && '🎮'}
+                                  {resource.type === 'docs' && '📖'}
+                                  {resource.type === 'video' && '🎥'}
+                                  {resource.type === 'course' && '🎓'}
+                                </span>
+                                <div style={{ flex: 1 }}>
+                                  <div style={{ fontSize: '13px' }}>{resource.title}</div>
+                                  <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                                    {resource.type}
+                                  </div>
+                                </div>
+                                <ExternalLink size={12} />
+                              </a>
+                            ))}
+
+                            <button
+                              onClick={() => toggleShowMore(selectedNode.id)}
+                              style={{
+                                width: '100%',
+                                padding: '8px',
+                                background: 'none',
+                                border: '1px solid var(--border-subtle)',
+                                borderRadius: '8px',
+                                color: 'var(--text-muted)',
+                                cursor: 'pointer',
+                                fontFamily: 'JetBrains Mono',
+                                fontSize: '11px',
+                                marginTop: '4px'
+                              }}
+                            >
+                              SHOW_LESS
+                            </button>
                           </div>
-                        </a>
-                      ))}
-                    </div>
-                  ) : (
-                    /* Fallback if no videos */
-                    <div style={{
-                      background: 'rgba(255,255,255,0.03)',
-                      padding: '20px',
-                      borderRadius: '12px',
-                      border: '1px solid var(--border-subtle)',
-                      textAlign: 'center'
-                    }}>
-                      <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
-                        📚 Check {selectedNode.data.resources?.main || 'online resources'} for learning materials
-                      </p>
-                    </div>
-                  )}
-                </div>
+                        )}
+                      </>
+                    )}
+
+                    {/* VIEW ALL IN RESOURCES HUB */}
+                    <button
+                      onClick={() => navigate('/resources')}
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        background: 'linear-gradient(90deg, var(--neon-cyan), var(--electric-purple))',
+                        border: 'none',
+                        borderRadius: '8px',
+                        color: '#000',
+                        cursor: 'pointer',
+                        fontFamily: 'JetBrains Mono',
+                        fontSize: '12px',
+                        fontWeight: 'bold'
+                      }}
+                    >
+                      VIEW_ALL_IN_RESOURCES_HUB →
+                    </button>
+                  </div>
+                )}
 
                 {/* PROJECT SUBMISSION */}
                 <div style={{ opacity: selectedNode.data.status === 'locked' ? 0.5 : 1 }}>

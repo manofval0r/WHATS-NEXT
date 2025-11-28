@@ -8,6 +8,7 @@ import Community from './Community';
 import Resources from './Resources';
 import MainLayout from './MainLayout';
 import UserProfile from './UserProfile';
+import ActivityLog from './ActivityLog';
 
 // Wrapper to check if user is logged in
 function ProtectedRoute({ children }) {
@@ -71,6 +72,12 @@ export default function App() {
         <Route path="/u/:username" element={
           <ProtectedRoute>
             <UserProfile />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/profile/activity" element={
+          <ProtectedRoute>
+            <ActivityLog />
           </ProtectedRoute>
         } />
 

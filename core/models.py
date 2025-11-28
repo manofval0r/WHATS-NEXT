@@ -13,9 +13,19 @@ class User(AbstractUser):
     university_course_raw = models.CharField(max_length=255, blank=True, help_text="User's input (e.g. 'Bsc Acctng')")
     normalized_course = models.CharField(max_length=255, blank=True, help_text="AI cleaned version (e.g. 'Accounting')")
     
+    target_career = models.CharField(max_length=255, blank=True)
+    budget_preference = models.CharField(max_length=10, choices=[('FREE', 'Free Only'), ('PAID', 'Can Pay')], default='FREE')
+    current_level = models.CharField(max_length=50, default='Beginner')
+    reputation_score = models.IntegerField(default=0)
+
     github_link = models.URLField(blank=True, null=True)
     linkedin_link = models.URLField(blank=True, null=True)
-    
+
+    groups = models.ManyToManyField(
+        'auth.Group',
+        verbose_name='groups',
+        blank=True,
+        help_text='The groups this user belongs to. A user will get all permissions granted to each of their groups.',
         related_name="core_user_set",
         related_query_name="core_user",
     )
@@ -74,33 +84,33 @@ class ProjectReview(models.Model):
     """
     Tracks which users verified which projects (for reputation).
     """
+    VOTE_CHOICES = [
+        ('up', 'Upvote'),
+        ('down', 'Downvote'),
+    ]
     submission = models.ForeignKey(UserRoadmapItem, on_delete=models.CASCADE, related_name='reviews')
     reviewer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    vote_type = models.CharField(max_length=10, choices=[('up', 'Upvote'), ('down', 'Downvote')], default='up')
+    vote_type = models.CharField(max_length=10, choices=VOTE_CHOICES, default='up')
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         unique_together = ('submission', 'reviewer')
 
     def __str__(self):
-        return f"{self.reviewer.username} {self.vote_type}voted {self.submission.label}"
-
+        return f"{self.reviewer.username} verified {self.submission.label}"
 
 class ProjectComment(models.Model):
-    """
-    Comments on completed projects for community discussion.
-    """
     project = models.ForeignKey(UserRoadmapItem, on_delete=models.CASCADE, related_name='comments')
     author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     text = models.TextField(max_length=2000)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         ordering = ['-created_at']
-    
+
     def __str__(self):
-        return f"{self.author.username} commented on {self.project.label}"
+        return f"Comment by {self.author.username} on {self.project.label}"
 
 # ==========================================
 # 4. STREAK SYSTEM

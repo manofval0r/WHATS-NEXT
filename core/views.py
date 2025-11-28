@@ -749,10 +749,21 @@ def get_community_feed(request):
 def get_daily_quiz(request):
     """
     Generates a daily practice quiz based on the user's active module.
+    Returns quiz_completed=True if already done today.
     """
     from .ai_logic import generate_quiz
     
     user = request.user
+    today = datetime.now().date()
+    
+    # Check if quiz was already completed today (count >= 1000 is our marker)
+    activity = UserActivity.objects.filter(user=user, date=today).first()
+    if activity and activity.count >= 1000:
+        return Response({
+            "quiz_completed": True,
+            "message": "You've already completed today's quiz!"
+        })
+    
     # Find active module, or fallback to last completed
     target_item = UserRoadmapItem.objects.filter(user=user, status='active').first()
     if not target_item:
@@ -761,30 +772,13 @@ def get_daily_quiz(request):
     if not target_item:
         return Response({"error": "No active roadmap found"}, status=404)
         
-    # Generate fresh quiz (don't save to DB, it's ephemeral practice)
+    # Generate fresh quiz
     questions = generate_quiz(target_item.label, target_item.description)
-    
-    # Format for frontend (hide correct answers)
-    questions_safe = [
-        {
-            "question": q["question"],
-            "options": q["options"]
-        }
-        for q in questions
-    ]
-    
-    # Store correct answers in session or cache to verify later? 
-    # For simplicity, we'll send them back but encrypted? 
-    # Or better: Just return the full object and let frontend handle it? 
-    # NO, that allows cheating. 
-    # We will return the questions and expect the frontend to send back the *indices* and we'll re-verify?
-    # Actually, since we don't save this quiz to DB, we can't verify it easily on a separate request unless we send the answer key encrypted or store it in cache.
-    # SIMPLIFICATION: We will return the full quiz including answers, but trust the frontend to hide them. 
-    # This is a "practice" quiz for self-improvement, not a certification exam.
     
     return Response({
         "module": target_item.label,
-        "questions": questions
+        "questions": questions,
+        "quiz_completed": False
     })
 
 @api_view(['POST'])
@@ -792,21 +786,22 @@ def get_daily_quiz(request):
 def submit_daily_quiz(request):
     """
     Submit daily quiz results to update streak.
+    Marks quiz as completed for today (count = 1000+).
     """
     user = request.user
     score = request.data.get('score', 0)
     
-    # Update streak if score is decent (e.g. > 0)
-    # The user said "first quiz of the day... streak +1"
-    # We trust the client sent the correct score for this ephemeral quiz.
-    
     today = datetime.now().date()
     activity, created = UserActivity.objects.get_or_create(user=user, date=today)
     
-    # Only increment if it's the first significant activity or just increment anyway?
-    # User said "first quiz of the day... streak +1"
-    # We'll just increment the count. The streak logic counts DAYS, so as long as count > 0, streak is alive.
-    activity.count += 1
+    # Mark quiz as completed (1000+ means quiz done, <1000 means regular activity)
+    # This allows us to track both quiz completion AND regular activity
+    if activity.count < 1000:
+        activity.count = 1000  # Mark quiz completed
+    else:
+        # Already completed today, but we'll allow resubmission
+        pass
+    
     activity.save()
     
     return Response({
@@ -1095,3 +1090,95 @@ def get_public_user_profile(request, username):
 def get_my_profile(request):
     """Get current user's profile."""
     return get_public_user_profile(request, request.user.username)
+
+# ==========================================
+# 8. ACCOUNT MANAGEMENT
+# ==========================================
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_account(request):
+    """
+    Permanently delete the user account and all associated data.
+    """
+    user = request.user
+    try:
+        user.delete()
+        return Response({"message": "Account deleted successfully"}, status=204)
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def export_account_data(request):
+    """
+    Export all user data as a JSON file.
+    """
+    import json
+    from django.http import HttpResponse
+    
+    user = request.user
+    
+    # Gather data
+    roadmap_items = UserRoadmapItem.objects.filter(user=user).values()
+    activity_log = UserActivity.objects.filter(user=user).values()
+    
+    data = {
+        "username": user.username,
+        "email": user.email,
+        "target_career": user.target_career,
+        "joined_at": str(user.date_joined),
+        "roadmap": list(roadmap_items),
+        "activity_log": list(activity_log)
+    }
+    
+    response = HttpResponse(
+        json.dumps(data, indent=2, default=str),
+        content_type='application/json'
+    )
+    response['Content-Disposition'] = f'attachment; filename="{user.username}_data.json"'
+    return response
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_recent_activity(request):
+    """
+    Returns a chronological list of user activities.
+    """
+    user = request.user
+    activities = []
+    
+    # 1. Completed Modules
+    completed = UserRoadmapItem.objects.filter(user=user, status='completed')
+    for item in completed:
+        activities.append({
+            "type": "module_completed",
+            "title": f"Completed module: {item.label}",
+            "date": item.submitted_at,
+            "details": item.description[:100] + "..."
+        })
+        
+    # 2. Project Reviews (given)
+    reviews = ProjectReview.objects.filter(reviewer=user)
+    for review in reviews:
+        activities.append({
+            "type": "review_given",
+            "title": f"Reviewed {review.submission.user.username}'s project",
+            "date": review.created_at,
+            "details": f"Voted {review.vote_type}"
+        })
+        
+    # 3. Comments (given)
+    comments = ProjectComment.objects.filter(author=user)
+    for comment in comments:
+        activities.append({
+            "type": "comment_added",
+            "title": f"Commented on {comment.project.label}",
+            "date": comment.created_at,
+            "details": comment.text[:50] + "..."
+        })
+        
+    # Sort by date descending
+    activities.sort(key=lambda x: x['date'], reverse=True)
+    
+    return Response(activities)

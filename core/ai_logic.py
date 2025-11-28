@@ -54,11 +54,32 @@ def generate_detailed_roadmap(niche, uni_course, budget):
     {budget_context}
     
     Requirements:
-    1. Generate exactly 7 to 10 Nodes (Modules).
+    1. Generate as much nodes as needed (Modules).
     2. ORDER them logically from "Absolute Beginner" to "Job Ready".
     3. content MUST be specific. Do NOT say "Learn Basics". Say "Variables, Loops & ES6 Syntax".
     4. 'market_value': Estimate the salary impact of this specific skill (Low, Med, High).
     5. 'project_prompt': A specific, buildable mini-project (e.g., "Build a Budget Tracker").
+    6. 'resources': Provide curated learning resources in this EXACT structure:
+       {{
+         "primary": [
+           {{"title": "Best Resource Name", "url": "https://...", "type": "interactive|docs|video|course"}},
+           {{"title": "Second Best Resource", "url": "https://...", "type": "interactive|docs|video|course"}}
+         ],
+         "additional": [
+           {{"title": "Alternative 1", "url": "https://...", "type": "interactive|docs|video|course"}},
+           {{"title": "Alternative 2", "url": "https://...", "type": "interactive|docs|video|course"}},
+           {{"title": "Alternative 3", "url": "https://...", "type": "interactive|docs|video|course"}}
+         ]
+       }}
+       
+       IMPORTANT Resource Guidelines:
+       - Prioritize FREE, high-quality resources: FreeCodeCamp, MDN, Scrimba, Official Docs, W3Schools, edx, etc.
+       - For "interactive" type: Use FreeCodeCamp, Scrimba, Codecademy Free, Khan Academy or other hidden gems
+       - For "docs" type: Use Official Documentation (React docs, Python docs, MDN, etc.)
+       - For "video" type: Use the best YouTube channels (Traversy Media, freeCodeCamp.org, Fireship, etc.), before the less known ones
+       - For "course" type: Use Udemy/Coursera only if budget is PAID, otherwise use free alternatives
+       - Each URL must be a REAL, working link (not placeholder)
+       - Order by quality: Best resources in "primary", good alternatives in "additional"
     
     Output Format:
     Return ONLY a raw JSON list of objects. Do not wrap in 'nodes'/'edges' keys yet.
@@ -68,7 +89,17 @@ def generate_detailed_roadmap(niche, uni_course, budget):
             "description": "2 sentences on what to learn and why.",
             "status": "locked", 
             "market_value": "Med",
-            "resources": {{ "main": "Specific Resource Name/Link", "alt": "Alternative" }},
+            "resources": {{ 
+                "primary": [
+                    {{"title": "FreeCodeCamp JavaScript Course", "url": "https://www.freecodecamp.org/learn/javascript-algorithms-and-data-structures/", "type": "interactive"}},
+                    {{"title": "MDN JavaScript Guide", "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide", "type": "docs"}}
+                ],
+                "additional": [
+                    {{"title": "JavaScript.info Tutorial", "url": "https://javascript.info/", "type": "docs"}},
+                    {{"title": "Traversy Media JS Crash Course", "url": "https://www.youtube.com/watch?v=hdI2bqOjy3c", "type": "video"}},
+                    {{"title": "Eloquent JavaScript Book", "url": "https://eloquentjavascript.net/", "type": "docs"}}
+                ]
+            }},
             "project_prompt": "Specific project idea"
         }}
     ]
@@ -114,18 +145,44 @@ def generate_detailed_roadmap(niche, uni_course, budget):
         try:
             for i, module in enumerate(modules_list):
                 print(f"[AI]   Module {i+1}: Searching YouTube for '{module.get('label', '')[:50]}'...")
-                videos = search_youtube_videos(module.get('label', ''), max_results=3)
+                videos = search_youtube_videos(module.get('label', ''), max_results=4)  # Get 4 videos
                 print(f"[AI]   Module {i+1}: Found {len(videos)} videos")
+                
+                # Ensure resources structure exists
                 if not isinstance(module.get('resources'), dict):
-                    module['resources'] = {"main": "", "alt": ""}
-                module['resources']['videos'] = videos
+                    module['resources'] = {"primary": [], "additional": []}
+                
+                # Ensure keys exist even if it was already a dict (e.g. empty dict from AI)
+                module['resources'].setdefault('primary', [])
+                module['resources'].setdefault('additional', [])
+                
+                # Add first video to primary if space, rest to additional
+                if len(videos) > 0 and len(module['resources'].get('primary', [])) < 2:
+                    module['resources']['primary'].append({
+                        "title": videos[0]['title'],
+                        "url": videos[0]['url'],
+                        "type": "video"
+                    })
+                    # Add remaining videos to additional
+                    for video in videos[1:]:
+                        module['resources'].setdefault('additional', []).append({
+                            "title": video['title'],
+                            "url": video['url'],
+                            "type": "video"
+                        })
+                else:
+                    # Add all to additional
+                    for video in videos:
+                        module['resources'].setdefault('additional', []).append({
+                            "title": video['title'],
+                            "url": video['url'],
+                            "type": "video"
+                        })
             print(f"[AI] YouTube fetch complete!")
         except Exception as youtube_err:
             print(f"[AI] YouTube fetch error: {type(youtube_err).__name__}: {youtube_err}")
             import traceback
             traceback.print_exc()
-            # Continue anyway - don't fail the whole roadmap just because YouTube search failed
-        
         print(f"[AI] Roadmap generation successful!")
         print(f"[AI] Returning {len(modules_list)} modules")
         return layout_engine(modules_list)
@@ -189,7 +246,15 @@ def get_fallback_roadmap(niche, uni_course):
             "description": "Understanding the core syntax and environment setup.",
             "status": "active",
             "market_value": "Low",
-            "resources": {"main": "MDN Web Docs", "alt": "Traversy Media", "videos": []},
+            "resources": {
+                "primary": [
+                    {"title": "MDN Web Docs", "url": "https://developer.mozilla.org", "type": "docs"},
+                    {"title": "Traversy Media", "url": "https://www.youtube.com/c/TraversyMedia", "type": "video"}
+                ],
+                "additional": [
+                    {"title": "FreeCodeCamp", "url": "https://www.freecodecamp.org", "type": "interactive"}
+                ]
+            },
             "project_prompt": "Hello World & Setup"
         },
         {
@@ -197,7 +262,12 @@ def get_fallback_roadmap(niche, uni_course):
             "description": f"Applying {niche} skills to {uni_course} problems.",
             "status": "locked",
             "market_value": "Med",
-            "resources": {"main": "Data Analysis with Python", "alt": "YouTube", "videos": []},
+            "resources": {
+                "primary": [
+                    {"title": "Data Analysis with Python", "url": "https://www.coursera.org", "type": "course"}
+                ],
+                "additional": []
+            },
             "project_prompt": "Build a Calculation Tool"
         },
         {
@@ -205,7 +275,12 @@ def get_fallback_roadmap(niche, uni_course):
             "description": "Deep dive into frameworks and architecture.",
             "status": "locked",
             "market_value": "High",
-            "resources": {"main": "Official Documentation", "alt": "Udemy", "videos": []},
+            "resources": {
+                "primary": [
+                    {"title": "Official Documentation", "url": "https://devdocs.io", "type": "docs"}
+                ],
+                "additional": []
+            },
             "project_prompt": "Full Capstone Build"
         }
     ]

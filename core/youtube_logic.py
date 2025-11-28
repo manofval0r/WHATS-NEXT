@@ -19,7 +19,7 @@ def search_youtube_videos(query, max_results=3):
     """
     if not YOUTUBE_API_KEY:
         print("Warning: YOUTUBE_API_KEY not set in .env file")
-        return []
+        return _get_fallback_videos()
     
     try:
         url = "https://www.googleapis.com/youtube/v3/search"
@@ -57,7 +57,33 @@ def search_youtube_videos(query, max_results=3):
         
     except requests.exceptions.RequestException as e:
         print(f"YouTube API Error: {e}")
-        return []
+        return _get_fallback_videos()
     except Exception as e:
         print(f"Unexpected error in YouTube search: {e}")
-        return []
+        return _get_fallback_videos()
+
+def _get_fallback_videos():
+    """Returns a static list of high-quality coding videos."""
+    return [
+        {
+            "title": "Learn to Code - for Free | freeCodeCamp.org",
+            "url": "https://www.youtube.com/watch?v=zOjov-2OZ0E",
+            "thumbnail": "https://img.youtube.com/vi/zOjov-2OZ0E/mqdefault.jpg",
+            "channel": "freeCodeCamp.org",
+            "description": "Learn to code for free with this comprehensive guide."
+        },
+        {
+            "title": "Harvard CS50 – Full Computer Science University Course",
+            "url": "https://www.youtube.com/watch?v=8hly31xKli0",
+            "thumbnail": "https://img.youtube.com/vi/8hly31xKli0/mqdefault.jpg",
+            "channel": "freeCodeCamp.org",
+            "description": "Harvard's Introduction to Computer Science."
+        },
+        {
+            "title": "100+ Computer Science Concepts Explained",
+            "url": "https://www.youtube.com/watch?v=-uleG_Vecis",
+            "thumbnail": "https://img.youtube.com/vi/-uleG_Vecis/mqdefault.jpg",
+            "channel": "Fireship",
+            "description": "A quick overview of many CS concepts."
+        }
+    ]
