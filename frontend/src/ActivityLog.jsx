@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from './api';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, MessageSquare, ThumbsUp, Activity } from 'lucide-react';
 
@@ -13,11 +13,8 @@ export default function ActivityLog() {
     }, []);
 
     const fetchActivity = async () => {
-        const token = localStorage.getItem('access_token');
         try {
-            const res = await axios.get('http://127.0.0.1:8000/api/profile/activity/', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await api.get('/api/profile/activity/');
             setActivities(res.data);
         } catch (err) {
             console.error(err);

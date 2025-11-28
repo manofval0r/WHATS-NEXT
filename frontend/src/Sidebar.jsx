@@ -1,20 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { 
-  Layout, 
-  User, 
-  Settings as SettingsIcon, 
-  Users, 
-  BookOpen, 
-  LogOut, 
-  ChevronLeft, 
+import {
+  Layout,
+  User,
+  Settings as SettingsIcon,
+  Users,
+  BookOpen,
+  LogOut,
+  ChevronLeft,
   ChevronRight,
   Pin,
   PinOff,
   Flame
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import axios from 'axios';
+import api from './api';
 
 export default function Sidebar() {
   const navigate = useNavigate();
@@ -30,13 +30,8 @@ export default function Sidebar() {
   useEffect(() => {
     const fetchUserData = async () => {
       try {
-        const token = localStorage.getItem('access_token');
-        if (token) {
-          const response = await axios.get('http://127.0.0.1:8000/api/profile/', {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          setUserData(response.data.profile || response.data);
-        }
+        const response = await api.get('/api/profile/');
+        setUserData(response.data.profile || response.data);
       } catch (error) {
         console.error("Error fetching user data:", error);
       }
@@ -44,13 +39,8 @@ export default function Sidebar() {
 
     const fetchStreak = async () => {
       try {
-        const token = localStorage.getItem('access_token');
-        if (token) {
-          const response = await axios.get('http://127.0.0.1:8000/api/profile/streak/', {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          setStreak(response.data.streak);
-        }
+        const response = await api.get('/api/profile/streak/');
+        setStreak(response.data.streak);
       } catch (error) {
         console.error("Error fetching streak:", error);
       }
@@ -128,10 +118,10 @@ export default function Sidebar() {
       }}
     >
       {/* Header / User Avatar + Pin Toggle */}
-      <div style={{ 
-        height: '60px', 
-        display: 'flex', 
-        alignItems: 'center', 
+      <div style={{
+        height: '60px',
+        display: 'flex',
+        alignItems: 'center',
         justifyContent: isExpanded || isPinned ? 'space-between' : 'center',
         padding: isExpanded || isPinned ? '0 16px' : '0',
         borderBottom: '1px solid var(--border-subtle)',
@@ -163,9 +153,9 @@ export default function Sidebar() {
               {userData.first_name ? userData.first_name.charAt(0).toUpperCase() : userData.username?.charAt(0).toUpperCase() || '?'}
             </div>
             {(isExpanded || isPinned) && (
-              <span style={{ 
-                fontFamily: 'Inter', 
-                fontWeight: '600', 
+              <span style={{
+                fontFamily: 'Inter',
+                fontWeight: '600',
                 color: 'var(--text-main)',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
@@ -177,9 +167,9 @@ export default function Sidebar() {
             )}
           </div>
         )}
-        
+
         {/* Pin Toggle */}
-        <button 
+        <button
           onClick={() => setIsPinned(!isPinned)}
           style={{
             background: 'transparent',
@@ -195,7 +185,7 @@ export default function Sidebar() {
             flexShrink: 0
           }}
         >
-          {isPinned ? <Pin size={16} /> : (isExpanded ? <PinOff size={16} /> : <div style={{width: 16, height: 16}} />)}
+          {isPinned ? <Pin size={16} /> : (isExpanded ? <PinOff size={16} /> : <div style={{ width: 16, height: 16 }} />)}
         </button>
       </div>
 
@@ -271,15 +261,15 @@ export default function Sidebar() {
               <div style={{ minWidth: '20px', display: 'flex', justifyContent: 'center' }}>
                 {item.icon}
               </div>
-              
+
               <motion.span
-                animate={{ 
+                animate={{
                   opacity: isExpanded || isPinned ? 1 : 0,
                   x: isExpanded || isPinned ? 0 : -10
                 }}
-                style={{ 
-                  marginLeft: '16px', 
-                  fontFamily: 'Inter', 
+                style={{
+                  marginLeft: '16px',
+                  fontFamily: 'Inter',
                   fontSize: '14px',
                   fontWeight: isActive ? '600' : '400'
                 }}
@@ -312,10 +302,10 @@ export default function Sidebar() {
             <LogOut size={20} />
           </div>
           <motion.span
-             animate={{ 
-                opacity: isExpanded || isPinned ? 1 : 0,
-                x: isExpanded || isPinned ? 0 : -10
-              }}
+            animate={{
+              opacity: isExpanded || isPinned ? 1 : 0,
+              x: isExpanded || isPinned ? 0 : -10
+            }}
             style={{ marginLeft: '16px', fontFamily: 'Inter', fontSize: '14px' }}
           >
             Disconnect

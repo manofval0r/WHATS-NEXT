@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from './api';
 import {
     User,
     MapPin,
@@ -29,10 +29,7 @@ export default function UserProfile() {
 
     const fetchProfile = async () => {
         try {
-            const token = localStorage.getItem('access_token');
-            const response = await axios.get(`http://127.0.0.1:8000/api/profile/${username}/`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await api.get(`/api/profile/${username}/`);
             setProfile(response.data);
         } catch (err) {
             console.error("Error fetching profile:", err);

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from './api';
 import { Globe, Briefcase, ExternalLink, Zap, Terminal, Cpu, PlayCircle, Newspaper, Youtube, Building2 } from 'lucide-react';
 
 export default function Resources() {
@@ -9,16 +9,13 @@ export default function Resources() {
 
   useEffect(() => {
     const fetchData = async () => {
-      const token = localStorage.getItem('access_token');
       try {
-        const res = await axios.get('http://127.0.0.1:8000/api/resources/', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        const res = await api.get('/api/resources/');
         setData(res.data);
-      } catch (e) { 
-        console.error(e); 
-      } finally { 
-        setLoading(false); 
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
       }
     };
     fetchData();
@@ -33,12 +30,12 @@ export default function Resources() {
   return (
     <div style={{ padding: '40px', height: '100%', overflowY: 'auto', background: 'radial-gradient(circle at 50% 0%, #1c2128 0%, #0d1117 100%)' }}>
       <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
-        
+
         {/* HEADER */}
         <div style={{ marginBottom: '30px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '10px' }}>
-            <div style={{ 
-              width: '48px', height: '48px', borderRadius: '12px', 
+            <div style={{
+              width: '48px', height: '48px', borderRadius: '12px',
               background: 'rgba(0, 242, 255, 0.1)', border: '1px solid rgba(0, 242, 255, 0.2)',
               display: 'flex', alignItems: 'center', justifyContent: 'center'
             }}>
@@ -85,7 +82,7 @@ export default function Resources() {
               >
                 {tab.icon}
                 {tab.label}
-                <span style={{ 
+                <span style={{
                   background: activeTab === tab.id ? 'var(--neon-cyan)' : 'rgba(255,255,255,0.1)',
                   color: activeTab === tab.id ? '#000' : 'var(--text-muted)',
                   padding: '2px 8px',
@@ -146,11 +143,11 @@ export default function Resources() {
                         {item.source}
                       </span>
                     </div>
-                    <h3 style={{ 
-                      margin: 0, 
-                      fontSize: '16px', 
-                      fontWeight: '600', 
-                      color: '#fff', 
+                    <h3 style={{
+                      margin: 0,
+                      fontSize: '16px',
+                      fontWeight: '600',
+                      color: '#fff',
                       lineHeight: '1.4',
                       display: '-webkit-box',
                       WebkitLineClamp: 3,

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from './api';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Save, Wallet, LogOut, Trash2, Download, Activity, Palette, Shield, Bell } from 'lucide-react';
 import { initTheme, applyTheme } from './theme';
@@ -20,11 +20,8 @@ export default function Settings() {
     }, []);
 
     const fetchSettings = async () => {
-        const token = localStorage.getItem('access_token');
         try {
-            const res = await axios.get('http://127.0.0.1:8000/api/settings/', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await api.get('/api/settings/');
             setBudget(res.data.budget_preference || 'FREE');
             setIsPublic(res.data.is_public !== undefined ? res.data.is_public : true);
             setEmailNotifications(res.data.email_notifications !== undefined ? res.data.email_notifications : true);
@@ -34,15 +31,12 @@ export default function Settings() {
     };
 
     const handleUpdateSettings = async () => {
-        const token = localStorage.getItem('access_token');
         setLoading(true);
         try {
-            await axios.post('http://127.0.0.1:8000/api/settings/update/', {
+            await api.post('/api/settings/update/', {
                 budget,
                 is_public: isPublic,
                 email_notifications: emailNotifications
-            }, {
-                headers: { Authorization: `Bearer ${token}` }
             });
             alert("Settings saved!");
         } catch (e) {
@@ -65,11 +59,8 @@ export default function Settings() {
 
     const handleDeleteAccount = async () => {
         if (!window.confirm('Are you absolutely sure you want to delete your account? This action cannot be undone.')) return;
-        const token = localStorage.getItem('access_token');
         try {
-            await axios.delete('http://127.0.0.1:8000/api/account/delete/', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await api.delete('/api/account/delete/');
             alert('Account deleted.');
             localStorage.removeItem('access_token');
             navigate('/');
@@ -79,10 +70,8 @@ export default function Settings() {
     };
 
     const handleExportData = async () => {
-        const token = localStorage.getItem('access_token');
         try {
-            const res = await axios.get('http://127.0.0.1:8000/api/account/export/', {
-                headers: { Authorization: `Bearer ${token}` },
+            const res = await api.get('/api/account/export/', {
                 responseType: 'blob'
             });
             const url = window.URL.createObjectURL(new Blob([res.data]));

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from './api';
 import { useNavigate } from 'react-router-dom';
 import { Terminal, Award, BookOpen, X, Send, ExternalLink, PlayCircle, Code, CheckCircle, RotateCw, Zap } from 'lucide-react';
 import RoadmapMap from './RoadmapMap';
@@ -31,9 +31,7 @@ export default function Dashboard() {
     if (!token) { navigate('/'); return; }
 
     try {
-      const res = await axios.post('http://127.0.0.1:8000/api/my-roadmap/', {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await api.post('/api/my-roadmap/', {});
 
       // Handle the response - ensure nodes is always an array
       const nodeData = res.data.nodes || res.data || [];
@@ -69,10 +67,9 @@ export default function Dashboard() {
       const token = localStorage.getItem('access_token');
 
       // Call the endpoint with force_regenerate flag
-      const res = await axios.post(
-        'http://127.0.0.1:8000/api/my-roadmap/',
-        { force_regenerate: true },
-        { headers: { Authorization: `Bearer ${token}` } }
+      const res = await api.post(
+        '/api/my-roadmap/',
+        { force_regenerate: true }
       );
 
       // Update nodes with the newly generated roadmap
@@ -101,10 +98,7 @@ export default function Dashboard() {
     setQuizAnswers({});
 
     try {
-      const token = localStorage.getItem('access_token');
-      const res = await axios.get('http://127.0.0.1:8000/api/daily-quiz/', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await api.get('/api/daily-quiz/');
 
       // Check if quiz was already completed
       if (res.data.quiz_completed) {
@@ -136,10 +130,8 @@ export default function Dashboard() {
     }
 
     try {
-      const token = localStorage.getItem('access_token');
-      await axios.post('http://127.0.0.1:8000/api/daily-quiz/submit/',
-        { score: 100 }, // We just claim completion for the streak
-        { headers: { Authorization: `Bearer ${token}` } }
+      await api.post('/api/daily-quiz/submit/',
+        { score: 100 } // We just claim completion for the streak
       );
       setQuizResult("STREAK EXTENDED! 🔥");
       setTimeout(() => {
@@ -168,10 +160,9 @@ export default function Dashboard() {
       const token = localStorage.getItem('access_token');
 
       // Call Backend
-      const res = await axios.post(
-        `http://127.0.0.1:8000/api/submit-project/${selectedNode.id}/`,
-        { link: submissionLink },
-        { headers: { Authorization: `Bearer ${token}` } }
+      const res = await api.post(
+        `/api/submit-project/${selectedNode.id}/`,
+        { link: submissionLink }
       );
 
       // UPDATE LOCAL STATE
