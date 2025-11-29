@@ -53,3 +53,11 @@ urlpatterns = [
     path('api/employer/jobs/', views.get_job_listings),
     path('api/employer/apply/<int:job_id>/', views.apply_to_job),
 ]
+
+# Router for ViewSets
+from rest_framework.routers import DefaultRouter
+router = DefaultRouter()
+router.register(r'api/community/posts', views.CommunityPostViewSet, basename='community-post')
+router.register(r'api/community/replies', views.CommunityReplyViewSet, basename='community-reply')
+
+urlpatterns += router.urls

@@ -529,7 +529,7 @@ export default function Dashboard() {
         {/* MOBILE HEADER */}
         {isMobile && (
           <div style={{
-            position: 'absolute', top: 10, left: 10, right: 10, zIndex: 10,
+            position: 'fixed', top: 10, left: 10, right: 10, zIndex: 100,
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             pointerEvents: 'none'
           }}>

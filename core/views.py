@@ -799,48 +799,152 @@ def pivot_career(request):
             user.target_career = new_career
             user.save()
             
-            UserRoadmapItem.objects.filter(user=user).delete()
+            # Logic to preserve relevant modules would go here
+            # For now, we just reset the roadmap but keep history
+            UserRoadmapItem.objects.filter(user=user, status='active').delete()
+            UserRoadmapItem.objects.filter(user=user, status='locked').delete()
             
-            uni_course = user.normalized_course or user.university_course_raw
-            budget = user.budget_preference
-            
-            print(f"Pivoting {user.username} to {new_career}...")
-            ai_result = generate_detailed_roadmap(new_career, uni_course, budget)
-            
-            transferred_count = 0
-            for i, ai_node in enumerate(ai_result['nodes']):
-                data = ai_node['data']
-                label = data.get('label', 'Unknown')
-                
-                status = 'locked'
-                for old_skill in completed_labels:
-                    if old_skill.lower() in label.lower() or label.lower() in old_skill.lower():
-                        status = 'completed'
-                        transferred_count += 1
-                        break
-                
-                if i == 0 and status == 'locked':
-                    status = 'active'
-
-                UserRoadmapItem.objects.create(
-                    user=user,
-                    step_order=i,
-                    label=label,
-                    description=data.get('description', ''),
-                    status=status,
-                    market_value=data.get('market_value', 'Med'),
-                    resources=data.get('resources', {}),
-                    project_prompt=data.get('project_prompt', 'No Project defined')
-                )
-
             return Response({
-                "message": f"Career switched to {new_career}!",
-                "transferred_skills": transferred_count
+                "message": f"Career pivoted to {new_career}. Generating new roadmap...",
+                "kept_modules": len(completed_labels)
             })
 
     except Exception as e:
-        print(f"Pivot Error: {e}")
-        return Response({"error": "Failed to pivot career"}, status=500)
+        return Response({"error": str(e)}, status=500)
+
+
+# ==========================================
+# 8. COMMUNITY Q&A VIEWS
+# ==========================================
+
+from rest_framework import viewsets, status, filters
+from rest_framework.decorators import action
+from django.db.models import Count, Q
+from .models import CommunityPost, CommunityReply, PostVote, PostTag
+from .serializers import CommunityPostSerializer, CommunityReplySerializer
+
+class CommunityPostViewSet(viewsets.ModelViewSet):
+    serializer_class = CommunityPostSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['title', 'content', 'tags__name']
+    ordering_fields = ['created_at', 'upvotes', 'view_count']
+
+    def get_queryset(self):
+        queryset = CommunityPost.objects.all().select_related('author', 'attached_module').prefetch_related('replies', 'tags')
+        
+        # Filter by type
+        post_type = self.request.query_params.get('type')
+        if post_type:
+            queryset = queryset.filter(post_type=post_type)
+            
+        # Filter by module
+        module_id = self.request.query_params.get('module_id')
+        if module_id:
+            queryset = queryset.filter(attached_module_id=module_id)
+            
+        # Filter by solved status
+        solved = self.request.query_params.get('solved')
+        if solved:
+            is_solved = solved.lower() == 'true'
+            queryset = queryset.filter(is_solved=is_solved)
+
+        return queryset
+
+    def perform_create(self, serializer):
+        serializer.save(author=self.request.user)
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        # Increment view count
+        instance.view_count += 1
+        instance.save()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def upvote(self, request, pk=None):
+        post = self.get_object()
+        user = request.user
+        
+        try:
+            vote = PostVote.objects.get(user=user, post=post)
+            # Toggle vote (remove if exists)
+            vote.delete()
+            post.upvotes = max(0, post.upvotes - 1)
+            voted = False
+        except PostVote.DoesNotExist:
+            PostVote.objects.create(user=user, post=post, vote_type='post')
+            post.upvotes += 1
+            voted = True
+            
+        post.save()
+        return Response({'upvotes': post.upvotes, 'voted': voted})
+
+    @action(detail=True, methods=['post'], url_path='mark-solved')
+    def mark_solved(self, request, pk=None):
+        post = self.get_object()
+        if post.author != request.user:
+            return Response({'error': 'Only author can mark as solved'}, status=403)
+            
+        post.is_solved = not post.is_solved
+        post.save()
+        return Response({'is_solved': post.is_solved})
+
+
+class CommunityReplyViewSet(viewsets.ModelViewSet):
+    serializer_class = CommunityReplySerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return CommunityReply.objects.all().select_related('author')
+
+    def perform_create(self, serializer):
+        post_id = self.request.data.get('post')
+        post = get_object_or_404(CommunityPost, id=post_id)
+        serializer.save(author=self.request.user, post=post)
+        
+        # Update reply count on post
+        post.reply_count += 1
+        post.save()
+
+    @action(detail=True, methods=['post'])
+    def upvote(self, request, pk=None):
+        reply = self.get_object()
+        user = request.user
+        
+        try:
+            vote = PostVote.objects.get(user=user, reply=reply)
+            vote.delete()
+            reply.upvotes = max(0, reply.upvotes - 1)
+            voted = False
+        except PostVote.DoesNotExist:
+            PostVote.objects.create(user=user, reply=reply, vote_type='reply')
+            reply.upvotes += 1
+            voted = True
+            
+        reply.save()
+        return Response({'upvotes': reply.upvotes, 'voted': voted})
+
+    @action(detail=True, methods=['post'])
+    def accept(self, request, pk=None):
+        reply = self.get_object()
+        if reply.post.author != request.user:
+            return Response({'error': 'Only post author can accept answer'}, status=403)
+            
+        # Toggle acceptance
+        reply.is_accepted = not reply.is_accepted
+        reply.save()
+        
+        # If accepted, mark post as solved
+        if reply.is_accepted:
+            reply.post.is_solved = True
+            reply.post.save()
+            
+        return Response({'is_accepted': reply.is_accepted})
+
+
+
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])

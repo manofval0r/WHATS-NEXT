@@ -136,7 +136,7 @@ export default function MobileModuleModal({ node, onClose, onSubmitProject, onMa
                 </div>
 
                 {/* Resources Section */}
-                {data.resources && Object.keys(data.resources).length > 0 && (
+                {data.resources && (
                     <div style={{
                         background: 'var(--bg-surface)',
                         border: '1px solid var(--border-subtle)',
@@ -156,10 +156,14 @@ export default function MobileModuleModal({ node, onClose, onSubmitProject, onMa
                         </h3>
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                            {Object.entries(data.resources).map(([key, value]) => (
+                            {/* Combine primary and additional resources if they exist */}
+                            {[
+                                ...(data.resources.primary || []),
+                                ...(data.resources.additional || [])
+                            ].map((resource, idx) => (
                                 <a
-                                    key={key}
-                                    href={value}
+                                    key={idx}
+                                    href={resource.url}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     style={{
@@ -181,6 +185,63 @@ export default function MobileModuleModal({ node, onClose, onSubmitProject, onMa
                                     onMouseLeave={(e) => {
                                         e.currentTarget.style.borderColor = 'var(--border-subtle)';
                                         e.currentTarget.style.background = 'var(--bg-panel)';
+                                    }}
+                                >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                        <div style={{
+                                            width: '40px',
+                                            height: '40px',
+                                            background: 'var(--bg-dark)',
+                                            borderRadius: '8px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            fontSize: '20px'
+                                        }}>
+                                            {resource.type === 'video' ? '🎥' :
+                                                resource.type === 'interactive' ? '🎮' :
+                                                    resource.type === 'course' ? '🎓' : '🔗'}
+                                        </div>
+                                        <div>
+                                            <div style={{
+                                                fontSize: '14px',
+                                                fontWeight: '600',
+                                                color: 'var(--text-header)',
+                                                marginBottom: '2px'
+                                            }}>
+                                                {resource.title}
+                                            </div>
+                                            <div style={{
+                                                fontSize: '12px',
+                                                color: 'var(--text-muted)',
+                                                textTransform: 'uppercase'
+                                            }}>
+                                                {resource.type || 'External Resource'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <ExternalLink size={20} color="var(--neon-cyan)" />
+                                </a>
+                            ))}
+
+                            {/* Fallback for old data structure if any */}
+                            {!data.resources.primary && !data.resources.additional && Object.entries(data.resources).map(([key, value]) => (
+                                <a
+                                    key={key}
+                                    href={value}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        padding: '12px',
+                                        background: 'var(--bg-panel)',
+                                        border: '1px solid var(--border-subtle)',
+                                        borderRadius: '8px',
+                                        textDecoration: 'none',
+                                        color: 'var(--text-main)',
+                                        transition: 'all 0.2s'
                                     }}
                                 >
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>

@@ -87,3 +87,48 @@ class JobPostingSerializer(serializers.Serializer):
         # Calculated at view level
         return getattr(obj, '_match_score', 0)
 
+
+# ==========================================
+# COMMUNITY SERIALIZERS
+# ==========================================
+
+from .models import CommunityPost, CommunityReply, PostVote
+
+class CommunityReplySerializer(serializers.ModelSerializer):
+    author = UserBasicSerializer(read_only=True)
+    is_upvoted = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = CommunityReply
+        fields = ['id', 'post', 'author', 'content', 'image', 'upvotes', 'is_accepted', 'created_at', 'is_upvoted']
+        read_only_fields = ['upvotes', 'is_accepted', 'created_at']
+
+    def get_is_upvoted(self, obj):
+        user = self.context.get('request').user
+        if user.is_authenticated:
+            return PostVote.objects.filter(user=user, reply=obj, vote_type='reply').exists()
+        return False
+
+class CommunityPostSerializer(serializers.ModelSerializer):
+    author = UserBasicSerializer(read_only=True)
+    replies = CommunityReplySerializer(many=True, read_only=True)
+    is_upvoted = serializers.SerializerMethodField()
+    attached_module_name = serializers.CharField(source='attached_module.label', read_only=True)
+    
+    class Meta:
+        model = CommunityPost
+        fields = [
+            'id', 'author', 'post_type', 'title', 'content', 
+            'attached_module', 'attached_module_name', 'image', 
+            'upvotes', 'view_count', 'reply_count', 'is_solved', 
+            'created_at', 'replies', 'is_upvoted'
+        ]
+        read_only_fields = ['upvotes', 'view_count', 'reply_count', 'created_at']
+
+    def get_is_upvoted(self, obj):
+        user = self.context.get('request').user
+        if user.is_authenticated:
+            return PostVote.objects.filter(user=user, post=obj, vote_type='post').exists()
+        return False
+
+
