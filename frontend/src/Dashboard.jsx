@@ -3,6 +3,8 @@ import api from './api';
 import { useNavigate } from 'react-router-dom';
 import { Terminal, Award, BookOpen, X, Send, ExternalLink, PlayCircle, Code, CheckCircle, RotateCw, Zap } from 'lucide-react';
 import RoadmapMap from './RoadmapMap';
+import MobileRoadmap from './components/MobileRoadmap';
+import { useIsMobile } from './hooks/useMediaQuery';
 
 // --- HELPER: TYPEWRITER TEXT ---
 const TypewriterText = ({ texts }) => {
@@ -56,6 +58,7 @@ export default function Dashboard() {
   const [quizResult, setQuizResult] = useState(null);
 
   const navigate = useNavigate();
+  const isMobile = useIsMobile(); // Detect mobile viewport
 
   // --- FETCH ROADMAP ---
   const fetchRoadmap = async () => {
@@ -515,11 +518,18 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* ROADMAP MAP (D3) */}
-        <RoadmapMap
-          nodes={nodes}
-          onNodeClick={(e, node) => setSelectedNode(node)}
-        />
+        {/* ROADMAP - Conditional Rendering (Mobile vs Desktop) */}
+        {isMobile ? (
+          <MobileRoadmap
+            nodes={nodes}
+            onNodeClick={(node) => setSelectedNode(node)}
+          />
+        ) : (
+          <RoadmapMap
+            nodes={nodes}
+            onNodeClick={(e, node) => setSelectedNode(node)}
+          />
+        )}
 
       </div>
 

@@ -102,3 +102,182 @@ button {
     transform: rotate(360deg);
   }
 }
+
+/* ============================================
+   MOBILE RESPONSIVE UTILITIES
+   ============================================ */
+
+/* Touch-friendly sizing */
+.touch-target {
+  min-height: 48px;
+  min-width: 48px;
+}
+
+.mobile-button {
+  min-height: 56px;
+  padding: 12px 24px;
+  font-size: 16px;
+}
+
+/* Mobile-specific utilities */
+@media (max-width: 768px) {
+  .hide-on-mobile {
+    display: none !important;
+  }
+
+  .mobile-full-width {
+    width: 100% !important;
+  }
+
+  .mobile-padding {
+    padding: 16px !important;
+  }
+
+  .mobile-text-sm {
+    font-size: 14px !important;
+  }
+
+  .mobile-text-base {
+    font-size: 16px !important;
+  }
+}
+
+/* Desktop-specific utilities */
+@media (min-width: 769px) {
+  .hide-on-desktop {
+    display: none !important;
+  }
+}
+
+/* Floating bottom bar */
+.floating-bottom-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background: rgba(22, 27, 34, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(138, 92, 254, 0.2);
+  padding: 12px 16px;
+  transform: translateY(0);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.floating-bottom-bar.hidden {
+  transform: translateY(100%);
+}
+
+/* Mobile roadmap styles */
+.mobile-roadmap-container {
+  position: relative;
+  padding: 20px 0;
+  min-height: 100vh;
+}
+
+.mobile-roadmap-path {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.mobile-roadmap-node {
+  position: relative;
+  z-index: 10;
+  margin-bottom: 120px;
+  display: flex;
+  justify-content: center;
+}
+
+.mobile-roadmap-node.align-left {
+  justify-content: flex-start;
+  padding-left: 10%;
+}
+
+.mobile-roadmap-node.align-right {
+  justify-content: flex-end;
+  padding-right: 10%;
+}
+
+/* Node badge styles */
+.node-badge {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+  text-align: center;
+  padding: 8px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.node-badge.completed {
+  background: rgba(138, 92, 254, 0.2);
+  border: 4px solid var(--neon-purple);
+  color: var(--neon-purple);
+  box-shadow: 0 0 20px rgba(138, 92, 254, 0.4);
+}
+
+.node-badge.active {
+  background: rgba(0, 242, 255, 0.1);
+  border: 4px solid var(--neon-cyan);
+  color: var(--neon-cyan);
+  box-shadow: 0 0 20px rgba(0, 242, 255, 0.3);
+}
+
+.node-badge.locked {
+  background: var(--bg-surface);
+  border: 4px solid var(--border-subtle);
+  color: var(--text-muted);
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Progress indicator below node */
+.node-progress {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  font-size: 12px;
+  text-align: center;
+  min-width: 200px;
+}
+
+.node-progress-bar {
+  width: 100%;
+  height: 6px;
+  background: var(--bg-panel);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.node-progress-fill {
+  height: 100%;
+  background: var(--neon-green);
+  transition: width 0.3s ease;
+}
+
+.node-progress-fill.active {
+  background: var(--neon-cyan);
+}
+
+/* Glassmorphism effect */
+.glass-effect {
+  background: rgba(22, 27, 34, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}

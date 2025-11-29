@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Resource Type Selection</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+<script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            primary: "#8A5CFE",
+            "background-light": "#F3F4F6", 
+            "background-dark": "#111827",
+            "card-light": "#FFFFFF",
+            "card-dark": "#1F2937",
+            "text-light": "#1F2937",
+            "text-dark": "#E5E7EB",
+            "subtext-light": "#6B7280",
+            "subtext-dark": "#9CA3AF",
+            "border-light": "#E5E7EB",
+            "border-dark": "#374151"
+          },
+          fontFamily: {
+            display: ["Roboto Mono", "monospace"],
+          },
+          borderRadius: {
+            DEFAULT: "0.5rem",
+          },
+        },
+      },
+    };
+  </script>
+<style>
+    body {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display">
+<div class="flex flex-col h-screen p-6 text-text-light dark:text-text-dark">
+<header class="flex items-center mb-10">
+<button class="p-2 -ml-2">
+<span class="material-icons-outlined text-text-light dark:text-text-dark">
+          arrow_back_ios_new
+        </span>
+</button>
+<h1 class="text-xl font-bold ml-2">Learning Preferences</h1>
+</header>
+<main class="flex-grow">
+<div class="space-y-8">
+<div class="bg-card-light dark:bg-card-dark rounded-lg p-5 border border-border-light dark:border-border-dark">
+<div class="flex items-center mb-4">
+<span class="material-icons-outlined text-subtext-light dark:text-subtext-dark mr-3">
+              account_balance_wallet
+            </span>
+<h2 class="text-lg font-semibold text-text-light dark:text-text-dark">Budget Type</h2>
+</div>
+<p class="text-sm text-subtext-light dark:text-subtext-dark mb-5">
+            Select your preferred budget for learning resources.
+          </p>
+<div class="relative">
+<select class="w-full appearance-none bg-background-light dark:bg-background-dark border border-border-light dark:border-border-dark text-text-light dark:text-text-dark rounded-md py-3 px-4 pr-10 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary">
+<option>Free Resources Only</option>
+<option>Paid Resources</option>
+<option>Both Free &amp; Paid</option>
+</select>
+<div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-subtext-light dark:text-subtext-dark">
+<span class="material-icons-outlined">
+                expand_more
+              </span>
+</div>
+</div>
+</div>
+<div class="bg-card-light dark:bg-card-dark rounded-lg p-5 border border-border-light dark:border-border-dark opacity-50">
+<div class="flex items-center mb-4">
+<span class="material-icons-outlined text-subtext-light dark:text-subtext-dark mr-3">
+              palette
+            </span>
+<h2 class="text-lg font-semibold text-text-light dark:text-text-dark">Appearance</h2>
+</div>
+<p class="text-sm text-subtext-light dark:text-subtext-dark mb-5">
+            Choose your preferred theme for the interface.
+          </p>
+<div class="relative">
+<select class="w-full appearance-none bg-background-light dark:bg-background-dark border border-border-light dark:border-border-dark text-subtext-light dark:text-subtext-dark rounded-md py-3 px-4 pr-10 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary cursor-not-allowed" disabled="">
+<option>Dark Not Boring</option>
+<option>Light &amp; Clean</option>
+</select>
+<div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-subtext-light dark:text-subtext-dark">
+<span class="material-icons-outlined">
+                expand_more
+              </span>
+</div>
+</div>
+</div>
+</div>
+</main>
+<footer class="mt-auto pt-6">
+<button class="w-full bg-primary text-white font-bold py-4 px-6 rounded-lg shadow-lg hover:bg-opacity-90 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-background-dark focus:ring-primary">
+        Save Changes
+      </button>
+</footer>
+</div>
+
+</body></html>

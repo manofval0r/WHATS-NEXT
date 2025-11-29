@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Sign Up/Login</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+<script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              primary: "#8A63D2",
+              "background-light": "#F5F3F7",
+              "background-dark": "#161625",
+              "surface-light": "#FFFFFF",
+              "surface-dark": "#232333",
+              "text-light-primary": "#1C1C1E",
+              "text-dark-primary": "#E0E0E0",
+              "text-light-secondary": "#6B7280",
+              "text-dark-secondary": "#A0AEC0",
+              "border-light": "#E5E7EB",
+              "border-dark": "#393952",
+              "success": "#34D399",
+            },
+            fontFamily: {
+              display: ["Space Grotesk", "sans-serif"],
+            },
+            borderRadius: {
+              DEFAULT: "0.75rem", // 12px
+            },
+          },
+        },
+      };
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings:
+            'FILL' 0,
+            'wght' 300,
+            'GRAD' 0,
+            'opsz' 24
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display">
+<div class="flex flex-col h-screen">
+<div class="flex-grow flex flex-col justify-center items-center p-6">
+<div class="text-center mb-10">
+<div class="inline-flex items-center justify-center bg-surface-light dark:bg-surface-dark p-4 rounded-xl shadow-md mb-4 border border-border-light dark:border-border-dark">
+<span class="material-symbols-outlined text-primary text-4xl">
+                        hub
+                    </span>
+</div>
+<h1 class="text-3xl font-bold text-text-light-primary dark:text-text-dark-primary tracking-tight">DEV_HUB</h1>
+<p class="text-text-light-secondary dark:text-text-dark-secondary mt-2">Personalized roadmaps for developers.</p>
+</div>
+<div class="w-full max-w-sm space-y-5">
+<div>
+<label class="text-sm font-medium text-text-light-secondary dark:text-text-dark-secondary" for="email">Email</label>
+<div class="mt-2 relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-light-secondary dark:text-text-dark-secondary">
+                            alternate_email
+                        </span>
+<input autocomplete="email" class="w-full pl-10 pr-4 py-3 bg-surface-light dark:bg-surface-dark text-text-light-primary dark:text-text-dark-primary border border-border-light dark:border-border-dark rounded-lg placeholder:text-text-light-secondary placeholder:dark:text-text-dark-secondary focus:ring-2 focus:ring-inset focus:ring-primary focus:border-primary transition duration-200" id="email" name="email" placeholder="you@example.com" required="" type="email"/>
+</div>
+</div>
+<div>
+<label class="text-sm font-medium text-text-light-secondary dark:text-text-dark-secondary" for="password">Password</label>
+<div class="mt-2 relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-light-secondary dark:text-text-dark-secondary">
+                            lock
+                        </span>
+<input autocomplete="current-password" class="w-full pl-10 pr-4 py-3 bg-surface-light dark:bg-surface-dark text-text-light-primary dark:text-text-dark-primary border border-border-light dark:border-border-dark rounded-lg placeholder:text-text-light-secondary placeholder:dark:text-text-dark-secondary focus:ring-2 focus:ring-inset focus:ring-primary focus:border-primary transition duration-200" id="password" name="password" placeholder="••••••••" required="" type="password"/>
+</div>
+</div>
+<div>
+<button class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white bg-primary hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary focus:ring-offset-background-light dark:focus:ring-offset-background-dark transition duration-200" type="submit">
+                        Continue with Email
+                    </button>
+</div>
+</div>
+<div class="w-full max-w-sm flex items-center my-8">
+<div class="flex-grow border-t border-border-light dark:border-border-dark"></div>
+<span class="flex-shrink mx-4 text-xs text-text-light-secondary dark:text-text-dark-secondary uppercase">Or continue with</span>
+<div class="flex-grow border-t border-border-light dark:border-border-dark"></div>
+</div>
+<div class="w-full max-w-sm grid grid-cols-2 gap-4">
+<button class="w-full inline-flex items-center justify-center py-3 px-4 border border-border-light dark:border-border-dark rounded-lg shadow-sm bg-surface-light dark:bg-surface-dark text-sm font-medium text-text-light-primary dark:text-text-dark-primary hover:bg-gray-50 dark:hover:bg-opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary focus:ring-offset-background-light dark:focus:ring-offset-background-dark transition duration-200" type="button">
+<img alt="Google icon" class="w-5 h-5 mr-3" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAxeVZzQ39oFOBnN_V51sZw7cMyMjWO-_LhjpDXRY3onV6hiSoUyMTOi8NZhzySB3dGCCoD0KbAy2yHrstsGjztLbJ_cOHPXML4jrRnNCSePw0ucZ2B13DeDhvMLdc5a0YlLqTyFsaKi29TJHdu7FTTGUJQz_57gH3nTlDrnjQNEgIYXJsgogZ8m4h471MPy1eVn41esXrZ0OzFFngRJoxK7E3wT-lRrUnDLMBUlLQ6BckQbTlZaR5q3Ludaxf-RirJmKYEXZR4bO8"/>
+                    Google
+                </button>
+<button class="w-full inline-flex items-center justify-center py-3 px-4 border border-border-light dark:border-border-dark rounded-lg shadow-sm bg-surface-light dark:bg-surface-dark text-sm font-medium text-text-light-primary dark:text-text-dark-primary hover:bg-gray-50 dark:hover:bg-opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary focus:ring-offset-background-light dark:focus:ring-offset-background-dark transition duration-200" type="button">
+<img alt="GitHub icon" class="w-5 h-5 mr-3" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA9CiKZmQzkE5K0soWgmlWbPd8rn09ZGSHh1itvusWTWjuIZk7jJfJXjPrvBcnAVsAphhbJcE0j9tiGk0srzO_PgHxlocId-zLlJX9JVebB-I2u2HqzkOERDPWWKi_9m35OZpdlzjxaXppEjdZXNTDZJRTbvS2AF0JkG0zKMwqtwt7Ntt5jRQMUjfvo2Bqg7Rkl2SufdVylvMWoX_cUw07doxPnu8vfkNQZPPTfZRvBA8EyMvoMV3iyfFTHnKdtQavFR0SHtYTB4eU"/>
+                    GitHub
+                </button>
+</div>
+</div>
+<div class="text-center p-6 pt-0">
+<p class="text-xs text-text-light-secondary dark:text-text-dark-secondary">
+                By continuing, you agree to our <a class="font-medium text-primary hover:underline" href="#">Terms of Service</a>.
+            </p>
+</div>
+</div>
+
+</body></html>

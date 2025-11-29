@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Resource Details Screen</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+<script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            primary: "#8A5CFF", // A vibrant purple
+            "background-light": "#F3F4F6", // Light gray for light mode
+            "background-dark": "#111827", // Dark blue-gray for dark mode
+          },
+          fontFamily: {
+            display: ["Space Grotesk", "sans-serif"],
+          },
+          borderRadius: {
+            DEFAULT: "0.5rem", // 8px
+          },
+        },
+      },
+    };
+  </script>
+<style>
+    .material-icons-outlined {
+      font-weight: normal;
+      font-style: normal;
+      font-size: 24px;
+      line-height: 1;
+      letter-spacing: normal;
+      text-transform: none;
+      display: inline-block;
+      white-space: nowrap;
+      word-wrap: normal;
+      direction: ltr;
+      -webkit-font-feature-settings: 'liga';
+      -webkit-font-smoothing: antialiased;
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display">
+<div class="min-h-screen flex flex-col p-4 text-gray-300 dark:text-gray-300">
+<header class="flex items-center justify-between mb-8">
+<a class="flex items-center text-primary" href="#">
+<span class="material-icons-outlined">arrow_back_ios_new</span>
+<span class="ml-1 text-sm font-medium">Back to Roadmap</span>
+</a>
+<button class="text-gray-500 dark:text-gray-400">
+<span class="material-icons-outlined">more_vert</span>
+</button>
+</header>
+<main class="flex-grow flex flex-col">
+<div class="flex justify-center mb-6">
+<div class="w-20 h-20 bg-gray-200 dark:bg-gray-800 rounded-2xl flex items-center justify-center">
+<span class="material-icons-outlined text-4xl text-gray-500 dark:text-gray-400">code</span>
+</div>
+</div>
+<div class="text-center mb-6">
+<h1 class="text-2xl font-bold text-gray-900 dark:text-white">HTML Basics</h1>
+<p class="text-gray-600 dark:text-gray-400 mt-1">Introduction to HyperText Markup Language</p>
+</div>
+<div class="bg-gray-200 dark:bg-gray-800 rounded-lg p-4 mb-8">
+<div class="flex items-center justify-between">
+<div class="flex items-center">
+<div class="w-10 h-10 bg-gray-300 dark:bg-gray-700 rounded-md flex items-center justify-center mr-3">
+<span class="material-icons-outlined text-gray-600 dark:text-gray-300">link</span>
+</div>
+<div>
+<h2 class="font-semibold text-gray-800 dark:text-gray-200">FreeCodeCamp</h2>
+<p class="text-sm text-gray-500 dark:text-gray-400">External Resource</p>
+</div>
+</div>
+<a class="text-primary" href="#">
+<span class="material-icons-outlined">open_in_new</span>
+</a>
+</div>
+</div>
+<div class="mb-auto">
+<h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-2">Description</h3>
+<p class="text-gray-600 dark:text-gray-400 leading-relaxed">
+          Learn the fundamentals of HTML, the standard markup language for documents designed to be displayed in a web browser. This module covers essential tags, document structure, and best practices for creating accessible and semantic web pages.
+        </p>
+</div>
+</main>
+<footer class="mt-8">
+<button class="w-full bg-primary text-white font-bold py-4 px-6 rounded-lg flex items-center justify-center transition-transform transform active:scale-95">
+<span class="material-icons-outlined mr-2">check_circle</span>
+        Mark Complete
+      </button>
+</footer>
+</div>
+
+</body></html>
