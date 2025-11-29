@@ -253,7 +253,12 @@ export default function Dashboard() {
 
   // --- RENDER ---
   return (
-    <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}>
+    <div style={{
+      width: '100%',
+      height: '100%',
+      position: 'relative',
+      overflow: isMobile ? 'auto' : 'hidden' // Allow scrolling on mobile
+    }}>
 
       {/* UNIFIED LOADING & REGENERATION OVERLAY */}
       {(loading || regenerating) && (
