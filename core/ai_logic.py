@@ -3,7 +3,6 @@ import json
 import requests
 from jsonschema import validate, ValidationError
 from dotenv import load_dotenv
-from .youtube_logic import search_youtube_videos
 
 load_dotenv()
 
@@ -28,13 +27,12 @@ MODULE_SCHEMA = {
 ROADMAP_SCHEMA = {
     "type": "array",
     "items": MODULE_SCHEMA,
-    "minItems": 1,
-    "maxItems": 20
+    "minItems": 1
 }
 
 def generate_detailed_roadmap(niche, uni_course, budget):
     """
-    Generates a highly specific, context-aware roadmap with YouTube videos.
+    Generates a highly specific, context-aware roadmap.
     """
     
     uni_context = ""
@@ -82,7 +80,11 @@ def generate_detailed_roadmap(niche, uni_course, budget):
        - Order by quality: Best resources in "primary", good alternatives in "additional"
     
     Output Format:
-    Return ONLY a raw JSON list of objects. Do not wrap in 'nodes'/'edges' keys yet.
+    Return ONLY a raw JSON list of objects. 
+    IMPORTANT: Do NOT include any conversational text like "Here is your roadmap" or "As a career coach".
+    Start the response immediately with `[` and end with `]`.
+    Do not wrap in markdown code blocks.
+
     [
         {{
             "label": "Module Title",
@@ -141,48 +143,9 @@ def generate_detailed_roadmap(niche, uni_course, budget):
         
         modules_list = clean_text
         
-        print(f"[AI] Fetching YouTube videos for {len(modules_list)} modules...")
-        try:
-            for i, module in enumerate(modules_list):
-                print(f"[AI]   Module {i+1}: Searching YouTube for '{module.get('label', '')[:50]}'...")
-                videos = search_youtube_videos(module.get('label', ''), max_results=4)  # Get 4 videos
-                print(f"[AI]   Module {i+1}: Found {len(videos)} videos")
-                
-                # Ensure resources structure exists
-                if not isinstance(module.get('resources'), dict):
-                    module['resources'] = {"primary": [], "additional": []}
-                
-                # Ensure keys exist even if it was already a dict (e.g. empty dict from AI)
-                module['resources'].setdefault('primary', [])
-                module['resources'].setdefault('additional', [])
-                
-                # Add first video to primary if space, rest to additional
-                if len(videos) > 0 and len(module['resources'].get('primary', [])) < 2:
-                    module['resources']['primary'].append({
-                        "title": videos[0]['title'],
-                        "url": videos[0]['url'],
-                        "type": "video"
-                    })
-                    # Add remaining videos to additional
-                    for video in videos[1:]:
-                        module['resources'].setdefault('additional', []).append({
-                            "title": video['title'],
-                            "url": video['url'],
-                            "type": "video"
-                        })
-                else:
-                    # Add all to additional
-                    for video in videos:
-                        module['resources'].setdefault('additional', []).append({
-                            "title": video['title'],
-                            "url": video['url'],
-                            "type": "video"
-                        })
-            print(f"[AI] YouTube fetch complete!")
-        except Exception as youtube_err:
-            print(f"[AI] YouTube fetch error: {type(youtube_err).__name__}: {youtube_err}")
-            import traceback
-            traceback.print_exc()
+        # Optimization: Skip separate YouTube API calls to reduce generation time.
+        # We rely on Gemini to provide the video links in the 'resources' field.
+        
         print(f"[AI] Roadmap generation successful!")
         print(f"[AI] Returning {len(modules_list)} modules")
         return layout_engine(modules_list)
@@ -198,12 +161,15 @@ def safe_parse_json(text):
     Safely parse JSON from AI output with error handling.
     """
     try:
-        # Remove markdown code blocks if present
-        clean_text = text.replace("```json", "").replace("```", "").strip()
+        # Find the first '[' and last ']'
+        start_idx = text.find('[')
+        end_idx = text.rfind(']')
         
-        # Handle trailing comma before closing bracket
-        if clean_text.endswith(",]"): 
-            clean_text = clean_text.replace(",]", "]")
+        if start_idx == -1 or end_idx == -1:
+            print("[AI] Error: No JSON array found in response")
+            return None
+            
+        clean_text = text[start_idx:end_idx+1]
         
         # Parse and validate JSON
         data = json.loads(clean_text)
@@ -307,10 +273,10 @@ def normalize_university_course(raw_course):
     """
     
     try:
-        payload = {{ 
-            "contents": [{{ "parts": [{{"text": prompt}}] }}],
-            "generationConfig": {{ "temperature": 0.3 }}
-        }}
+        payload = { 
+            "contents": [{ "parts": [{"text": prompt}] }],
+            "generationConfig": { "temperature": 0.3 }
+        }
         response = requests.post(GEMINI_URL, json=payload, timeout=10)
         
         if response.status_code == 200:
