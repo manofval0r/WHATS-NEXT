@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import api from './api';
 import { Globe, Briefcase, ExternalLink, Zap, Terminal, Cpu, PlayCircle, Newspaper, Youtube, Building2 } from 'lucide-react';
+import { useIsMobile } from './hooks/useMediaQuery';
 
 export default function Resources() {
   const [data, setData] = useState({ career_focus: '', news: [], internships: [], videos: [] });
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('news'); // 'news', 'videos', 'jobs'
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -28,7 +30,13 @@ export default function Resources() {
   ];
 
   return (
-    <div style={{ padding: '40px', height: '100%', overflowY: 'auto', background: 'radial-gradient(circle at 50% 0%, #1c2128 0%, #0d1117 100%)' }}>
+    <div style={{
+      padding: isMobile ? '16px' : '40px',
+      height: '100%',
+      overflowY: 'auto',
+      background: 'radial-gradient(circle at 50% 0%, #1c2128 0%, #0d1117 100%)',
+      paddingBottom: isMobile ? '100px' : '40px'
+    }}>
       <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
 
         {/* HEADER */}
@@ -52,7 +60,15 @@ export default function Resources() {
           </div>
 
           {/* TABS */}
-          <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid var(--border-subtle)', paddingTop: '20px' }}>
+          <div style={{
+            display: 'flex',
+            gap: '8px',
+            borderBottom: '1px solid var(--border-subtle)',
+            paddingTop: '20px',
+            overflowX: isMobile ? 'auto' : 'visible',
+            paddingBottom: isMobile ? '10px' : '0',
+            scrollbarWidth: 'none'
+          }}>
             {tabs.map(tab => (
               <button
                 key={tab.id}
@@ -71,7 +87,8 @@ export default function Resources() {
                   alignItems: 'center',
                   gap: '8px',
                   transition: 'all 0.2s',
-                  marginBottom: '-1px'
+                  marginBottom: '-1px',
+                  whiteSpace: 'nowrap'
                 }}
                 onMouseEnter={(e) => {
                   if (activeTab !== tab.id) e.currentTarget.style.color = 'var(--text-main)';
@@ -107,7 +124,11 @@ export default function Resources() {
           <div>
             {/* NEWS TAB */}
             {activeTab === 'news' && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '20px' }}>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(350px, 1fr))',
+                gap: '20px'
+              }}>
                 {data.news && data.news.length > 0 ? data.news.map((item, idx) => (
                   <a
                     key={idx}
@@ -174,7 +195,11 @@ export default function Resources() {
 
             {/* YOUTUBE TAB */}
             {activeTab === 'videos' && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '20px' }}>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(350px, 1fr))',
+                gap: '20px'
+              }}>
                 {data.videos && data.videos.length > 0 ? data.videos.map((video, idx) => (
                   <a
                     key={idx}
@@ -264,7 +289,11 @@ export default function Resources() {
 
             {/* JOBS TAB */}
             {activeTab === 'jobs' && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '20px' }}>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(350px, 1fr))',
+                gap: '20px'
+              }}>
                 {data.internships && data.internships.length > 0 ? data.internships.map((job, idx) => (
                   <a
                     key={idx}

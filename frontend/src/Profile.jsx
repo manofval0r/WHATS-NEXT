@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
 import ContributionGraph from './ContributionGraph';
+import { useIsMobile } from './hooks/useMediaQuery';
+
 
 export default function Profile() {
     // --- STATE ---
@@ -22,6 +24,7 @@ export default function Profile() {
 
     const navigate = useNavigate();
     const cvRef = useRef();
+    const isMobile = useIsMobile();
 
     const handleExportPDF = () => {
         const element = cvRef.current;
@@ -96,7 +99,13 @@ export default function Profile() {
     const { profile, stats, projects } = data;
 
     return (
-        <div style={{ padding: '40px', height: '100%', overflowY: 'auto', background: 'radial-gradient(circle at 50% 0%, #1c2128 0%, #0d1117 100%)' }}>
+        <div style={{
+            padding: isMobile ? '16px' : '40px',
+            height: '100%',
+            overflowY: 'auto',
+            background: 'radial-gradient(circle at 50% 0%, #1c2128 0%, #0d1117 100%)',
+            paddingBottom: isMobile ? '100px' : '40px'
+        }}>
             <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
 
                 {/* HEADER */}
@@ -122,7 +131,11 @@ export default function Profile() {
                     </button>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '350px 1fr', gap: '40px' }}>
+                <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: isMobile ? '1fr' : '350px 1fr',
+                    gap: isMobile ? '20px' : '40px'
+                }}>
 
                     {/* LEFT COLUMN: IDENTITY CARD */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -224,7 +237,11 @@ export default function Profile() {
 
                         {/* PROJECTS TAB */}
                         {activeTab === 'projects' && (
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
+                            <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(300px, 1fr))',
+                                gap: '20px'
+                            }}>
                                 {projects.length > 0 ? projects.map(proj => (
                                     <div key={proj.id} style={projectCardStyle}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '15px' }}>

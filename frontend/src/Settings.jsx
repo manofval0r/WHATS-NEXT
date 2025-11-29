@@ -3,6 +3,7 @@ import api from './api';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Save, Wallet, LogOut, Trash2, Download, Activity, Palette, Shield, Bell } from 'lucide-react';
 import { initTheme, applyTheme } from './theme';
+import { useIsMobile } from './hooks/useMediaQuery';
 
 export default function Settings() {
     const [budget, setBudget] = useState('FREE');
@@ -11,6 +12,7 @@ export default function Settings() {
     const [isPublic, setIsPublic] = useState(true);
     const [emailNotifications, setEmailNotifications] = useState(true);
     const navigate = useNavigate();
+    const isMobile = useIsMobile();
 
     useEffect(() => {
         initTheme();
@@ -91,8 +93,14 @@ export default function Settings() {
     };
 
     return (
-        <div style={pageStyle}>
-            <div style={containerStyle}>
+        <div style={{
+            ...pageStyle,
+            padding: isMobile ? '16px' : '40px'
+        }}>
+            <div style={{
+                ...containerStyle,
+                maxWidth: isMobile ? '100%' : '700px'
+            }}>
                 <button onClick={() => navigate('/dashboard')} style={backBtnStyle}>
                     <ArrowLeft size={18} /> Back to Dashboard
                 </button>
@@ -176,7 +184,13 @@ export default function Settings() {
                 <button
                     onClick={handleUpdateSettings}
                     disabled={loading}
-                    style={primaryBtnStyle}
+                    style={{
+                        ...primaryBtnStyle,
+                        position: isMobile ? 'sticky' : 'static',
+                        bottom: isMobile ? '80px' : 'auto',
+                        zIndex: isMobile ? 10 : 'auto',
+                        minHeight: isMobile ? '56px' : 'auto'
+                    }}
                 >
                     <Save size={16} /> {loading ? 'Saving...' : 'Save All Settings'}
                 </button>
@@ -255,10 +269,11 @@ const selectStyle = {
     background: 'var(--bg-dark)',
     border: '1px solid var(--border-subtle)',
     color: 'var(--text-main)',
-    padding: '10px 12px',
+    padding: '14px 16px', // Larger for mobile
     borderRadius: '6px',
     outline: 'none',
-    fontSize: '14px'
+    fontSize: '16px', // Prevent zoom on iOS
+    minHeight: '48px' // Touch target
 };
 
 const toggleContainer = {

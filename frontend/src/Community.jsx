@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import api from './api';
 import { useNavigate } from 'react-router-dom';
 import { ExternalLink, MessageSquare, Code, Users, Terminal, Send, Trash2, ArrowBigUp, ArrowBigDown } from 'lucide-react';
+import { useIsMobile } from './hooks/useMediaQuery';
 
 export default function Community() {
     const [feed, setFeed] = useState([]);
@@ -12,6 +13,7 @@ export default function Community() {
     const [loadingComments, setLoadingComments] = useState(false);
     const navigate = useNavigate();
     const currentUser = localStorage.getItem('username');
+    const isMobile = useIsMobile();
 
     useEffect(() => {
         fetchFeed();
@@ -94,8 +96,14 @@ export default function Community() {
     };
 
     return (
-        <div style={{ padding: '40px', height: '100%', overflowY: 'auto', background: 'var(--bg-dark)' }}>
-            <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+        <div style={{
+            padding: isMobile ? '16px' : '40px',
+            height: '100%',
+            overflowY: 'auto',
+            background: 'var(--bg-dark)',
+            paddingBottom: isMobile ? '100px' : '40px'
+        }}>
+            <div style={{ maxWidth: isMobile ? '100%' : '800px', margin: '0 auto' }}>
 
                 {/* HEADER */}
                 <div style={{ marginBottom: '40px', display: 'flex', alignItems: 'center', gap: '15px' }}>
@@ -125,31 +133,48 @@ export default function Community() {
                 ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
                         {feed.length > 0 ? feed.map(item => (
-                            <div key={item.id} style={cardStyle}>
+                            <div key={item.id} style={{
+                                ...cardStyle,
+                                flexDirection: isMobile ? 'column' : 'row',
+                                gap: isMobile ? '10px' : '15px'
+                            }}>
 
                                 {/* Vote Column */}
-                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', paddingRight: '15px', borderRight: '1px solid var(--border-subtle)' }}>
-                                    <button
-                                        onClick={() => handleVote(item.id, 'up')}
-                                        style={{ background: 'none', border: 'none', color: item.user_vote === 'up' ? 'var(--neon-cyan)' : 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
-                                    >
-                                        <ArrowBigUp size={24} fill={item.user_vote === 'up' ? "currentColor" : "none"} />
-                                    </button>
+                                <div style={{
+                                    display: 'flex',
+                                    flexDirection: isMobile ? 'row' : 'column',
+                                    alignItems: 'center',
+                                    gap: isMobile ? '15px' : '4px',
+                                    paddingRight: isMobile ? '0' : '15px',
+                                    paddingBottom: isMobile ? '10px' : '0',
+                                    borderRight: isMobile ? 'none' : '1px solid var(--border-subtle)',
+                                    borderBottom: isMobile ? '1px solid var(--border-subtle)' : 'none',
+                                    justifyContent: isMobile ? 'space-between' : 'flex-start',
+                                    width: isMobile ? '100%' : 'auto'
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                        <button
+                                            onClick={() => handleVote(item.id, 'up')}
+                                            style={{ background: 'none', border: 'none', color: item.user_vote === 'up' ? 'var(--neon-cyan)' : 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+                                        >
+                                            <ArrowBigUp size={24} fill={item.user_vote === 'up' ? "currentColor" : "none"} />
+                                        </button>
 
-                                    <span style={{ fontWeight: 'bold', color: '#fff', fontSize: '14px' }}>
-                                        {item.verifications || 0}
-                                    </span>
+                                        <span style={{ fontWeight: 'bold', color: '#fff', fontSize: '14px' }}>
+                                            {item.verifications || 0}
+                                        </span>
 
-                                    <button
-                                        onClick={() => handleVote(item.id, 'down')}
-                                        style={{ background: 'none', border: 'none', color: item.user_vote === 'down' ? 'var(--error-red)' : 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
-                                    >
-                                        <ArrowBigDown size={24} fill={item.user_vote === 'down' ? "currentColor" : "none"} />
-                                    </button>
+                                        <button
+                                            onClick={() => handleVote(item.id, 'down')}
+                                            style={{ background: 'none', border: 'none', color: item.user_vote === 'down' ? 'var(--error-red)' : 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+                                        >
+                                            <ArrowBigDown size={24} fill={item.user_vote === 'down' ? "currentColor" : "none"} />
+                                        </button>
+                                    </div>
                                 </div>
 
                                 {/* Content Column */}
-                                <div style={{ flex: 1, paddingLeft: '15px' }}>
+                                <div style={{ flex: 1, paddingLeft: isMobile ? '0' : '15px' }}>
                                     {/* User Header */}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
                                         <div
