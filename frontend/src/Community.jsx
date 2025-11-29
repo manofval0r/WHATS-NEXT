@@ -41,12 +41,12 @@ export default function Community() {
             }
             const res = await api.get(url);
             let posts = res.data;
-            
+
             // Sort by trending if selected
             if (filter === 'Trending') {
                 posts = posts.sort((a, b) => b.upvotes - a.upvotes);
             }
-            
+
             setFeed(posts);
         } catch (e) {
             console.error(e);
@@ -199,6 +199,8 @@ export default function Community() {
 // Post Card Component
 function PostCard({ post, onClick, onUpvote, navigate }) {
     const timeAgo = getTimeAgo(post.created_at);
+    // Handle author object or string
+    const authorName = typeof post.author === 'object' ? post.author.username : post.author;
 
     return (
         <div onClick={onClick} style={styles.card}>
@@ -208,7 +210,7 @@ function PostCard({ post, onClick, onUpvote, navigate }) {
                     style={styles.userAvatar}
                     onClick={(e) => {
                         e.stopPropagation();
-                        navigate(`/profile/${post.author}`);
+                        navigate(`/profile/${authorName}`);
                     }}
                 >
                     <User size={16} />
@@ -218,10 +220,10 @@ function PostCard({ post, onClick, onUpvote, navigate }) {
                         style={styles.username}
                         onClick={(e) => {
                             e.stopPropagation();
-                            navigate(`/profile/${post.author}`);
+                            navigate(`/profile/${authorName}`);
                         }}
                     >
-                        {post.author}
+                        {authorName}
                     </p>
                     <p style={styles.timeAgo}>{timeAgo}</p>
                 </div>
@@ -268,6 +270,9 @@ function PostDetailView({ post, onBack, onUpvote, currentUser, navigate }) {
     const [replyText, setReplyText] = useState('');
     const [loading, setLoading] = useState(false);
 
+    // Handle author object or string for main post
+    const postAuthorName = typeof post.author === 'object' ? post.author.username : post.author;
+
     useEffect(() => {
         fetchReplies();
     }, [post.id]);
@@ -313,16 +318,16 @@ function PostDetailView({ post, onBack, onUpvote, currentUser, navigate }) {
                 <div style={styles.cardHeader}>
                     <div
                         style={styles.userAvatar}
-                        onClick={() => navigate(`/profile/${post.author}`)}
+                        onClick={() => navigate(`/profile/${postAuthorName}`)}
                     >
                         <User size={16} />
                     </div>
                     <div>
                         <p
                             style={styles.username}
-                            onClick={() => navigate(`/profile/${post.author}`)}
+                            onClick={() => navigate(`/profile/${postAuthorName}`)}
                         >
-                            {post.author}
+                            {postAuthorName}
                         </p>
                         <p style={styles.timeAgo}>{getTimeAgo(post.created_at)}</p>
                     </div>
@@ -359,30 +364,35 @@ function PostDetailView({ post, onBack, onUpvote, currentUser, navigate }) {
                     {replies.length} {replies.length === 1 ? 'Reply' : 'Replies'}
                 </h3>
 
-                {replies.map(reply => (
-                    <div key={reply.id} style={styles.reply}>
-                        <div style={styles.cardHeader}>
-                            <div
-                                style={styles.userAvatar}
-                                onClick={() => navigate(`/profile/${reply.author}`)}
-                            >
-                                <User size={14} />
-                            </div>
-                            <div>
-                                <p
-                                    style={{ ...styles.username, fontSize: '13px' }}
-                                    onClick={() => navigate(`/profile/${reply.author}`)}
+                {replies.map(reply => {
+                    // Handle author object or string for replies
+                    const replyAuthorName = typeof reply.author === 'object' ? reply.author.username : reply.author;
+
+                    return (
+                        <div key={reply.id} style={styles.reply}>
+                            <div style={styles.cardHeader}>
+                                <div
+                                    style={styles.userAvatar}
+                                    onClick={() => navigate(`/profile/${replyAuthorName}`)}
                                 >
-                                    {reply.author}
-                                </p>
-                                <p style={{ ...styles.timeAgo, fontSize: '11px' }}>
-                                    {getTimeAgo(reply.created_at)}
-                                </p>
+                                    <User size={14} />
+                                </div>
+                                <div>
+                                    <p
+                                        style={{ ...styles.username, fontSize: '13px' }}
+                                        onClick={() => navigate(`/profile/${replyAuthorName}`)}
+                                    >
+                                        {replyAuthorName}
+                                    </p>
+                                    <p style={{ ...styles.timeAgo, fontSize: '11px' }}>
+                                        {getTimeAgo(reply.created_at)}
+                                    </p>
+                                </div>
                             </div>
+                            <p style={styles.replyContent}>{reply.content}</p>
                         </div>
-                        <p style={styles.replyContent}>{reply.content}</p>
-                    </div>
-                ))}
+                    );
+                })}
 
                 {/* Reply Input */}
                 <div style={styles.replyInput}>
