@@ -11,6 +11,12 @@ from datetime import datetime, timedelta
 from django.db import transaction
 
 
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def health_check(request):
+    return Response({"status": "ok", "message": "Backend is healthy"})
+
 # ==========================================
 # 1. AUTHENTICATION
 # ==========================================
