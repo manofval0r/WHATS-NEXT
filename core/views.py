@@ -37,7 +37,7 @@ def social_login_success(request):
     refresh = RefreshToken.for_user(user)
     
     # Add custom claim to indicate if user needs onboarding
-    needs_onboarding = not user.niche or user.niche.strip() == ''
+    needs_onboarding = not user.target_career or user.target_career.strip() == ''
     refresh['needs_onboarding'] = needs_onboarding
     
     access_token = str(refresh.access_token)
@@ -116,8 +116,8 @@ def complete_onboarding(request):
     
     try:
         # Update user profile
-        user.niche = niche
-        user.university_course = university_course
+        user.target_career = niche
+        user.university_course_raw = university_course
         user.budget_preference = budget
         user.save()
         
