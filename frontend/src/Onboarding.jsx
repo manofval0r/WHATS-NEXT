@@ -7,6 +7,7 @@ export default function Onboarding() {
     const [universityCourse, setUniversityCourse] = useState('');
     const [budget, setBudget] = useState('FREE');
     const [loading, setLoading] = useState(false);
+    const [loadingMessage, setLoadingMessage] = useState('GENERATING_ROADMAP...');
     const [error, setError] = useState('');
     const navigate = useNavigate();
 
@@ -20,6 +21,7 @@ export default function Onboarding() {
 
         setLoading(true);
         setError('');
+        setLoadingMessage('GENERATING_ROADMAP...');
 
         try {
             await api.post('/api/complete-onboarding/', {
@@ -28,11 +30,15 @@ export default function Onboarding() {
                 budget
             });
 
+            // Show success message before redirect
+            setLoadingMessage('ROADMAP_CREATED! Loading dashboard...');
+            await new Promise(resolve => setTimeout(resolve, 1500));
+
             // Redirect to dashboard after successful onboarding
             navigate('/dashboard');
         } catch (err) {
             console.error('Onboarding error:', err);
-            setError(err.response?.data?.error || 'Failed to complete onboarding');
+            setError(err.response?.data?.error || 'Failed to complete onboarding. Please try again.');
             setLoading(false);
         }
     };
@@ -239,7 +245,7 @@ export default function Onboarding() {
                             boxShadow: loading ? 'none' : '0 4px 15px rgba(0, 242, 255, 0.4)'
                         }}
                     >
-                        {loading ? 'GENERATING_ROADMAP...' : 'START_JOURNEY'}
+                        {loading ? loadingMessage : 'START_JOURNEY'}
                     </button>
                 </form>
             </div>

@@ -19,6 +19,13 @@ export default function AuthCallback() {
                 const payload = JSON.parse(atob(accessToken.split('.')[1]));
                 const needsOnboarding = payload.needs_onboarding || false;
 
+                // Store username for use across the app
+                if (payload.username) {
+                    localStorage.setItem('username', payload.username);
+                } else if (payload.user_id) {
+                    localStorage.setItem('username', payload.user_id);
+                }
+
                 if (needsOnboarding) {
                     // User needs to complete onboarding
                     navigate('/onboarding', { replace: true });

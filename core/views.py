@@ -150,12 +150,27 @@ def complete_onboarding(request):
         
     except Exception as e:
         import traceback
-        print(f"[ONBOARDING ERROR] {type(e).__name__}: {e}")
+        error_type = type(e).__name__
+        error_msg = str(e)
+        
+        print(f"[ONBOARDING ERROR] {error_type}: {error_msg}")
         traceback.print_exc()
+        
+        # Provide user-friendly error messages
+        user_message = "Failed to generate your roadmap. Please try again."
+        
+        if "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
+            user_message = "Roadmap generation is taking longer than expected. Please try again in a moment."
+        elif "api" in error_msg.lower() or "gemini" in error_msg.lower():
+            user_message = "Our AI service is temporarily unavailable. Please try again shortly."
+        elif "database" in error_msg.lower() or "connection" in error_msg.lower():
+            user_message = "Database connection issue. Please try again."
+        
         return Response({
-            "error": "Failed to complete onboarding",
-            "details": str(e)
+            "error": user_message,
+            "technical_details": f"{error_type}: {error_msg}" if settings.DEBUG else None
         }, status=500)
+
 
 # ==========================================
 # 2. ROADMAP ENGINE (ASYNC)
