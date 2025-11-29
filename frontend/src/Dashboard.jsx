@@ -394,84 +394,110 @@ export default function Dashboard() {
       {/* MAIN CONTENT AREA */}
       <div style={{ width: '100%', height: '100%', position: 'relative' }}>
 
-        {/* TOP BAR */}
-        <div style={{
-          position: 'absolute', top: 20, left: 20, right: 20, zIndex: 10,
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          pointerEvents: 'none' // Let clicks pass through to map
-        }}>
-          {/* CYBERPUNK PROGRESS TRACKER */}
+        {/* TOP BAR - DESKTOP ONLY */}
+        {!isMobile && (
           <div style={{
-            background: 'rgba(22, 27, 34, 0.9)', backdropFilter: 'blur(12px)',
-            border: '1px solid var(--border-subtle)', borderRadius: '16px',
-            padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '24px',
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)', pointerEvents: 'auto'
+            position: 'absolute', top: 20, left: 20, right: 20, zIndex: 10,
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            pointerEvents: 'none' // Let clicks pass through to map
           }}>
-
-            {/* Level Info */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Terminal size={14} color="var(--neon-cyan)" />
-                <span style={{ fontFamily: 'JetBrains Mono', fontSize: '12px', color: 'var(--neon-cyan)', fontWeight: 'bold' }}>
-                  SYS.LEVEL_{userData.level === 'Beginner' ? '01' : '02'}
-                </span>
-              </div>
-              <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'Inter' }}>
-                {userData.level.toUpperCase()} CLASS
-              </span>
-            </div>
-
-            {/* Vertical Divider */}
-            <div style={{ width: '1px', height: '32px', background: 'var(--border-subtle)' }}></div>
-
-            {/* Progress Bar Container */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '200px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'JetBrains Mono' }}>
-                  MASTERY_PROGRESS
-                </span>
-                <span style={{ fontSize: '12px', color: '#fff', fontWeight: 'bold', fontFamily: 'JetBrains Mono' }}>
-                  {nodes && nodes.length > 0 ? Math.round((nodes.filter(n => n.data.status === 'completed').length / Math.max(nodes.length, 1)) * 100) : 0}%
-                </span>
-              </div>
-
-              {/* The Bar */}
-              <div style={{
-                height: '6px', width: '100%', background: 'rgba(255,255,255,0.05)',
-                borderRadius: '3px', overflow: 'hidden', position: 'relative'
-              }}>
-                <div style={{
-                  height: '100%',
-                  width: `${(nodes.filter(n => n.data.status === 'completed').length / Math.max(nodes.length, 1)) * 100}%`,
-                  background: 'linear-gradient(90deg, var(--neon-cyan), var(--electric-purple))',
-                  boxShadow: '0 0 10px var(--neon-cyan)',
-                  transition: 'width 1s cubic-bezier(0.4, 0, 0.2, 1)'
-                }}></div>
-              </div>
-            </div>
-
-            {/* XP Badge */}
+            {/* CYBERPUNK PROGRESS TRACKER */}
             <div style={{
-              background: 'rgba(188, 19, 254, 0.1)', border: '1px solid rgba(188, 19, 254, 0.3)',
-              borderRadius: '8px', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px'
+              background: 'rgba(22, 27, 34, 0.9)', backdropFilter: 'blur(12px)',
+              border: '1px solid var(--border-subtle)', borderRadius: '16px',
+              padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '24px',
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)', pointerEvents: 'auto'
             }}>
-              <Award size={14} color="var(--electric-purple)" />
-              <span style={{ fontFamily: 'JetBrains Mono', fontSize: '12px', color: 'var(--electric-purple)', fontWeight: 'bold' }}>
-                1,240 XP
-              </span>
-            </div>
 
-            {/* DAILY QUIZ BUTTON */}
-            {!quizCompleted && (
+              {/* Level Info */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Terminal size={14} color="var(--neon-cyan)" />
+                  <span style={{ fontFamily: 'JetBrains Mono', fontSize: '12px', color: 'var(--neon-cyan)', fontWeight: 'bold' }}>
+                    SYS.LEVEL_{userData.level === 'Beginner' ? '01' : '02'}
+                  </span>
+                </div>
+                <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'Inter' }}>
+                  {userData.level.toUpperCase()} CLASS
+                </span>
+              </div>
+
+              {/* Vertical Divider */}
+              <div style={{ width: '1px', height: '32px', background: 'var(--border-subtle)' }}></div>
+
+              {/* Progress Bar Container */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '200px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'JetBrains Mono' }}>
+                    MASTERY_PROGRESS
+                  </span>
+                  <span style={{ fontSize: '12px', color: '#fff', fontWeight: 'bold', fontFamily: 'JetBrains Mono' }}>
+                    {nodes && nodes.length > 0 ? Math.round((nodes.filter(n => n.data.status === 'completed').length / Math.max(nodes.length, 1)) * 100) : 0}%
+                  </span>
+                </div>
+
+                {/* The Bar */}
+                <div style={{
+                  height: '6px', width: '100%', background: 'rgba(255,255,255,0.05)',
+                  borderRadius: '3px', overflow: 'hidden', position: 'relative'
+                }}>
+                  <div style={{
+                    height: '100%',
+                    width: `${(nodes.filter(n => n.data.status === 'completed').length / Math.max(nodes.length, 1)) * 100}%`,
+                    background: 'linear-gradient(90deg, var(--neon-cyan), var(--electric-purple))',
+                    boxShadow: '0 0 10px var(--neon-cyan)',
+                    transition: 'width 1s cubic-bezier(0.4, 0, 0.2, 1)'
+                  }}></div>
+                </div>
+              </div>
+
+              {/* XP Badge */}
+              <div style={{
+                background: 'rgba(188, 19, 254, 0.1)', border: '1px solid rgba(188, 19, 254, 0.3)',
+                borderRadius: '8px', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px'
+              }}>
+                <Award size={14} color="var(--electric-purple)" />
+                <span style={{ fontFamily: 'JetBrains Mono', fontSize: '12px', color: 'var(--electric-purple)', fontWeight: 'bold' }}>
+                  1,240 XP
+                </span>
+              </div>
+
+              {/* DAILY QUIZ BUTTON */}
+              {!quizCompleted && (
+                <button
+                  onClick={openDailyQuiz}
+                  style={{
+                    background: 'rgba(255, 165, 0, 0.1)',
+                    border: '1px solid orange',
+                    color: 'orange',
+                    borderRadius: '8px',
+                    padding: '8px 12px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontFamily: 'JetBrains Mono',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  <Zap size={14} />
+                  DAILY_QUIZ
+                </button>
+              )}
+
+              {/* Regenerate Button (Dev) */}
               <button
-                onClick={openDailyQuiz}
+                onClick={handleRegenerateRoadmap}
+                disabled={regenerating}
                 style={{
-                  background: 'rgba(255, 165, 0, 0.1)',
-                  border: '1px solid orange',
-                  color: 'orange',
+                  background: 'rgba(0, 242, 255, 0.1)',
+                  border: '1px solid var(--neon-cyan)',
+                  color: 'var(--neon-cyan)',
                   borderRadius: '8px',
                   padding: '8px 12px',
-                  cursor: 'pointer',
+                  cursor: regenerating ? 'not-allowed' : 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px',
@@ -479,50 +505,69 @@ export default function Dashboard() {
                   fontSize: '12px',
                   fontWeight: 'bold',
                   transition: 'all 0.2s',
+                  opacity: regenerating ? 0.6 : 1,
+                }}
+                onMouseEnter={(e) => {
+                  if (!regenerating) {
+                    e.target.style.background = 'rgba(0, 242, 255, 0.2)';
+                    e.target.style.boxShadow = '0 0 12px rgba(0, 242, 255, 0.4)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.background = 'rgba(0, 242, 255, 0.1)';
+                  e.target.style.boxShadow = 'none';
                 }}
               >
-                <Zap size={14} />
-                DAILY_QUIZ
+                <RotateCw size={14} style={{ animation: regenerating ? 'spin 1s linear infinite' : 'none' }} />
+                {regenerating ? 'REGENERATING...' : 'REGEN_ROADMAP'}
+              </button>
+
+            </div>
+          </div>
+        )}
+
+        {/* MOBILE HEADER */}
+        {isMobile && (
+          <div style={{
+            position: 'absolute', top: 10, left: 10, right: 10, zIndex: 10,
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            pointerEvents: 'none'
+          }}>
+            <div style={{
+              background: 'rgba(22, 27, 34, 0.9)', backdropFilter: 'blur(12px)',
+              border: '1px solid var(--border-subtle)', borderRadius: '12px',
+              padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '10px',
+              pointerEvents: 'auto', boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Terminal size={12} color="var(--neon-cyan)" />
+                <span style={{ fontFamily: 'JetBrains Mono', fontSize: '11px', color: '#fff', fontWeight: 'bold' }}>
+                  LVL_{userData.level === 'Beginner' ? '01' : '02'}
+                </span>
+              </div>
+              <div style={{ width: '1px', height: '16px', background: 'var(--border-subtle)' }}></div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '11px', color: 'var(--neon-cyan)', fontWeight: 'bold', fontFamily: 'JetBrains Mono' }}>
+                  {nodes && nodes.length > 0 ? Math.round((nodes.filter(n => n.data.status === 'completed').length / Math.max(nodes.length, 1)) * 100) : 0}%
+                </span>
+              </div>
+            </div>
+
+            {/* Mobile Daily Quiz Button */}
+            {!quizCompleted && (
+              <button
+                onClick={openDailyQuiz}
+                style={{
+                  background: 'rgba(255, 165, 0, 0.1)', border: '1px solid orange',
+                  color: 'orange', borderRadius: '8px', padding: '8px',
+                  cursor: 'pointer', pointerEvents: 'auto', display: 'flex', alignItems: 'center'
+                }}
+              >
+                <Zap size={16} />
               </button>
             )}
-
-            {/* Regenerate Button (Dev) */}
-            <button
-              onClick={handleRegenerateRoadmap}
-              disabled={regenerating}
-              style={{
-                background: 'rgba(0, 242, 255, 0.1)',
-                border: '1px solid var(--neon-cyan)',
-                color: 'var(--neon-cyan)',
-                borderRadius: '8px',
-                padding: '8px 12px',
-                cursor: regenerating ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontFamily: 'JetBrains Mono',
-                fontSize: '12px',
-                fontWeight: 'bold',
-                transition: 'all 0.2s',
-                opacity: regenerating ? 0.6 : 1,
-              }}
-              onMouseEnter={(e) => {
-                if (!regenerating) {
-                  e.target.style.background = 'rgba(0, 242, 255, 0.2)';
-                  e.target.style.boxShadow = '0 0 12px rgba(0, 242, 255, 0.4)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.background = 'rgba(0, 242, 255, 0.1)';
-                e.target.style.boxShadow = 'none';
-              }}
-            >
-              <RotateCw size={14} style={{ animation: regenerating ? 'spin 1s linear infinite' : 'none' }} />
-              {regenerating ? 'REGENERATING...' : 'REGEN_ROADMAP'}
-            </button>
-
           </div>
-        </div>
+        )}
 
         {/* ROADMAP - Conditional Rendering (Mobile vs Desktop) */}
         {isMobile ? (
@@ -558,268 +603,270 @@ export default function Dashboard() {
       )}
 
       {/* SLIDE-OUT PANEL (Right) - Desktop Only */}
-      <div style={{
-        position: 'absolute', top: 0, right: 0, bottom: 0,
-        width: '400px', background: 'rgba(22, 27, 34, 0.95)',
-        backdropFilter: 'blur(20px)', borderLeft: '1px solid var(--border-active)',
-        transform: selectedNode && !isMobile ? 'translateX(0)' : 'translateX(100%)',
-        transition: 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-        zIndex: 20, display: 'flex', flexDirection: 'column',
-        boxShadow: '-10px 0 30px rgba(0,0,0,0.5)'
-      }}>
-        {selectedNode ? (
-          <>
-            <div style={{ padding: '30px', flex: 1, overflowY: 'auto' }}>
-              {/* HEADER */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-                <div>
-                  <h2 style={{ margin: 0, fontSize: '24px', color: '#fff', fontFamily: 'JetBrains Mono' }}>
-                    MODULE_{selectedNode.data.step_order}
-                  </h2>
-                  <span style={{ color: selectedNode.data.status === 'completed' ? 'var(--success-green)' : 'var(--neon-cyan)', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px' }}>
-                    STATUS: {selectedNode.data.status.toUpperCase()}
-                  </span>
-                </div>
-                <button
-                  onClick={() => setSelectedNode(null)}
-                  style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
-                >
-                  <X size={24} />
-                </button>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
-
-                {/* DESCRIPTION */}
-                <div style={{ background: 'rgba(255,255,255,0.03)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
-                  <h3 style={{ margin: '0 0 10px 0', fontSize: '14px', color: 'var(--text-header)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Terminal size={16} color="var(--neon-cyan)" /> SYSTEM_DESCRIPTION
-                  </h3>
-                  <p style={{ margin: 0, fontSize: '14px', lineHeight: '1.6', color: 'var(--text-muted)' }}>
-                    {selectedNode.data.description}
-                  </p>
+      {!isMobile && (
+        <div style={{
+          position: 'absolute', top: 0, right: 0, bottom: 0,
+          width: '400px', background: 'rgba(22, 27, 34, 0.95)',
+          backdropFilter: 'blur(20px)', borderLeft: '1px solid var(--border-active)',
+          transform: selectedNode ? 'translateX(0)' : 'translateX(100%)',
+          transition: 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+          zIndex: 20, display: 'flex', flexDirection: 'column',
+          boxShadow: '-10px 0 30px rgba(0,0,0,0.5)'
+        }}>
+          {selectedNode ? (
+            <>
+              <div style={{ padding: '30px', flex: 1, overflowY: 'auto' }}>
+                {/* HEADER */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+                  <div>
+                    <h2 style={{ margin: 0, fontSize: '24px', color: '#fff', fontFamily: 'JetBrains Mono' }}>
+                      MODULE_{selectedNode.data.step_order}
+                    </h2>
+                    <span style={{ color: selectedNode.data.status === 'completed' ? 'var(--success-green)' : 'var(--neon-cyan)', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px' }}>
+                      STATUS: {selectedNode.data.status.toUpperCase()}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setSelectedNode(null)}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                  >
+                    <X size={24} />
+                  </button>
                 </div>
 
-                {/* RESOURCES PREVIEW */}
-                {selectedNode?.data?.resources && (
-                  <div style={{ marginTop: '20px' }}>
-                    <h3 style={{ fontSize: '14px', color: 'var(--text-header)', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <BookOpen size={16} color="var(--electric-purple)" /> LEARNING_RESOURCES
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+
+                  {/* DESCRIPTION */}
+                  <div style={{ background: 'rgba(255,255,255,0.03)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
+                    <h3 style={{ margin: '0 0 10px 0', fontSize: '14px', color: 'var(--text-header)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Terminal size={16} color="var(--neon-cyan)" /> SYSTEM_DESCRIPTION
                     </h3>
+                    <p style={{ margin: 0, fontSize: '14px', lineHeight: '1.6', color: 'var(--text-muted)' }}>
+                      {selectedNode.data.description}
+                    </p>
+                  </div>
 
-                    {/* PRIMARY RESOURCES (Always shown) */}
-                    {selectedNode.data.resources.primary && selectedNode.data.resources.primary.length > 0 && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
-                        {selectedNode.data.resources.primary.map((resource, idx) => (
-                          <a
-                            key={idx}
-                            href={resource.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '10px',
-                              padding: '12px',
-                              background: 'rgba(0, 242, 255, 0.05)',
-                              border: '1px solid rgba(0, 242, 255, 0.2)',
-                              borderRadius: '8px',
-                              color: 'var(--neon-cyan)',
-                              textDecoration: 'none',
-                              transition: 'all 0.2s'
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.background = 'rgba(0, 242, 255, 0.1)';
-                              e.currentTarget.style.borderColor = 'var(--neon-cyan)';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.background = 'rgba(0, 242, 255, 0.05)';
-                              e.currentTarget.style.borderColor = 'rgba(0, 242, 255, 0.2)';
-                            }}
-                          >
-                            <span style={{ fontSize: '16px' }}>
-                              {resource.type === 'interactive' && '🎮'}
-                              {resource.type === 'docs' && '📖'}
-                              {resource.type === 'video' && '🎥'}
-                              {resource.type === 'course' && '🎓'}
-                            </span>
-                            <div style={{ flex: 1 }}>
-                              <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{resource.title}</div>
-                              <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                                {resource.type} • {idx === 0 ? 'RECOMMENDED' : 'ALTERNATIVE'}
-                              </div>
-                            </div>
-                            <ExternalLink size={14} />
-                          </a>
-                        ))}
-                      </div>
-                    )}
+                  {/* RESOURCES PREVIEW */}
+                  {selectedNode?.data?.resources && (
+                    <div style={{ marginTop: '20px' }}>
+                      <h3 style={{ fontSize: '14px', color: 'var(--text-header)', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <BookOpen size={16} color="var(--electric-purple)" /> LEARNING_RESOURCES
+                      </h3>
 
-                    {/* SHOW MORE BUTTON */}
-                    {selectedNode.data.resources.additional && selectedNode.data.resources.additional.length > 0 && (
-                      <>
-                        {!showMoreResources[selectedNode.id] && (
-                          <button
-                            onClick={() => toggleShowMore(selectedNode.id)}
-                            style={{
-                              width: '100%',
-                              padding: '10px',
-                              background: 'rgba(255,255,255,0.05)',
-                              border: '1px solid var(--border-subtle)',
-                              borderRadius: '8px',
-                              color: 'var(--text-main)',
-                              cursor: 'pointer',
-                              fontFamily: 'JetBrains Mono',
-                              fontSize: '12px',
-                              marginBottom: '12px'
-                            }}
-                          >
-                            SHOW_MORE ({selectedNode.data.resources.additional.length} more resources)
-                          </button>
-                        )}
-
-                        {/* ADDITIONAL RESOURCES (Shown when expanded) */}
-                        {showMoreResources[selectedNode.id] && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
-                            {selectedNode.data.resources.additional.map((resource, idx) => (
-                              <a
-                                key={idx}
-                                href={resource.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: '10px',
-                                  padding: '10px',
-                                  background: 'rgba(255,255,255,0.03)',
-                                  border: '1px solid var(--border-subtle)',
-                                  borderRadius: '8px',
-                                  color: 'var(--text-main)',
-                                  textDecoration: 'none',
-                                  fontSize: '13px',
-                                  transition: 'all 0.2s'
-                                }}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
-                                }}
-                              >
-                                <span style={{ fontSize: '14px' }}>
-                                  {resource.type === 'interactive' && '🎮'}
-                                  {resource.type === 'docs' && '📖'}
-                                  {resource.type === 'video' && '🎥'}
-                                  {resource.type === 'course' && '🎓'}
-                                </span>
-                                <div style={{ flex: 1 }}>
-                                  <div style={{ fontSize: '13px' }}>{resource.title}</div>
-                                  <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                                    {resource.type}
-                                  </div>
+                      {/* PRIMARY RESOURCES (Always shown) */}
+                      {selectedNode.data.resources.primary && selectedNode.data.resources.primary.length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
+                          {selectedNode.data.resources.primary.map((resource, idx) => (
+                            <a
+                              key={idx}
+                              href={resource.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '10px',
+                                padding: '12px',
+                                background: 'rgba(0, 242, 255, 0.05)',
+                                border: '1px solid rgba(0, 242, 255, 0.2)',
+                                borderRadius: '8px',
+                                color: 'var(--neon-cyan)',
+                                textDecoration: 'none',
+                                transition: 'all 0.2s'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = 'rgba(0, 242, 255, 0.1)';
+                                e.currentTarget.style.borderColor = 'var(--neon-cyan)';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = 'rgba(0, 242, 255, 0.05)';
+                                e.currentTarget.style.borderColor = 'rgba(0, 242, 255, 0.2)';
+                              }}
+                            >
+                              <span style={{ fontSize: '16px' }}>
+                                {resource.type === 'interactive' && '🎮'}
+                                {resource.type === 'docs' && '📖'}
+                                {resource.type === 'video' && '🎥'}
+                                {resource.type === 'course' && '🎓'}
+                              </span>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{resource.title}</div>
+                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                                  {resource.type} • {idx === 0 ? 'RECOMMENDED' : 'ALTERNATIVE'}
                                 </div>
-                                <ExternalLink size={12} />
-                              </a>
-                            ))}
+                              </div>
+                              <ExternalLink size={14} />
+                            </a>
+                          ))}
+                        </div>
+                      )}
 
+                      {/* SHOW MORE BUTTON */}
+                      {selectedNode.data.resources.additional && selectedNode.data.resources.additional.length > 0 && (
+                        <>
+                          {!showMoreResources[selectedNode.id] && (
                             <button
                               onClick={() => toggleShowMore(selectedNode.id)}
                               style={{
                                 width: '100%',
-                                padding: '8px',
-                                background: 'none',
+                                padding: '10px',
+                                background: 'rgba(255,255,255,0.05)',
                                 border: '1px solid var(--border-subtle)',
                                 borderRadius: '8px',
-                                color: 'var(--text-muted)',
+                                color: 'var(--text-main)',
                                 cursor: 'pointer',
                                 fontFamily: 'JetBrains Mono',
-                                fontSize: '11px',
-                                marginTop: '4px'
+                                fontSize: '12px',
+                                marginBottom: '12px'
                               }}
                             >
-                              SHOW_LESS
+                              SHOW_MORE ({selectedNode.data.resources.additional.length} more resources)
                             </button>
-                          </div>
-                        )}
-                      </>
-                    )}
+                          )}
 
-                    {/* VIEW ALL IN RESOURCES HUB */}
-                    <button
-                      onClick={() => navigate('/resources')}
-                      style={{
-                        width: '100%',
-                        padding: '10px',
-                        background: 'linear-gradient(90deg, var(--neon-cyan), var(--electric-purple))',
-                        border: 'none',
-                        borderRadius: '8px',
-                        color: '#000',
-                        cursor: 'pointer',
-                        fontFamily: 'JetBrains Mono',
-                        fontSize: '12px',
-                        fontWeight: 'bold'
-                      }}
-                    >
-                      VIEW_ALL_IN_RESOURCES_HUB →
-                    </button>
-                  </div>
-                )}
+                          {/* ADDITIONAL RESOURCES (Shown when expanded) */}
+                          {showMoreResources[selectedNode.id] && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
+                              {selectedNode.data.resources.additional.map((resource, idx) => (
+                                <a
+                                  key={idx}
+                                  href={resource.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '10px',
+                                    padding: '10px',
+                                    background: 'rgba(255,255,255,0.03)',
+                                    border: '1px solid var(--border-subtle)',
+                                    borderRadius: '8px',
+                                    color: 'var(--text-main)',
+                                    textDecoration: 'none',
+                                    fontSize: '13px',
+                                    transition: 'all 0.2s'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+                                  }}
+                                >
+                                  <span style={{ fontSize: '14px' }}>
+                                    {resource.type === 'interactive' && '🎮'}
+                                    {resource.type === 'docs' && '📖'}
+                                    {resource.type === 'video' && '🎥'}
+                                    {resource.type === 'course' && '🎓'}
+                                  </span>
+                                  <div style={{ flex: 1 }}>
+                                    <div style={{ fontSize: '13px' }}>{resource.title}</div>
+                                    <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                                      {resource.type}
+                                    </div>
+                                  </div>
+                                  <ExternalLink size={12} />
+                                </a>
+                              ))}
 
-                {/* PROJECT SUBMISSION */}
-                <div style={{ opacity: selectedNode.data.status === 'locked' ? 0.5 : 1 }}>
-                  <h3 style={{ fontSize: '14px', color: 'var(--text-header)', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Code size={16} color="var(--success-green)" /> MISSION_OBJECTIVE
-                  </h3>
-
-                  <div style={{ background: 'rgba(22, 27, 34, 0.8)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
-                    <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '15px' }}>
-                      Build a project demonstrating your mastery of this module. Submit your GitHub repository link below.
-                    </p>
-
-                    <input
-                      type="text"
-                      placeholder="https://github.com/username/project"
-                      value={submissionLink}
-                      onChange={(e) => setSubmissionLink(e.target.value)}
-                      disabled={selectedNode.data.status === 'locked' || selectedNode.data.status === 'completed'}
-                      style={{
-                        width: '100%', padding: '12px', background: '#0d1117',
-                        border: '1px solid var(--border-subtle)', borderRadius: '8px',
-                        color: '#fff', fontFamily: 'JetBrains Mono', fontSize: '13px',
-                        marginBottom: '15px', outline: 'none'
-                      }}
-                    />
-
-                    <button
-                      onClick={handleSubmitProject}
-                      disabled={selectedNode.data.status === 'locked' || selectedNode.data.status === 'completed'}
-                      style={{
-                        width: '100%', padding: '12px', borderRadius: '8px', border: 'none',
-                        background: selectedNode.data.status === 'completed' ? 'var(--success-green)' : 'var(--neon-cyan)',
-                        color: '#000', fontWeight: 'bold', cursor: 'pointer',
-                        opacity: selectedNode.data.status === 'locked' ? 0.5 : 1,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
-                      }}
-                    >
-                      {selectedNode.data.status === 'completed' ? (
-                        <> <CheckCircle size={16} /> MISSION COMPLETE </>
-                      ) : (
-                        <> <Send size={16} /> SUBMIT_PROJECT </>
+                              <button
+                                onClick={() => toggleShowMore(selectedNode.id)}
+                                style={{
+                                  width: '100%',
+                                  padding: '8px',
+                                  background: 'none',
+                                  border: '1px solid var(--border-subtle)',
+                                  borderRadius: '8px',
+                                  color: 'var(--text-muted)',
+                                  cursor: 'pointer',
+                                  fontFamily: 'JetBrains Mono',
+                                  fontSize: '11px',
+                                  marginTop: '4px'
+                                }}
+                              >
+                                SHOW_LESS
+                              </button>
+                            </div>
+                          )}
+                        </>
                       )}
-                    </button>
-                  </div>
-                </div>
 
+                      {/* VIEW ALL IN RESOURCES HUB */}
+                      <button
+                        onClick={() => navigate('/resources')}
+                        style={{
+                          width: '100%',
+                          padding: '10px',
+                          background: 'linear-gradient(90deg, var(--neon-cyan), var(--electric-purple))',
+                          border: 'none',
+                          borderRadius: '8px',
+                          color: '#000',
+                          cursor: 'pointer',
+                          fontFamily: 'JetBrains Mono',
+                          fontSize: '12px',
+                          fontWeight: 'bold'
+                        }}
+                      >
+                        VIEW_ALL_IN_RESOURCES_HUB →
+                      </button>
+                    </div>
+                  )}
+
+                  {/* PROJECT SUBMISSION */}
+                  <div style={{ opacity: selectedNode.data.status === 'locked' ? 0.5 : 1 }}>
+                    <h3 style={{ fontSize: '14px', color: 'var(--text-header)', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Code size={16} color="var(--success-green)" /> MISSION_OBJECTIVE
+                    </h3>
+
+                    <div style={{ background: 'rgba(22, 27, 34, 0.8)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
+                      <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '15px' }}>
+                        Build a project demonstrating your mastery of this module. Submit your GitHub repository link below.
+                      </p>
+
+                      <input
+                        type="text"
+                        placeholder="https://github.com/username/project"
+                        value={submissionLink}
+                        onChange={(e) => setSubmissionLink(e.target.value)}
+                        disabled={selectedNode.data.status === 'locked' || selectedNode.data.status === 'completed'}
+                        style={{
+                          width: '100%', padding: '12px', background: '#0d1117',
+                          border: '1px solid var(--border-subtle)', borderRadius: '8px',
+                          color: '#fff', fontFamily: 'JetBrains Mono', fontSize: '13px',
+                          marginBottom: '15px', outline: 'none'
+                        }}
+                      />
+
+                      <button
+                        onClick={handleSubmitProject}
+                        disabled={selectedNode.data.status === 'locked' || selectedNode.data.status === 'completed'}
+                        style={{
+                          width: '100%', padding: '12px', borderRadius: '8px', border: 'none',
+                          background: selectedNode.data.status === 'completed' ? 'var(--success-green)' : 'var(--neon-cyan)',
+                          color: '#000', fontWeight: 'bold', cursor: 'pointer',
+                          opacity: selectedNode.data.status === 'locked' ? 0.5 : 1,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                        }}
+                      >
+                        {selectedNode.data.status === 'completed' ? (
+                          <> <CheckCircle size={16} /> MISSION COMPLETE </>
+                        ) : (
+                          <> <Send size={16} /> SUBMIT_PROJECT </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
               </div>
+            </>
+          ) : (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
+              Select a module to view details
             </div>
-          </>
-        ) : (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
-            Select a module to view details
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
     </div>
   );
