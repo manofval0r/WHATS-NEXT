@@ -109,8 +109,24 @@ export default function Community() {
                             Community
                         </h1>
                         {!isMobile && (
-                            <button style={styles.searchIcon}>
-                                <Search size={20} />
+                            <button
+                                onClick={() => setShowCreateModal(true)}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    background: '#3713ec',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    padding: '8px 16px',
+                                    color: '#fff',
+                                    fontSize: '14px',
+                                    fontWeight: '600',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                <Plus size={18} />
+                                <span>Create Post</span>
                             </button>
                         )}
                     </div>

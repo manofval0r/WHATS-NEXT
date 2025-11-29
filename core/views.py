@@ -910,7 +910,7 @@ class CommunityPostViewSet(viewsets.ModelViewSet):
     def replies(self, request, pk=None):
         post = self.get_object()
         replies = post.replies.all().order_by('created_at')
-        serializer = CommunityReplySerializer(replies, many=True)
+        serializer = CommunityReplySerializer(replies, many=True, context={'request': request})
         return Response(serializer.data)
 
 
