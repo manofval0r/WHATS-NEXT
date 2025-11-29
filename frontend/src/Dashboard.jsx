@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Terminal, Award, BookOpen, X, Send, ExternalLink, PlayCircle, Code, CheckCircle, RotateCw, Zap } from 'lucide-react';
 import RoadmapMap from './RoadmapMap';
 import MobileRoadmap from './components/MobileRoadmap';
+import MobileModuleModal from './components/MobileModuleModal';
 import { useIsMobile } from './hooks/useMediaQuery';
 
 // --- HELPER: TYPEWRITER TEXT ---
@@ -533,12 +534,30 @@ export default function Dashboard() {
 
       </div>
 
-      {/* SLIDE-OUT PANEL (Right) */}
+      {/* MOBILE MODULE MODAL (Full-screen on mobile) */}
+      {isMobile && selectedNode && (
+        <MobileModuleModal
+          node={selectedNode}
+          onClose={() => setSelectedNode(null)}
+          onSubmitProject={handleSubmitProject}
+          onMarkComplete={async (nodeId) => {
+            try {
+              await api.post(`/api/submit-project/${nodeId}/`, { project_link: 'completed' });
+              await fetchRoadmap();
+              setSelectedNode(null);
+            } catch (error) {
+              console.error('Mark complete error:', error);
+            }
+          }}
+        />
+      )}
+
+      {/* SLIDE-OUT PANEL (Right) - Desktop Only */}
       <div style={{
         position: 'absolute', top: 0, right: 0, bottom: 0,
         width: '400px', background: 'rgba(22, 27, 34, 0.95)',
         backdropFilter: 'blur(20px)', borderLeft: '1px solid var(--border-active)',
-        transform: selectedNode ? 'translateX(0)' : 'translateX(100%)',
+        transform: selectedNode && !isMobile ? 'translateX(0)' : 'translateX(100%)',
         transition: 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
         zIndex: 20, display: 'flex', flexDirection: 'column',
         boxShadow: '-10px 0 30px rgba(0,0,0,0.5)'
