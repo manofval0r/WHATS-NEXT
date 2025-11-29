@@ -57,6 +57,20 @@ class RegisterView(generics.CreateAPIView):
                 "error": str(e),
                 "type": type(e).__name__,
                 "trace": traceback.format_exc()
+            }, status=500)
+
+# ==========================================
+# 1b. COURSE NORMALIZATION (Smart Onboarding)
+# ==========================================
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def normalize_course(request):
+    """
+    Uses AI to normalize and clean university course input.
+    """
+    from .ai_logic import normalize_university_course
+    
     raw_course = request.data.get('course_name', '')
     if not raw_course or len(raw_course.strip()) == 0:
         return Response({"normalized": ""})
