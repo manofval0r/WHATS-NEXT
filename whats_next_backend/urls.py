@@ -16,6 +16,7 @@ urlpatterns = [
     # --- OAUTH ---
     path('accounts/', include('allauth.urls')),
     path('api/auth/social/success/', views.social_login_success, name='social_login_success'),
+    path('api/complete-onboarding/', views.complete_onboarding, name='complete_onboarding'),
 
     # --- APPLICATION (The Dashboard) ---
     path('api/my-roadmap/', views.get_my_roadmap),

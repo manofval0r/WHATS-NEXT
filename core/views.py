@@ -31,9 +31,15 @@ def social_login_success(request):
     """
     Callback after successful social login.
     Generates JWT tokens and redirects to frontend with tokens in URL.
+    Includes 'needs_onboarding' flag if user hasn't completed profile.
     """
     user = request.user
     refresh = RefreshToken.for_user(user)
+    
+    # Add custom claim to indicate if user needs onboarding
+    needs_onboarding = not user.niche or user.niche.strip() == ''
+    refresh['needs_onboarding'] = needs_onboarding
+    
     access_token = str(refresh.access_token)
     refresh_token = str(refresh)
     
@@ -77,6 +83,7 @@ def normalize_course(request):
     """
     from .ai_logic import normalize_university_course
     
+    
     raw_course = request.data.get('course_name', '')
     if not raw_course or len(raw_course.strip()) == 0:
         return Response({"normalized": ""})
@@ -87,6 +94,68 @@ def normalize_course(request):
     except Exception as e:
         print(f"Normalization error: {e}")
         return Response({"normalized": raw_course})  # Return original if AI fails
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def complete_onboarding(request):
+    """
+    Complete onboarding for OAuth users by collecting roadmap requirements.
+    Accepts: niche (career path), university_course, budget
+    Triggers roadmap generation and returns success.
+    """
+    user = request.user
+    
+    # Extract data
+    niche = request.data.get('niche', '').strip()
+    university_course = request.data.get('university_course', '').strip()
+    budget = request.data.get('budget', 'FREE')
+    
+    # Validate required field
+    if not niche:
+        return Response({"error": "Career path (niche) is required"}, status=400)
+    
+    try:
+        # Update user profile
+        user.niche = niche
+        user.university_course = university_course
+        user.budget_preference = budget
+        user.save()
+        
+        # Generate roadmap
+        print(f"[ONBOARDING] Generating roadmap for {user.username}: {niche}")
+        modules = generate_detailed_roadmap(niche, university_course, budget)
+        
+        # Create roadmap items
+        created_items = []
+        for i, module_data in enumerate(modules):
+            status = 'active' if i == 0 else 'locked'
+            item = UserRoadmapItem.objects.create(
+                user=user,
+                step_order=i + 1,
+                label=module_data.get('label', f'Module {i+1}'),
+                description=module_data.get('description', ''),
+                status=status,
+                market_value=module_data.get('market_value', 'Med'),
+                resources=module_data.get('resources', {}),
+                project_prompt=module_data.get('project_prompt', 'No project defined')
+            )
+            created_items.append(item)
+        
+        print(f"[ONBOARDING] Created {len(created_items)} roadmap items")
+        
+        return Response({
+            "message": "Onboarding complete! Roadmap generated.",
+            "modules_created": len(created_items)
+        }, status=200)
+        
+    except Exception as e:
+        import traceback
+        print(f"[ONBOARDING ERROR] {type(e).__name__}: {e}")
+        traceback.print_exc()
+        return Response({
+            "error": "Failed to complete onboarding",
+            "details": str(e)
+        }, status=500)
 
 # ==========================================
 # 2. ROADMAP ENGINE (ASYNC)

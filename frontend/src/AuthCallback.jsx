@@ -13,8 +13,24 @@ export default function AuthCallback() {
         if (accessToken && refreshToken) {
             localStorage.setItem('access_token', accessToken);
             localStorage.setItem('refresh_token', refreshToken);
-            // Redirect to dashboard
-            navigate('/dashboard', { replace: true });
+
+            // Decode JWT to check for needs_onboarding flag
+            try {
+                const payload = JSON.parse(atob(accessToken.split('.')[1]));
+                const needsOnboarding = payload.needs_onboarding || false;
+
+                if (needsOnboarding) {
+                    // User needs to complete onboarding
+                    navigate('/onboarding', { replace: true });
+                } else {
+                    // User profile is complete, go to dashboard
+                    navigate('/dashboard', { replace: true });
+                }
+            } catch (err) {
+                console.error('Failed to decode JWT:', err);
+                // Fallback to dashboard if decode fails
+                navigate('/dashboard', { replace: true });
+            }
         } else {
             // Handle error or redirect to login
             navigate('/auth?error=oauth_failed', { replace: true });
