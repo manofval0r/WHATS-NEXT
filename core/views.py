@@ -906,6 +906,13 @@ class CommunityPostViewSet(viewsets.ModelViewSet):
         post.save()
         return Response({'is_solved': post.is_solved})
 
+    @action(detail=True, methods=['get'])
+    def replies(self, request, pk=None):
+        post = self.get_object()
+        replies = post.replies.all().order_by('created_at')
+        serializer = CommunityReplySerializer(replies, many=True)
+        return Response(serializer.data)
+
 
 class CommunityReplyViewSet(viewsets.ModelViewSet):
     serializer_class = CommunityReplySerializer
