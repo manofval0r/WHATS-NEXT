@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Github, Linkedin, ExternalLink, Menu, X } from 'lucide-react';
+import TerminalHero from './components/TerminalHero';
 import './Landing.css';
 
 const Landing = () => {
@@ -102,6 +103,7 @@ const Landing = () => {
           </div>
         </div>
         <div className="hero-visual">
+          <TerminalHero />
           <div className="gradient-blur"></div>
         </div>
       </section>

@@ -1,0 +1,314 @@
+.terminal-container {
+    position: relative;
+    width: 100%;
+    height: 400px;
+    background: #1e1e1e;
+    border-radius: 12px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+    font-family: 'Fira Code', 'Courier New', monospace;
+    transition: opacity 0.5s ease;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.terminal-container.fade-out {
+    opacity: 0;
+}
+
+.terminal-container.fade-in {
+    opacity: 1;
+}
+
+.terminal-header {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    background: #2d2d2d;
+    border-bottom: 1px solid #333;
+}
+
+.terminal-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+.dot.red {
+    background: #ff5f56;
+}
+
+.dot.yellow {
+    background: #ffbd2e;
+}
+
+.dot.green {
+    background: #27c93f;
+}
+
+.terminal-title {
+    flex: 1;
+    text-align: center;
+    color: #999;
+    font-size: 12px;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.terminal-body {
+    padding: 16px;
+    color: #d4d4d4;
+    font-size: 14px;
+    line-height: 1.6;
+    height: calc(100% - 45px);
+    overflow-y: auto;
+}
+
+.terminal-line {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 4px;
+}
+
+.prompt {
+    color: #4ade80;
+    /* Green prompt */
+    margin-right: 10px;
+    font-weight: bold;
+}
+
+.cmd-text {
+    color: #fff;
+}
+
+.cursor {
+    display: inline-block;
+    width: 10px;
+    height: 18px;
+    background: #4ade80;
+    margin-left: 4px;
+    animation: blink 1s step-end infinite;
+    vertical-align: middle;
+}
+
+@keyframes blink {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0;
+    }
+}
+
+.terminal-output {
+    margin-top: 8px;
+    color: #a0a0a0;
+    white-space: pre-wrap;
+}
+
+/* CRT Scanline Effect */
+.scanline {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(to bottom,
+            rgba(255, 255, 255, 0),
+            rgba(255, 255, 255, 0) 50%,
+            rgba(0, 0, 0, 0.1) 50%,
+            rgba(0, 0, 0, 0.1));
+    background-size: 100% 4px;
+    pointer-events: none;
+    z-index: 5;
+    opacity: 0.3;
+}
+
+/* Success Overlay */
+.success-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.5s ease;
+    z-index: 10;
+}
+
+.success-overlay.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.success-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+    width: 100%;
+    padding: 0 20px;
+}
+
+.success-badge {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(74, 222, 128, 0.1);
+    border: 1px solid rgba(74, 222, 128, 0.3);
+    padding: 12px 24px;
+    border-radius: 30px;
+    color: #4ade80;
+    font-weight: 600;
+    font-size: 14px;
+    transform: translateY(-20px);
+    opacity: 0;
+    transition: all 0.5s ease 0.2s;
+}
+
+.success-overlay.visible .success-badge {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+.preview-card {
+    width: 100%;
+    max-width: 400px;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    transform: translateX(100px);
+    opacity: 0;
+    transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.4s;
+}
+
+.success-overlay.visible .preview-card {
+    transform: translateX(0);
+    opacity: 1;
+}
+
+.preview-header {
+    background: #f0f0f0;
+    padding: 8px 12px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.preview-url {
+    background: #fff;
+    border-radius: 6px;
+    padding: 4px 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: #666;
+    width: fit-content;
+    margin: 0 auto;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.lock-icon {
+    font-size: 10px;
+}
+
+.refresh-icon {
+    font-size: 12px;
+    margin-left: auto;
+}
+
+.preview-body {
+    padding: 16px;
+    background: #fff;
+}
+
+.preview-hero {
+    margin-bottom: 16px;
+    text-align: center;
+}
+
+.preview-title {
+    height: 16px;
+    width: 60%;
+    background: #3713ec;
+    border-radius: 4px;
+    margin: 0 auto 8px;
+    opacity: 0.8;
+}
+
+.preview-text {
+    height: 8px;
+    width: 80%;
+    background: #e0e0e0;
+    border-radius: 4px;
+    margin: 0 auto 12px;
+}
+
+.preview-btn {
+    height: 24px;
+    width: 100px;
+    background: #3713ec;
+    border-radius: 6px;
+    margin: 0 auto;
+}
+
+.preview-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.preview-item {
+    height: 60px;
+    background: #f5f5f5;
+    border-radius: 8px;
+}
+
+.live-badge {
+    position: absolute;
+    bottom: 16px;
+    right: 16px;
+    background: rgba(0, 0, 0, 0.8);
+    color: #fff;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    backdrop-filter: blur(4px);
+}
+
+.live-dot {
+    width: 8px;
+    height: 8px;
+    background: #4ade80;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.7);
+    }
+
+    70% {
+        box-shadow: 0 0 0 6px rgba(74, 222, 128, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(74, 222, 128, 0);
+    }
+}
