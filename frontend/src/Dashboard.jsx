@@ -4,6 +4,37 @@ import { useNavigate } from 'react-router-dom';
 import { Terminal, Award, BookOpen, X, Send, ExternalLink, PlayCircle, Code, CheckCircle, RotateCw, Zap } from 'lucide-react';
 import RoadmapMap from './RoadmapMap';
 
+// --- HELPER: TYPEWRITER TEXT ---
+const TypewriterText = ({ texts }) => {
+  const [index, setIndex] = useState(0);
+  const [displayText, setDisplayText] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  useEffect(() => {
+    const currentText = texts[index % texts.length];
+    const speed = isDeleting ? 50 : 100;
+
+    const timer = setTimeout(() => {
+      if (!isDeleting && displayText === currentText) {
+        setTimeout(() => setIsDeleting(true), 1000);
+      } else if (isDeleting && displayText === '') {
+        setIsDeleting(false);
+        setIndex(prev => prev + 1);
+      } else {
+        setDisplayText(
+          isDeleting
+            ? currentText.substring(0, displayText.length - 1)
+            : currentText.substring(0, displayText.length + 1)
+        );
+      }
+    }, speed);
+
+    return () => clearTimeout(timer);
+  }, [displayText, isDeleting, index, texts]);
+
+  return <span>{displayText}<span className="cursor">|</span></span>;
+};
+
 export default function Dashboard() {
   // --- STATE ---
   const [nodes, setNodes] = useState([]); // Raw nodes from backend
@@ -220,72 +251,60 @@ export default function Dashboard() {
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}>
 
-      {/* LOADING OVERLAY */}
-      {loading && (
+      {/* UNIFIED LOADING & REGENERATION OVERLAY */}
+      {(loading || regenerating) && (
         <div style={{
           position: 'absolute', inset: 0, zIndex: 50,
-          background: 'var(--bg-dark)', display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center'
-        }}>
-          <div className="terminal-loader">
-            <div className="text">INITIALIZING_SYSTEM...</div>
-          </div>
-        </div>
-      )}
-
-      {/* REGENERATION PROGRESS OVERLAY */}
-      {regenerating && (
-        <div style={{
-          position: 'absolute', inset: 0, zIndex: 50,
-          background: 'rgba(0,0,0,0.95)', backdropFilter: 'blur(10px)',
+          background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(10px)',
           display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center', gap: '30px'
         }}>
+          {/* CYBERPUNK LOADER ANIMATION */}
+          <div className="cyber-loader" style={{ position: 'relative', width: '120px', height: '120px' }}>
+            <div style={{
+              position: 'absolute', inset: 0, border: '4px solid transparent',
+              borderTopColor: 'var(--neon-cyan)', borderRadius: '50%',
+              animation: 'spin 1s linear infinite'
+            }}></div>
+            <div style={{
+              position: 'absolute', inset: '10px', border: '4px solid transparent',
+              borderRightColor: 'var(--electric-purple)', borderRadius: '50%',
+              animation: 'spin 1.5s linear infinite reverse'
+            }}></div>
+            <div style={{
+              position: 'absolute', inset: '25px', background: 'rgba(0, 242, 255, 0.1)',
+              borderRadius: '50%', boxShadow: '0 0 20px var(--neon-cyan)',
+              animation: 'pulse 2s ease-in-out infinite'
+            }}></div>
+          </div>
+
           <div style={{ textAlign: 'center' }}>
             <div style={{
               fontSize: '24px',
               fontFamily: 'JetBrains Mono',
               color: 'var(--neon-cyan)',
               marginBottom: '10px',
-              textShadow: '0 0 10px rgba(0, 242, 255, 0.5)'
+              textShadow: '0 0 10px rgba(0, 242, 255, 0.5)',
+              animation: 'glitch 1s infinite alternate'
             }}>
-              GENERATING_ROADMAP...
+              {regenerating ? 'REGENERATING_SYSTEM...' : 'INITIALIZING_NEURAL_LINK...'}
             </div>
             <div style={{
               fontSize: '14px',
               color: 'var(--text-muted)',
-              fontFamily: 'JetBrains Mono'
+              fontFamily: 'JetBrains Mono',
+              height: '20px' // Fixed height to prevent layout shift
             }}>
-              Estimated time: ~60 seconds
+              <TypewriterText
+                texts={[
+                  "ANALYZING_CAREER_TRENDS...",
+                  "CURATING_LEARNING_RESOURCES...",
+                  "OPTIMIZING_PATH_MODULES...",
+                  "CALIBRATING_DIFFICULTY...",
+                  "FINALIZING_ROADMAP..."
+                ]}
+              />
             </div>
-          </div>
-
-          {/* Progress Bar */}
-          <div style={{
-            width: '400px',
-            height: '8px',
-            background: 'rgba(255,255,255,0.1)',
-            borderRadius: '4px',
-            overflow: 'hidden',
-            border: '1px solid var(--border-subtle)'
-          }}>
-            <div style={{
-              width: `${generationProgress}%`,
-              height: '100%',
-              background: 'linear-gradient(90deg, var(--neon-cyan), var(--electric-purple))',
-              transition: 'width 0.3s ease',
-              boxShadow: '0 0 10px rgba(0, 242, 255, 0.5)'
-            }} />
-          </div>
-
-          {/* Progress Percentage */}
-          <div style={{
-            fontSize: '16px',
-            fontFamily: 'JetBrains Mono',
-            color: '#fff',
-            fontWeight: 'bold'
-          }}>
-            {Math.round(generationProgress)}%
           </div>
         </div>
       )}

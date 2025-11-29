@@ -45,19 +45,6 @@ def generate_detailed_roadmap(niche, uni_course, budget):
 
     prompt = f"""
     Act as a Senior Technical Career Coach. 
-    Create a high-quality, step-by-step learning path for a user wanting to become a: "{niche}".
-    
-    Context:
-    {uni_context}
-    {budget_context}
-    
-    Requirements:
-    1. Generate as much nodes as needed (Modules).
-    2. ORDER them logically from "Absolute Beginner" to "Job Ready".
-    3. content MUST be specific. Do NOT say "Learn Basics". Say "Variables, Loops & ES6 Syntax".
-    4. 'market_value': Estimate the salary impact of this specific skill (Low, Med, High).
-    5. 'project_prompt': A specific, buildable mini-project (e.g., "Build a Budget Tracker").
-    6. 'resources': Provide curated learning resources in this EXACT structure:
        {{
          "primary": [
            {{"title": "Best Resource Name", "url": "https://...", "type": "interactive|docs|video|course"}},
