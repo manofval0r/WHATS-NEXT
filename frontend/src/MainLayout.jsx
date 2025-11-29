@@ -20,7 +20,8 @@ export default function MainLayout({ children }) {
 
       <div style={{
         flex: 1,
-        overflow: 'hidden',
+        overflowY: 'auto',
+        overflowX: 'hidden',
         position: 'relative',
         paddingBottom: isMobile ? '80px' : '0' // Space for floating nav
       }}>

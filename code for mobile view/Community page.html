@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Community Screen</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings:
+        'FILL' 0,
+        'wght' 400,
+        'GRAD' 0,
+        'opsz' 24
+      }
+      .material-symbols-outlined.fill-icon {
+        font-variation-settings: 'FILL' 1;
+      }
+    </style>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#3713ec",
+              "background-light": "#f6f6f8",
+              "background-dark": "#131022",
+            },
+            fontFamily: {
+              "display": ["Inter", "sans-serif"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display">
+<div class="relative flex h-auto min-h-screen w-full flex-col group/design-root overflow-x-hidden">
+<!-- Top App Bar -->
+<div class="sticky top-0 z-10 flex flex-col bg-background-dark/80 backdrop-blur-sm">
+<div class="flex items-center p-4">
+<h1 class="text-white text-2xl font-bold leading-tight tracking-[-0.015em] flex-1">Community</h1>
+<div class="flex items-center justify-end">
+<button class="flex max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-full h-10 w-10 bg-transparent text-white/80 gap-2 text-base font-bold leading-normal tracking-[0.015em] min-w-0 p-0">
+<span class="material-symbols-outlined text-2xl">search</span>
+</button>
+</div>
+</div>
+<!-- Chips / Filter Tabs -->
+<div class="flex gap-2 p-4 pt-0 overflow-x-auto whitespace-nowrap scrollbar-hide">
+<button class="flex h-9 shrink-0 items-center justify-center gap-x-2 rounded-full bg-primary pl-4 pr-4"><p class="text-white text-sm font-medium leading-normal">All</p></button>
+<button class="flex h-9 shrink-0 items-center justify-center gap-x-2 rounded-full bg-white/10 pl-4 pr-4"><p class="text-white/80 text-sm font-medium leading-normal">Trending</p></button>
+<button class="flex h-9 shrink-0 items-center justify-center gap-x-2 rounded-full bg-white/10 pl-4 pr-4"><p class="text-white/80 text-sm font-medium leading-normal">JavaScript</p></button>
+<button class="flex h-9 shrink-0 items-center justify-center gap-x-2 rounded-full bg-white/10 pl-4 pr-4"><p class="text-white/80 text-sm font-medium leading-normal">React</p></button>
+<button class="flex h-9 shrink-0 items-center justify-center gap-x-2 rounded-full bg-white/10 pl-4 pr-4"><p class="text-white/80 text-sm font-medium leading-normal">CSS</p></button>
+<button class="flex h-9 shrink-0 items-center justify-center gap-x-2 rounded-full bg-white/10 pl-4 pr-4"><p class="text-white/80 text-sm font-medium leading-normal">Node.js</p></button>
+</div>
+</div>
+<!-- Main Content Feed -->
+<main class="flex-grow pb-28">
+<!-- Card 1 -->
+<div class="p-4 pt-2 @container">
+<div class="flex flex-col items-stretch justify-start rounded-xl bg-white/5 p-4">
+<div class="flex items-center gap-3">
+<img class="h-8 w-8 rounded-full object-cover" data-alt="User avatar for Alex Morgan" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDO0VgDlqlHYnpNLzmcDbQP-CjDcF0lzCanIQ-iq3aEdR0bvPpthzGEsL30dGwrp0hX8IbQiU-c93G7zCO1F266E0L2h0sV-fqaYFi3E2vJBA5lK6Ttna9P1CsXqmY8AoRUAAwq5Y7QPv5OKooWNZ1nKHjT4eE0BiYqOzGTKm9zXwEFPaXPmSuAkyqM11j3lap5vDd71wyTh4zr8X2ZG1tS2lPywsuD3k30MRzWau1suC2pyI-mnUyxf5pF_qYv3YC-NCfIhGjoaB0"/>
+<div class="flex flex-col">
+<p class="text-sm font-semibold text-white">Alex Morgan</p>
+<p class="text-xs text-white/60">2 hours ago</p>
+</div>
+</div>
+<div class="flex w-full grow flex-col items-stretch justify-center gap-2 py-3">
+<p class="text-white text-lg font-bold leading-tight tracking-[-0.015em]">How to center a div?</p>
+<p class="text-white/70 text-base font-normal leading-normal line-clamp-3">I've been trying to center this div for hours and I'm about to lose my mind. I've tried margin: auto, flexbox, grid, everything. Can someone please help me before I throw my laptop out the window?</p>
+</div>
+<div class="flex items-center gap-4 text-white/60 text-sm">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-lg">arrow_upward</span>
+<span>128</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-lg">chat_bubble</span>
+<span>42</span>
+</div>
+<div class="ml-auto flex gap-2">
+<div class="flex h-6 items-center justify-center rounded-md bg-primary/20 px-2"><p class="text-primary text-xs font-medium">CSS</p></div>
+<div class="flex h-6 items-center justify-center rounded-md bg-primary/20 px-2"><p class="text-primary text-xs font-medium">Layout</p></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="p-4 pt-2 @container">
+<div class="flex flex-col items-stretch justify-start rounded-xl bg-white/5 p-4">
+<div class="flex items-center gap-3">
+<img class="h-8 w-8 rounded-full object-cover" data-alt="User avatar for Samantha Bee" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDEpMnOO7ACPLyF-3pbswuCicorhgMwWxdwT6_VVmW1BaK1jet4JsOo1VjaSpV876iABslBhkcanWmCymBdSH2TWzbRAU_vS5fMri2hQUjcurrdYv21QUJrJ-hQkbNxaTsWNieHvu8SF-Xj9QzuO7KB5n-QHcCgZ5dgud3qK577ugNfFF0NjZsMhv3LobgxYrjSG6l2E6EGIUGtc0hOFiluI7X7SfEBNcLamM2i_GJYLiKulbv7S0_y1pBAJrNJYkeZOSPEgOjyAFE"/>
+<div class="flex flex-col">
+<p class="text-sm font-semibold text-white">Samantha Bee</p>
+<p class="text-xs text-white/60">5 hours ago</p>
+</div>
+</div>
+<div class="flex w-full grow flex-col items-stretch justify-center gap-2 py-3">
+<p class="text-white text-lg font-bold leading-tight tracking-[-0.015em]">What is the difference between let, const, and var?</p>
+<p class="text-white/70 text-base font-normal leading-normal line-clamp-3">I'm new to JavaScript and I'm confused about the difference between let, const, and var. I've read a few articles but I'm still not sure when to use each one. Can someone explain it to me like I'm 5?</p>
+</div>
+<div class="flex items-center gap-4 text-white/60 text-sm">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-lg">arrow_upward</span>
+<span>256</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-lg">chat_bubble</span>
+<span>98</span>
+</div>
+<div class="ml-auto flex gap-2">
+<div class="flex h-6 items-center justify-center rounded-md bg-primary/20 px-2"><p class="text-primary text-xs font-medium">JavaScript</p></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Card 3 -->
+<div class="p-4 pt-2 @container">
+<div class="flex flex-col items-stretch justify-start rounded-xl bg-white/5 p-4">
+<div class="flex items-center gap-3">
+<img class="h-8 w-8 rounded-full object-cover" data-alt="User avatar for Jordan Lee" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB7rQrsaGo_wkKDNEfvG6hsXNilaT5JmK8-_SsOoWhJbixSfjOVn3aGyHTYXbiVpLggYyyZuOPX3IjfUSS0omMRlclULsW2lX6dquRQNZgSsP4m-Bt98qR88Hvw-08KtiJBeKnFfXiqFtRePujOtt6SBvnjJC7Cj6S0AQ3rN1WS3lJYi1MUGhL6o-EHgr5EMAkMia3FsnO0XeBHNI146tu9SGV5C5T-TpjLFUUew7ejLh585itW4MeR6UZHdTzY81azAjlvf1Gh1h0"/>
+<div class="flex flex-col">
+<p class="text-sm font-semibold text-white">Jordan Lee</p>
+<p class="text-xs text-white/60">1 day ago</p>
+</div>
+</div>
+<div class="flex w-full grow flex-col items-stretch justify-center gap-2 py-3">
+<p class="text-white text-lg font-bold leading-tight tracking-[-0.015em]">React Hooks vs. Class Components</p>
+<p class="text-white/70 text-base font-normal leading-normal line-clamp-3">I'm starting a new React project and I'm not sure whether I should use functional components with Hooks or class components. What are the pros and cons of each? Is one better than the other for performance?</p>
+</div>
+<div class="flex items-center gap-4 text-white/60 text-sm">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-lg">arrow_upward</span>
+<span>412</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-lg">chat_bubble</span>
+<span>153</span>
+</div>
+<div class="ml-auto flex gap-2">
+<div class="flex h-6 items-center justify-center rounded-md bg-primary/20 px-2"><p class="text-primary text-xs font-medium">React</p></div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Floating Action Button -->
+<button class="fixed bottom-24 right-4 z-20 flex h-14 w-14 cursor-pointer items-center justify-center overflow-hidden rounded-full bg-primary text-white shadow-lg">
+<span class="material-symbols-outlined text-3xl">add</span>
+</button>
+<!-- Floating Bottom Navigation Bar -->
+<div class="fixed bottom-0 left-0 right-0 z-10 border-t border-white/10 bg-background-dark/80 backdrop-blur-sm">
+<div class="flex h-20 items-center justify-around px-2 pb-4">
+<a class="flex flex-col items-center justify-center gap-1 text-white/60" href="#">
+<span class="material-symbols-outlined text-2xl">home</span>
+<span class="text-xs font-medium">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center gap-1 text-white/60" href="#">
+<span class="material-symbols-outlined text-2xl">timeline</span>
+<span class="text-xs font-medium">Roadmap</span>
+</a>
+<a class="flex flex-col items-center justify-center gap-1 text-primary" href="#">
+<span class="material-symbols-outlined fill-icon text-2xl">forum</span>
+<span class="text-xs font-medium">Community</span>
+</a>
+<a class="flex flex-col items-center justify-center gap-1 text-white/60" href="#">
+<span class="material-symbols-outlined text-2xl">person</span>
+<span class="text-xs font-medium">Profile</span>
+</a>
+<a class="flex flex-col items-center justify-center gap-1 text-white/60" href="#">
+<span class="material-symbols-outlined text-2xl">settings</span>
+<span class="text-xs font-medium">Settings</span>
+</a>
+</div>
+</div>
+</div>
+</body></html>
