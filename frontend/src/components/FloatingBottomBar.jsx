@@ -1,11 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Home, BookOpen, Users, User, Settings, LogOut } from 'lucide-react';
 
 export default function FloatingBottomBar() {
-    const [isVisible, setIsVisible] = useState(true);
-    const [lastScrollY, setLastScrollY] = useState(0);
-    const hideTimer = useRef(null);
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -17,40 +13,6 @@ export default function FloatingBottomBar() {
         { icon: Settings, label: 'Settings', path: '/settings' },
     ];
 
-    // Auto-hide after 3 seconds of inactivity
-    useEffect(() => {
-        if (isVisible) {
-            hideTimer.current = setTimeout(() => setIsVisible(false), 3000);
-        }
-        return () => {
-            if (hideTimer.current) clearTimeout(hideTimer.current);
-        };
-    }, [isVisible]);
-
-    // Show on scroll down
-    useEffect(() => {
-        const handleScroll = () => {
-            const currentScrollY = window.scrollY;
-
-            if (currentScrollY > lastScrollY) {
-                // Scrolling down - show bar
-                setIsVisible(true);
-                if (hideTimer.current) clearTimeout(hideTimer.current);
-            }
-
-            setLastScrollY(currentScrollY);
-        };
-
-        window.addEventListener('scroll', handleScroll, { passive: true });
-        return () => window.removeEventListener('scroll', handleScroll);
-    }, [lastScrollY]);
-
-    // Show on touch/interaction
-    const handleInteraction = () => {
-        setIsVisible(true);
-        if (hideTimer.current) clearTimeout(hideTimer.current);
-    };
-
     const handleLogout = () => {
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
@@ -60,11 +22,7 @@ export default function FloatingBottomBar() {
     const isActive = (path) => location.pathname === path;
 
     return (
-        <div
-            className={`floating-bottom-bar ${!isVisible ? 'hidden' : ''}`}
-            onTouchStart={handleInteraction}
-            onMouseEnter={handleInteraction}
-        >
+        <div className="floating-bottom-bar">
             <div style={{
                 display: 'grid',
                 gridTemplateColumns: `repeat(${navItems.length}, 1fr)`,

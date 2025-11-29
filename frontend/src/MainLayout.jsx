@@ -12,23 +12,8 @@ export default function MainLayout({ children }) {
       height: '100vh',
       width: '100vw',
       background: 'var(--bg-dark)',
-      color: 'var(--text-main)',
-      overflow: 'hidden'
-    }}>
-      {/* Sidebar - Hidden on mobile */}
-      {!isMobile && <Sidebar />}
-
-      <div style={{
-        flex: 1,
-        overflow: 'hidden',
-        position: 'relative',
-        paddingBottom: isMobile ? '80px' : '0' // Space for floating nav
-      }}>
-        {children}
-      </div>
-
       {/* Floating Bottom Navigation - Mobile only */}
       {isMobile && <FloatingBottomBar />}
-    </div>
-  );
+    </ div>
+      );
 }
