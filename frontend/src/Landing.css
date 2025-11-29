@@ -583,13 +583,9 @@ body {
   }
 
   .hero-visual {
-    display: none;
-  }
-
-  .about h2,
-  .problem-solution h2,
-  .team h2 {
-    font-size: 1.8rem;
+    display: flex;
+    margin-top: 2rem;
+    min-height: 350px;
   }
 
   .ps-container {
