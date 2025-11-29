@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import api from './api';
 import { useNavigate } from 'react-router-dom';
 import { User, Lock, Mail, Briefcase, GraduationCap, ArrowRight, Sparkles, Code2, Zap, Github, Chrome, AlertCircle, CheckCircle2, XCircle, Eye, EyeOff } from 'lucide-react';
+import { useIsMobile } from './hooks/useMediaQuery';
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(false);
@@ -24,6 +25,7 @@ export default function AuthPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
 
   // Animated background particles
   const [particles, setParticles] = useState([]);
@@ -263,10 +265,15 @@ export default function AuthPage() {
     <div style={styles.container}>
       <AnimatedBackground particles={particles} />
 
-      <div style={styles.content}>
+      <div style={{
+        ...styles.content,
+        flexDirection: isMobile ? 'column' : 'row',
+        padding: isMobile ? '20px' : '40px',
+        gap: isMobile ? '20px' : '60px'
+      }}>
 
         {/* Left Side - Branding */}
-        <div style={styles.brandingSection}>
+        {!isMobile && <div style={styles.brandingSection}>
           <div style={styles.logoContainer}>
             <Code2 size={48} color="#00f2ff" strokeWidth={2} />
             <h1 style={styles.brandTitle}>WHAT'S NEXT</h1>
@@ -290,11 +297,21 @@ export default function AuthPage() {
               <span>Job-Ready Skills</span>
             </div>
           </div>
-        </div>
+        </div>}
 
         {/* Right Side - Auth Form */}
-        <div style={{ ...styles.formSection, marginTop: '0px' }}>
-          <div style={{ ...styles.formCard, maxHeight: '80vh', overflowY: 'auto' }}>
+        <div style={{
+          ...styles.formSection,
+          marginTop: '0px',
+          maxWidth: isMobile ? '100%' : 'auto'
+        }}>
+          <div style={{
+            ...styles.formCard,
+            maxHeight: isMobile ? 'none' : '80vh',
+            overflowY: isMobile ? 'visible' : 'auto',
+            padding: isMobile ? '24px' : '40px'
+          }}>
+
 
             <div style={styles.formHeader}>
               <h2 style={styles.formTitle}>
@@ -638,7 +655,7 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#0d1117',
-    overflow: 'hidden',
+    overflow: 'auto',
     fontFamily: "'Inter', sans-serif"
   },
 
@@ -706,6 +723,7 @@ const styles = {
     position: 'relative',
     zIndex: 1,
     display: 'flex',
+    flexDirection: 'row',
     gap: '60px',
     maxWidth: '1200px',
     width: '100%',
