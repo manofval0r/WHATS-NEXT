@@ -8,125 +8,211 @@ const RoadmapMap = ({ nodes, onNodeClick }) => {
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [hoveredNode, setHoveredNode] = useState(null);
 
-  // Resize Observer to keep SVG responsive
+  // Resize Observer with debounce
   useEffect(() => {
     if (!containerRef.current) return;
-    
+
+    let timeoutId;
     const resizeObserver = new ResizeObserver(entries => {
       for (let entry of entries) {
-        setDimensions({
-          width: entry.contentRect.width,
-          height: entry.contentRect.height
-        });
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+          if (entry.contentRect.width > 0 && entry.contentRect.height > 0) {
+            setDimensions({
+              width: entry.contentRect.width,
+              height: entry.contentRect.height
+            });
+          }
+        }, 100);
       }
     });
-    
+
     resizeObserver.observe(containerRef.current);
-    return () => resizeObserver.disconnect();
+    return () => {
+      resizeObserver.disconnect();
+      clearTimeout(timeoutId);
+    };
   }, []);
 
   // D3 Render Logic
   useEffect(() => {
-    if (!dimensions.width || !dimensions.height || nodes.length === 0) return;
+    // Pass if dimensions are 0 or no nodes
+    if (!dimensions.width || nodes.length === 0) return;
+
+    // --- STYLE INJECTION ---
+    if (!document.getElementById('roadmap-styles')) {
+      const style = document.createElement('style');
+      style.id = 'roadmap-styles';
+      style.innerHTML = `
+            @keyframes subtleFloat {
+                0%, 100% { transform: translateY(0px); }
+                50% { transform: translateY(-3px); }
+            }
+            .node-floating {
+                animation: subtleFloat 3s ease-in-out infinite;
+            }
+            .node-floating:nth-child(even) {
+                animation-delay: 1.5s;
+            }
+            
+            /* Holo Effect */
+            @keyframes hologram {
+                0% { opacity: 0.8; }
+                50% { opacity: 1; text-shadow: 0 0 5px rgba(0,242,255,0.8); }
+                100% { opacity: 0.8; }
+            }
+            .holo-text {
+                animation: hologram 2s infinite;
+            }
+            
+            /* Initial fade in */
+            .node-item {
+                opacity: 0;
+                animation: fadeIn 0.5s forwards;
+                transform-box: fill-box; /* Ensure transform works on SVG groups */
+            }
+            @keyframes fadeIn {
+                to { opacity: 1; }
+            }
+        `;
+      document.head.appendChild(style);
+    }
 
     const svg = d3.select(svgRef.current);
-    svg.selectAll("*").remove(); // Clear previous render
+    svg.selectAll("*").remove();
 
     const width = dimensions.width;
-    // Constrain the wave width so it doesn't get too scattered on wide screens
-    const waveWidth = Math.min(width, 600); 
-    const centerOffset = (width - waveWidth) / 2;
+    const waveWidth = Math.min(width * 0.5, 300);
+    const nodeSpacing = 220;
+    const totalHeight = nodes.length * nodeSpacing + 400;
 
-    const nodeSpacing = 300; // Increased spacing for better "flow"
-    const totalHeight = nodes.length * nodeSpacing + 400; 
-    
     svg.attr("height", totalHeight);
 
     // --- 1. GENERATE PATH ---
-    // Winding path going DOWN from top (First module at top)
     const pathPoints = nodes.map((node, i) => {
-      const y = (i * nodeSpacing) + 100; // Start from top
-      // Sine wave X position
-      const x = (width / 2) + Math.sin(i * 0.8) * (waveWidth / 4); 
+      const y = (i * nodeSpacing) + 150;
+      // Zig-zag / Sine wave
+      const direction = i % 2 === 0 ? 1 : -1;
+      const x = (width / 2) + (direction * (waveWidth / 2));
+
       return { x, y, data: node };
     });
 
-    // Create a smooth curve generator
+    // Curve generator
     const lineGenerator = d3.line()
       .curve(d3.curveCatmullRom.alpha(0.5))
       .x(d => d.x)
       .y(d => d.y);
 
-    // Draw the Path (Background Track)
+    // --- 2. DRAW PATH ---
+    // Background "River"
     svg.append("path")
       .datum(pathPoints)
       .attr("d", lineGenerator)
       .attr("fill", "none")
-      .attr("stroke", "#30363d")
-      .attr("stroke-width", 24) // Thicker path
-      .attr("stroke-linecap", "round");
+      .attr("stroke", "#21262d")
+      .attr("stroke-width", 16)
+      .attr("stroke-linecap", "round")
+      .attr("stroke-linejoin", "round");
 
-    // Draw the Path (Active Progress)
+    // Active "Cable" (Progress)
     let activeIndex = nodes.findIndex(n => n.data.status === 'active');
-    if (activeIndex === -1) activeIndex = nodes.length - 1; 
+    if (activeIndex === -1) activeIndex = nodes.length - 1;
 
-    const activePoints = pathPoints.slice(0, activeIndex + 1);
-    
-    if (activePoints.length > 1) {
-        svg.append("path")
+    // Guard: Only draw active path if we have points and activeIndex is valid
+    if (pathPoints.length > 0 && activeIndex >= 0) {
+      const activePoints = pathPoints.slice(0, activeIndex + 1);
+
+      // We need at least 1 point to draw something
+      svg.append("path")
         .datum(activePoints)
         .attr("d", lineGenerator)
         .attr("fill", "none")
-        .attr("stroke", "#00f2ff") 
-        .attr("stroke-width", 8) // Thicker active path
+        .attr("stroke", "#58a6ff")
+        .attr("stroke-width", 8)
         .attr("stroke-linecap", "round")
-        .attr("filter", "drop-shadow(0 0 8px #00f2ff)");
+        .attr("filter", "drop-shadow(0 0 6px rgba(88, 166, 255, 0.6))");
     }
 
-    // --- 2. DRAW NODES ---
+    // --- 3. DRAW NODES ---
     const nodeGroups = svg.selectAll(".node-group")
       .data(pathPoints)
       .enter()
       .append("g")
-      .attr("class", "node-group")
+      // Add floating class to Active/Locked too, but mainly Active looks best floating
+      .attr("class", d => `node-group node-item node-floating`)
       .attr("transform", d => `translate(${d.x}, ${d.y})`)
       .style("cursor", "pointer")
       .on("click", (event, d) => onNodeClick(event, d.data))
       .on("mouseenter", (event, d) => {
-        setHoveredNode({ 
-            data: d.data.data, 
-            x: d.x, 
-            y: d.y 
+        setHoveredNode({
+          data: d.data.data,
+          x: d.x,
+          y: d.y
         });
+        // Enhanced Hover Scale
+        d3.select(event.currentTarget)
+          .transition().duration(300).ease(d3.easeElasticOut)
+          .attr("transform", `translate(${d.x}, ${d.y}) scale(1.15)`);
       })
-      .on("mouseleave", () => setHoveredNode(null));
+      .on("mouseleave", (event, d) => {
+        setHoveredNode(null);
+        // Return to normal
+        d3.select(event.currentTarget)
+          .transition().duration(200)
+          .attr("transform", `translate(${d.x}, ${d.y}) scale(1)`);
+      });
 
-    // Node Circle Background (Outer Glow)
+    // 3A. Base Circle (Shadow)
     nodeGroups.append("circle")
-      .attr("r", 40) // Bigger nodes
+      .attr("r", 42)
+      .attr("cy", 6)
+      .attr("fill", "rgba(0,0,0,0.5)");
+
+    // 3B. Main Circle
+    nodeGroups.append("circle")
+      .attr("r", 40)
       .attr("fill", d => {
-        if (d.data.data.status === 'completed') return "#0d1117";
-        if (d.data.data.status === 'active') return "#0d1117";
-        return "#161b22";
+        if (d.data.data.status === 'completed') return "#0d1117"; // Dark center for completed
+        if (d.data.data.status === 'active') return "#0d1117";    // Dark center for active
+        return "#161b22"; // Locked
       })
       .attr("stroke", d => {
-        if (d.data.data.status === 'completed') return "#2ea043"; 
-        if (d.data.data.status === 'active') return "#00f2ff"; 
-        return "#30363d"; 
+        if (d.data.data.status === 'completed') return "#2ea043";
+        if (d.data.data.status === 'active') return "#58a6ff";
+        return "#30363d";
       })
-      .attr("stroke-width", d => d.data.data.status === 'active' ? 4 : 3)
-      .attr("filter", d => d.data.data.status === 'active' ? "drop-shadow(0 0 12px #00f2ff)" : "");
+      .attr("stroke-width", d => d.data.data.status === 'active' ? 3 : 2)
+      // Glow for active/completed
+      .attr("filter", d => {
+        if (d.data.data.status === 'active') return "drop-shadow(0 0 8px rgba(88, 166, 255, 0.5))";
+        if (d.data.data.status === 'completed') return "drop-shadow(0 0 8px rgba(46, 160, 67, 0.5))";
+        return "none";
+      });
 
-    // Icon / Number inside
+    // 3C. Inner Ring / Progress
+    nodeGroups.append("circle")
+      .attr("r", 32)
+      .attr("fill", "none")
+      .attr("stroke", d => {
+        if (d.data.data.status === 'completed') return "#2ea043";
+        if (d.data.data.status === 'active') return "#58a6ff";
+        return "none";
+      })
+      .attr("stroke-width", 1)
+      .attr("stroke-dasharray", "3,3")
+      .attr("opacity", 0.5);
+
+    // 3D. Icon / Text
     nodeGroups.append("text")
       .attr("dy", 6)
       .attr("text-anchor", "middle")
       .attr("fill", d => {
         if (d.data.data.status === 'locked') return "#8b949e";
-        return "#fff";
+        return "#ffffff";
       })
-      .style("font-family", "JetBrains Mono")
-      .style("font-size", "18px") // Bigger text
+      .style("font-family", "JetBrains Mono, monospace")
+      .style("font-size", "18px")
       .style("font-weight", "bold")
       .style("pointer-events", "none")
       .text((d, i) => i + 1);
@@ -134,50 +220,76 @@ const RoadmapMap = ({ nodes, onNodeClick }) => {
   }, [dimensions, nodes, onNodeClick]);
 
   return (
-    <div ref={containerRef} style={{ width: '100%', height: '100%', overflowY: 'auto', position: 'relative' }}>
+    <div
+      ref={containerRef}
+      style={{
+        width: '100%',
+        height: '100%',
+        overflowY: 'auto',
+        position: 'relative',
+        background: '#0d1117'
+      }}
+    >
       <svg ref={svgRef} width="100%" style={{ minHeight: '100%' }}></svg>
-      
-      {/* Tooltip Overlay */}
+
+      {/* Tooltip (Holo Design) */}
       <AnimatePresence>
         {hoveredNode && (
           <motion.div
-            initial={{ opacity: 0, y: 10, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
+            initial={{ opacity: 0, y: 10, scale: 0.9, rotateX: 20 }}
+            animate={{ opacity: 1, y: 0, scale: 1, rotateX: 0 }}
+            exit={{ opacity: 0, scale: 0.9, rotateX: 20 }}
             style={{
               position: 'absolute',
               left: hoveredNode.x,
-              top: hoveredNode.y - 80, // Position above the node
+              top: hoveredNode.y - 110,
               transform: 'translateX(-50%)',
-              background: 'rgba(13, 17, 23, 0.9)',
-              backdropFilter: 'blur(10px)',
-              border: '1px solid #30363d',
+              background: 'rgba(13, 17, 23, 0.95)',
+              border: '1px solid #58a6ff',
+              boxShadow: '0 0 15px rgba(88, 166, 255, 0.3), inset 0 0 20px rgba(88, 166, 255, 0.1)',
               borderRadius: '8px',
-              padding: '12px',
+              padding: '16px',
               pointerEvents: 'none',
-              zIndex: 10,
-              minWidth: '200px',
-              boxShadow: '0 4px 20px rgba(0,0,0,0.5)'
+              zIndex: 100,
+              minWidth: '240px',
+              textAlign: 'center',
+              backdropFilter: 'blur(10px)',
+              overflow: 'hidden'
             }}
           >
-            <h4 style={{ margin: 0, color: '#f0f6fc', fontSize: '14px', fontFamily: 'Inter', fontWeight: '600' }}>
+            {/* Scanlines */}
+            <div style={{
+              position: 'absolute', inset: 0,
+              background: 'linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06))',
+              backgroundSize: '100% 2px, 3px 100%',
+              pointerEvents: 'none',
+              zIndex: -1
+            }}></div>
+
+            {/* Connection Line */}
+            <div style={{
+              position: 'absolute', bottom: '-8px', left: '50%', transform: 'translateX(-50%) rotate(45deg)',
+              width: '16px', height: '16px',
+              background: '#0d1117',
+              borderBottom: '1px solid #58a6ff',
+              borderRight: '1px solid #58a6ff',
+              zIndex: 1
+            }}></div>
+
+            <h4 className="holo-text" style={{ margin: '0 0 8px 0', color: '#58a6ff', fontSize: '16px', fontFamily: 'JetBrains Mono', fontWeight: 'bold', textTransform: 'uppercase' }}>
               {hoveredNode.data.label}
             </h4>
-            <p style={{ margin: '4px 0 0 0', color: '#8b949e', fontSize: '12px', fontFamily: 'Inter' }}>
-              {hoveredNode.data.description?.slice(0, 60)}...
-            </p>
-            <div style={{ marginTop: '8px', display: 'flex', gap: '8px' }}>
-                <span style={{ 
-                    fontSize: '10px', 
-                    padding: '2px 6px', 
-                    borderRadius: '4px', 
-                    background: hoveredNode.data.status === 'locked' ? '#21262d' : 'rgba(0, 242, 255, 0.1)',
-                    color: hoveredNode.data.status === 'locked' ? '#8b949e' : '#00f2ff',
-                    border: hoveredNode.data.status === 'locked' ? '1px solid #30363d' : '1px solid rgba(0, 242, 255, 0.3)'
-                }}>
-                    {hoveredNode.data.status.toUpperCase()}
-                </span>
+
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', margin: '4px 0' }}>
+              <span style={{ fontSize: '11px', padding: '2px 6px', background: 'rgba(56, 139, 253, 0.2)', color: '#58a6ff', borderRadius: '4px' }}>
+                STATUS: {hoveredNode.data.status.toUpperCase()}
+              </span>
             </div>
+
+            <p style={{ margin: '8px 0 0 0', color: '#8b949e', fontSize: '12px', fontFamily: 'Inter' }}>
+              {hoveredNode.data.description?.slice(0, 80)}...
+            </p>
+
           </motion.div>
         )}
       </AnimatePresence>

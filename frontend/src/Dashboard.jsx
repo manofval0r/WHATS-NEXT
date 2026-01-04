@@ -75,6 +75,12 @@ export default function Dashboard() {
 
       // If we only got the 3 fallback nodes, it means the endpoint returned a roadmap
       // This is fine - it either comes from DB or from Gemini API
+
+      // AUTO-REGENERATE if fallback detected
+      if (res.data.is_fallback && !regenerating) {
+        console.log("Fallback roadmap detected. Initiating auto-regeneration...");
+        handleRegenerateRoadmap();
+      }
     } catch (err) {
       console.error("Load Error", err);
       if (err.response?.data) {
@@ -124,16 +130,26 @@ export default function Dashboard() {
         { force_regenerate: true }
       );
 
-      // Update nodes with the newly generated roadmap
-      const nodeData = res.data.nodes || res.data || [];
-      setNodes(Array.isArray(nodeData) ? nodeData : []);
-      setSelectedNode(null); // Close any open panel
+      // Check if we got a real roadmap back (not fallback)
+      if (res.data.is_fallback) {
+        console.warn("Regeneration returned fallback again.");
+        // We don't throw error to avoid crashing the UI, but we don't say "Success"
+        setNodes(res.data.nodes || []);
+        alert("AI is busy. Using offline roadmap. Try again later.");
+      } else {
+        // Update nodes with the newly generated roadmap
+        const nodeData = res.data.nodes || res.data || [];
+        setNodes(Array.isArray(nodeData) ? nodeData : []);
+        setSelectedNode(null);
+
+        setTimeout(() => {
+          // alert("✅ Roadmap regenerated!"); 
+        }, 500);
+      }
+
       clearInterval(progressInterval);
       setGenerationProgress(100);
 
-      setTimeout(() => {
-        alert("✅ Roadmap regenerated!");
-      }, 500);
     } catch (err) {
       console.error("Regenerate Error", err);
       clearInterval(progressInterval);
@@ -318,75 +334,105 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* QUIZ MODAL */}
+      {/* QUIZ TERMINAL OVERLAY */}
       {showQuiz && (
         <div style={{
           position: 'absolute', inset: 0, zIndex: 100,
-          background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(5px)',
+          background: 'rgba(0,0,0,0.95)', backdropFilter: 'blur(10px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center'
         }}>
           <div style={{
-            width: '500px', maxHeight: '80vh', overflowY: 'auto',
-            background: 'var(--bg-card)', border: '1px solid var(--neon-cyan)',
-            borderRadius: '16px', padding: '30px', position: 'relative',
-            boxShadow: '0 0 30px rgba(0, 242, 255, 0.2)'
+            width: '800px', maxWidth: '95vw', height: '600px', maxHeight: '90vh',
+            background: '#0d1117', border: '1px solid #30363d',
+            borderRadius: '12px', boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
+            display: 'flex', flexDirection: 'column', overflow: 'hidden',
+            fontFamily: 'JetBrains Mono, monospace'
           }}>
-            <button
-              onClick={() => setShowQuiz(false)}
-              style={{ position: 'absolute', top: 15, right: 15, background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}
-            >
-              <X size={24} />
-            </button>
-
-            {quizLoading ? (
-              <div style={{ textAlign: 'center', padding: '40px' }}>Generating Quiz...</div>
-            ) : quizResult ? (
-              <div style={{ textAlign: 'center', padding: '40px', color: 'var(--success-green)', fontSize: '24px', fontWeight: 'bold' }}>
-                {quizResult}
+            {/* TERMINAL HEADER */}
+            <div style={{
+              background: '#161b22', padding: '10px 20px', borderBottom: '1px solid #30363d',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+            }}>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#ff5f56' }}></div>
+                <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#ffbd2e' }}></div>
+                <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#27c93f' }}></div>
               </div>
-            ) : (
-              <>
-                <h2 style={{ margin: '0 0 20px 0', color: 'var(--neon-cyan)', fontFamily: 'JetBrains Mono' }}>
-                  DAILY_QUIZ: {quizData?.module}
-                </h2>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                  {quizData?.questions.map((q, i) => (
-                    <div key={i}>
-                      <p style={{ fontWeight: 'bold', marginBottom: '10px', color: '#fff' }}>{i + 1}. {q.question}</p>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        {q.options.map((opt, optI) => (
-                          <label key={optI} style={{
-                            display: 'flex', alignItems: 'center', gap: '10px',
-                            padding: '10px', borderRadius: '8px',
-                            background: quizAnswers[i] === optI ? 'rgba(0, 242, 255, 0.1)' : 'rgba(255,255,255,0.05)',
-                            border: quizAnswers[i] === optI ? '1px solid var(--neon-cyan)' : '1px solid transparent',
-                            cursor: 'pointer'
-                          }}>
-                            <input
-                              type="radio"
-                              name={`q-${i}`}
-                              checked={quizAnswers[i] === optI}
-                              onChange={() => setQuizAnswers({ ...quizAnswers, [i]: optI })}
-                              style={{ accentColor: 'var(--neon-cyan)' }}
-                            />
-                            <span style={{ fontSize: '14px', color: 'var(--text-main)' }}>{opt}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                  <button
-                    onClick={submitQuiz}
-                    style={{
-                      marginTop: '20px', padding: '12px', background: 'var(--neon-cyan)',
-                      border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer'
-                    }}
-                  >
-                    SUBMIT & EXTEND STREAK
-                  </button>
+              <div style={{ color: '#8b949e', fontSize: '12px' }}>user@whatsnext:~/quiz</div>
+              <button onClick={() => setShowQuiz(false)} style={{ background: 'none', border: 'none', color: '#8b949e', cursor: 'pointer' }}>
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* TERMINAL BODY */}
+            <div style={{ flex: 1, padding: '30px', overflowY: 'auto', color: '#c9d1d9' }}>
+              {quizLoading ? (
+                <div style={{ color: '#58a6ff' }}>
+                  <span className="blink">{'>'}</span> INITIALIZING_ASSESSMENT_PROTOCOL...
                 </div>
-              </>
-            )}
+              ) : quizResult ? (
+                <div style={{ textAlign: 'center', marginTop: '100px' }}>
+                  <div style={{ fontSize: '64px', marginBottom: '20px' }}>🏆</div>
+                  <h2 style={{ color: '#2ea043', marginBottom: '10px' }}>ASSESSMENT_COMPLETE</h2>
+                  <p style={{ color: '#8b949e' }}>{quizResult}</p>
+                </div>
+              ) : (
+                <>
+                  <div style={{ marginBottom: '30px', borderBottom: '1px solid #30363d', paddingBottom: '20px' }}>
+                    <div style={{ color: '#8b949e', fontSize: '12px', marginBottom: '5px' }}>TARGET_MODULE</div>
+                    <h2 style={{ color: '#58a6ff', margin: 0 }}>{quizData?.module}</h2>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '40px' }}>
+                    {quizData?.questions.map((q, i) => (
+                      <div key={i} style={{ opacity: 1, transition: 'opacity 0.3s' }}>
+                        <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+                          <span style={{ color: '#2ea043' }}>➜</span>
+                          <span style={{ fontWeight: 'bold' }}>{q.question}</span>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingLeft: '25px' }}>
+                          {q.options.map((opt, optI) => (
+                            <label key={optI} style={{
+                              display: 'flex', alignItems: 'center', gap: '10px',
+                              padding: '12px', borderRadius: '6px',
+                              background: quizAnswers[i] === optI ? 'rgba(56, 139, 253, 0.15)' : 'transparent',
+                              border: quizAnswers[i] === optI ? '1px solid #58a6ff' : '1px solid #30363d',
+                              cursor: 'pointer', transition: 'all 0.2s'
+                            }}>
+                              <div style={{
+                                width: '16px', height: '16px', borderRadius: '50%',
+                                border: quizAnswers[i] === optI ? '4px solid #58a6ff' : '2px solid #30363d',
+                                background: 'none'
+                              }}></div>
+                              <span style={{ fontSize: '13px' }}>{opt}</span>
+                            </label>
+                          ))}
+                        </div>
+
+                        {/* HINT SECTION (Simulated) */}
+                        <div style={{ marginTop: '15px', paddingLeft: '25px', fontSize: '12px', color: '#8b949e' }}>
+                          <span style={{ color: '#d29922' }}>[?] HINT:</span> Review the {quizData?.module} documentation for details on this concept.
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ marginTop: '40px', paddingTop: '20px', borderTop: '1px solid #30363d', display: 'flex', justifyContent: 'flex-end' }}>
+                    <button
+                      onClick={submitQuiz}
+                      style={{
+                        background: '#238636', color: '#fff', border: '1px solid rgba(240,246,252,0.1)',
+                        padding: '10px 24px', borderRadius: '6px', cursor: 'pointer',
+                        fontFamily: 'JetBrains Mono', fontWeight: 'bold'
+                      }}
+                    >
+                      ./SUBMIT_ANSWERS.sh
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -487,40 +533,7 @@ export default function Dashboard() {
                 </button>
               )}
 
-              {/* Regenerate Button (Dev) */}
-              <button
-                onClick={handleRegenerateRoadmap}
-                disabled={regenerating}
-                style={{
-                  background: 'rgba(0, 242, 255, 0.1)',
-                  border: '1px solid var(--neon-cyan)',
-                  color: 'var(--neon-cyan)',
-                  borderRadius: '8px',
-                  padding: '8px 12px',
-                  cursor: regenerating ? 'not-allowed' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  fontFamily: 'JetBrains Mono',
-                  fontSize: '12px',
-                  fontWeight: 'bold',
-                  transition: 'all 0.2s',
-                  opacity: regenerating ? 0.6 : 1,
-                }}
-                onMouseEnter={(e) => {
-                  if (!regenerating) {
-                    e.target.style.background = 'rgba(0, 242, 255, 0.2)';
-                    e.target.style.boxShadow = '0 0 12px rgba(0, 242, 255, 0.4)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.background = 'rgba(0, 242, 255, 0.1)';
-                  e.target.style.boxShadow = 'none';
-                }}
-              >
-                <RotateCw size={14} style={{ animation: regenerating ? 'spin 1s linear infinite' : 'none' }} />
-                {regenerating ? 'REGENERATING...' : 'REGEN_ROADMAP'}
-              </button>
+
 
             </div>
           </div>

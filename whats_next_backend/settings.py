@@ -16,8 +16,15 @@ SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-change-me-in-produc
 DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,whats-next-oxdf.onrender.com').split(',')
 
+# Automatically add Render URL to ALLOWED_HOSTS
+if 'RENDER_EXTERNAL_URL' in os.environ:
+    ALLOWED_HOSTS.append(os.environ['RENDER_EXTERNAL_URL'].replace('https://', ''))
+
+if DEBUG:
+    ALLOWED_HOSTS = ['*']
+
 # Application definition
-INSTALLED_APPS = [
+INSTALLED_APPS = [  
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -40,6 +47,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',  
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware', # Added for Render
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -107,15 +115,23 @@ USE_TZ = True
 # Static files
 STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # CORS Configuration
 CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "https://whats-next-oxdf.onrender.com",
-    "https://whats-next-1.onrender.com",
 ]
+
+# Add Render URL to CORS origins
+if 'RENDER_EXTERNAL_URL' in os.environ:
+    render_url = os.environ['RENDER_EXTERNAL_URL']
+    CORS_ALLOWED_ORIGINS.append(render_url)
+
+# Add custom CORS origins from env
+if 'CORS_ALLOWED_ORIGINS' in os.environ:
+    CORS_ALLOWED_ORIGINS.extend(os.environ['CORS_ALLOWED_ORIGINS'].split(','))
 CORS_ALLOW_CREDENTIALS = True
 
 CSRF_TRUSTED_ORIGINS = [

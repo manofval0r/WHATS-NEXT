@@ -21,6 +21,7 @@ export default function AuthPage() {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [passwordStrength, setPasswordStrength] = useState({ score: 0, text: '', color: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -49,6 +50,15 @@ export default function AuthPage() {
       ...formData,
       [name]: type === 'checkbox' ? checked : value
     });
+
+    // Clear field-level errors for this field
+    if (fieldErrors[name]) {
+      setFieldErrors(prev => {
+        const copy = { ...prev };
+        delete copy[name];
+        return copy;
+      });
+    }
 
     // Check password strength
     if (name === 'password') {
@@ -154,18 +164,26 @@ export default function AuthPage() {
   };
 
   const handleErrors = (err) => {
-    console.error("Auth Error:", err.response);
+    console.error("Auth Error Full:", err);
+    console.error("Auth Error Response:", err.response);
+    console.error("Auth Error Request:", err.request);
+    console.error("Auth Error Config:", err.config);
+
+    // Reset field errors
+    setFieldErrors({});
 
     if (err.response && err.response.data) {
       const data = err.response.data;
 
-      if (data.username && data.username[0].includes("already exists")) {
-        setError("Username is taken. If this is you, please Login.");
+      if (data.username) {
+        const msg = Array.isArray(data.username) ? data.username[0] : data.username;
+        setFieldErrors(prev => ({ ...prev, username: msg }));
         return;
       }
 
-      if (data.email && data.email[0].includes("already exists")) {
-        setError("An account with this email already exists.");
+      if (data.email) {
+        const msg = Array.isArray(data.email) ? data.email[0] : data.email;
+        setFieldErrors(prev => ({ ...prev, email: msg }));
         return;
       }
 
@@ -175,7 +193,7 @@ export default function AuthPage() {
       }
 
       const errorMsg = Object.entries(data)
-        .map(([field, messages]) => `${field}: ${messages}`)
+        .map(([field, messages]) => `${field}: ${Array.isArray(messages) ? messages.join(' | ') : messages}`)
         .join(' | ');
       setError(errorMsg);
     } else {
@@ -183,7 +201,9 @@ export default function AuthPage() {
     }
   };
 
-  // Form validation - check if all required fields are filled
+  // Real-time validation: password mismatch + form validity
+  const passwordMismatch = !isLogin && formData.password && formData.confirmPassword && formData.password !== formData.confirmPassword;
+
   const isFormValid = () => {
     if (isLogin) {
       return formData.username && formData.password;
@@ -194,8 +214,20 @@ export default function AuthPage() {
         formData.password &&
         formData.confirmPassword &&
         formData.target_career &&
-        formData.password === formData.confirmPassword
+        !passwordMismatch
       );
+    }
+  };
+
+  const getDisabledReason = () => {
+    if (loading) return 'Processing...';
+    if (isLogin) {
+      if (!formData.username || !formData.password) return 'Please enter username and password';
+      return '';
+    } else {
+      if (!formData.username || !formData.email || !formData.password || !formData.confirmPassword || !formData.target_career) return 'Please fill in all required fields';
+      if (passwordMismatch) return 'Passwords do not match';
+      return '';
     }
   };
 
@@ -367,6 +399,7 @@ export default function AuthPage() {
                     required
                   />
                 </div>
+                {fieldErrors.username && <div style={{ color: '#da3633', fontSize: '12px', marginTop: '6px' }}>{fieldErrors.username}</div>}
               </div>
 
               {/* Password */}
@@ -419,7 +452,9 @@ export default function AuthPage() {
                       {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
                   </div>
+                  {passwordMismatch && <div style={{ color: '#da3633', fontSize: '12px', marginTop: '6px' }}>Passwords do not match</div>}
                 </div>
+
               )}
 
               {/* Remember Me & Forgot Password */}
@@ -520,7 +555,7 @@ export default function AuthPage() {
                   cursor: (loading || !isFormValid()) ? 'not-allowed' : 'pointer',
                   opacity: (loading || !isFormValid()) ? 0.6 : 1
                 }}
-                title={!isFormValid() ? "Please fill in all required fields" : ""}
+                title={!isFormValid() ? getDisabledReason() : ""}
               >
                 {loading ? (
                   <span>Processing...</span>
@@ -531,7 +566,10 @@ export default function AuthPage() {
                   </>
                 )}
               </button>
-
+              {/* Disabled helper message */}
+              {!isFormValid() && (
+                <div style={{ color: '#8b949e', fontSize: '12px', marginTop: '8px' }}>{getDisabledReason()}</div>
+              )}
             </form>
 
             <div style={styles.toggleSection}>
@@ -630,7 +668,7 @@ function PasswordStrengthIndicator({ strength }) {
 
 function ErrorBanner({ message }) {
   return (
-    <div style={styles.errorBanner}>
+    <div role="alert" aria-live="assertive" style={styles.errorBanner}>
       <AlertCircle size={18} />
       <span>{message}</span>
     </div>
@@ -639,7 +677,7 @@ function ErrorBanner({ message }) {
 
 function SuccessBanner({ message }) {
   return (
-    <div style={styles.successBanner}>
+    <div role="status" aria-live="polite" style={styles.successBanner}>
       <CheckCircle2 size={18} />
       <span>{message}</span>
     </div>
@@ -658,7 +696,6 @@ const styles = {
     overflow: 'auto',
     fontFamily: "'Inter', sans-serif"
   },
-
   bgGradient: {
     position: 'absolute',
     top: 0,

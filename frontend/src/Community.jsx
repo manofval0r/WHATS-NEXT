@@ -2,19 +2,15 @@ import { useState, useEffect } from 'react';
 import api from './api';
 import { useNavigate } from 'react-router-dom';
 import {
-    MessageSquare, Search, Plus, ThumbsUp, ArrowLeft,
-    CheckCircle, Hash, X, Send, ArrowBigUp, User
+    MessageSquare, Search, Plus, ArrowLeft,
+    CheckCircle, X, Send, ArrowBigUp, User
 } from 'lucide-react';
 import { useIsMobile } from './hooks/useMediaQuery';
 
-// Predefined tags for smart suggestion
 const PREDEFINED_TAGS = [
     'JavaScript', 'Python', 'React', 'Node.js', 'CSS', 'HTML',
     'TypeScript', 'Vue', 'Angular', 'Django', 'Flask', 'SQL',
-    'MongoDB', 'Git', 'Docker', 'AWS', 'Firebase', 'Next.js',
-    'Express', 'GraphQL', 'REST API', 'Testing', 'DevOps',
-    'Machine Learning', 'Data Science', 'Web Development',
-    'Mobile Development', 'UI/UX', 'Backend', 'Frontend'
+    'MongoDB', 'Git', 'Docker', 'AWS', 'Firebase', 'Next.js'
 ];
 
 export default function Community() {
@@ -41,12 +37,9 @@ export default function Community() {
             }
             const res = await api.get(url);
             let posts = res.data;
-
-            // Sort by trending if selected
             if (filter === 'Trending') {
                 posts = posts.sort((a, b) => b.upvotes - a.upvotes);
             }
-
             setFeed(posts);
         } catch (e) {
             console.error(e);
@@ -91,52 +84,49 @@ export default function Community() {
     return (
         <div style={{
             minHeight: '100vh',
-            background: '#131022',
-            paddingBottom: isMobile ? '100px' : '40px'
+            background: '#05070a', // Deep Cyberpunk black
+            paddingBottom: isMobile ? '100px' : '40px',
+            fontFamily: 'Inter, sans-serif'
         }}>
-            {/* Sticky Header */}
+            {/* INJECT CYPBERPUNK STYLES */}
+            <style>{`
+                :root { --neon-cyan: #00f2ff; --neon-blue: #3713ec; }
+                .blink { animation: blink 1s infinite; }
+                @keyframes blink { 50% { opacity: 0; } }
+            `}</style>
+
+            {/* Header */}
             <div style={{
-                position: 'sticky',
-                top: 0,
-                zIndex: 10,
-                background: 'rgba(19, 16, 34, 0.8)',
-                backdropFilter: 'blur(10px)',
-                borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
+                position: 'sticky', top: 0, zIndex: 10,
+                background: 'rgba(5, 7, 10, 0.85)',
+                backdropFilter: 'blur(12px)',
+                borderBottom: '1px solid rgba(0, 242, 255, 0.1)'
             }}>
-                <div style={{ padding: '16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                        <h1 style={{ margin: 0, fontSize: '24px', fontWeight: '700', color: '#fff' }}>
-                            Community
-                        </h1>
+                <div style={{ padding: '16px 24px', maxWidth: '1200px', margin: '0 auto' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div style={{ width: '4px', height: '24px', background: 'var(--neon-cyan)', boxShadow: '0 0 10px var(--neon-cyan)' }}></div>
+                            <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 'bold', color: '#fff', fontFamily: 'JetBrains Mono', letterSpacing: '-0.5px' }}>
+                                COMMUNITY_HUB
+                            </h1>
+                        </div>
+
                         {!isMobile && (
                             <button
                                 onClick={() => setShowCreateModal(true)}
-                                style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '8px',
-                                    background: '#3713ec',
-                                    border: 'none',
-                                    borderRadius: '8px',
-                                    padding: '8px 16px',
-                                    color: '#fff',
-                                    fontSize: '14px',
-                                    fontWeight: '600',
-                                    cursor: 'pointer'
-                                }}
+                                style={styles.cyberButton}
                             >
-                                <Plus size={18} />
-                                <span>Create Post</span>
+                                <Plus size={16} />
+                                <span>NEW_TRANSMISSION</span>
                             </button>
                         )}
                     </div>
 
-                    {/* Search Bar */}
                     <div style={styles.searchBar}>
-                        <Search size={18} color="#8b949e" />
+                        <Search size={18} color="var(--neon-cyan)" />
                         <input
                             type="text"
-                            placeholder="Search posts..."
+                            placeholder="Search frequency..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             style={styles.searchInput}
@@ -148,7 +138,6 @@ export default function Community() {
                         )}
                     </div>
 
-                    {/* Filter Tags */}
                     <div style={styles.filterContainer}>
                         {filterTags.map(tag => (
                             <button
@@ -156,11 +145,13 @@ export default function Community() {
                                 onClick={() => setFilter(tag)}
                                 style={{
                                     ...styles.filterTag,
-                                    background: filter === tag ? '#3713ec' : 'rgba(255, 255, 255, 0.1)',
-                                    color: filter === tag ? '#fff' : 'rgba(255, 255, 255, 0.8)'
+                                    background: filter === tag ? 'rgba(0, 242, 255, 0.15)' : 'rgba(255, 255, 255, 0.03)',
+                                    color: filter === tag ? 'var(--neon-cyan)' : '#8b949e',
+                                    border: filter === tag ? '1px solid var(--neon-cyan)' : '1px solid transparent',
+                                    boxShadow: filter === tag ? '0 0 10px rgba(0, 242, 255, 0.2)' : 'none'
                                 }}
                             >
-                                {tag}
+                                {tag === 'Trending' ? '⚡ Trending' : tag}
                             </button>
                         ))}
                     </div>
@@ -168,39 +159,39 @@ export default function Community() {
             </div>
 
             {/* Feed */}
-            <main style={{ padding: isMobile ? '8px' : '16px' }}>
+            <main style={{ padding: isMobile ? '12px' : '24px', maxWidth: '1000px', margin: '0 auto' }}>
                 {loading ? (
-                    <div style={{ textAlign: 'center', padding: '40px', color: '#8b949e' }}>
-                        Loading posts...
+                    <div style={{ textAlign: 'center', padding: '60px', color: '#8b949e', fontFamily: 'JetBrains Mono' }}>
+                        <span className="blink">{'>'}</span> ACCESSING_NETWORK...
                     </div>
                 ) : filteredFeed.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '40px', color: '#8b949e' }}>
-                        No posts found. Be the first to post!
+                    <div style={{ textAlign: 'center', padding: '60px', color: '#8b949e', fontFamily: 'JetBrains Mono' }}>
+                        NO_SIGNALS_DETECTED
                     </div>
                 ) : (
-                    filteredFeed.map(post => (
-                        <PostCard
-                            key={post.id}
-                            post={post}
-                            onClick={() => setSelectedPost(post)}
-                            onUpvote={handleUpvote}
-                            navigate={navigate}
-                        />
-                    ))
+                    <div style={{ display: 'grid', gap: '16px' }}>
+                        {filteredFeed.map(post => (
+                            <PostCard
+                                key={post.id}
+                                post={post}
+                                onClick={() => setSelectedPost(post)}
+                                onUpvote={handleUpvote}
+                                navigate={navigate}
+                            />
+                        ))}
+                    </div>
                 )}
             </main>
 
-            {/* FAB */}
             {isMobile && (
                 <button
                     onClick={() => setShowCreateModal(true)}
                     style={styles.fab}
                 >
-                    <Plus size={28} />
+                    <Plus size={24} />
                 </button>
             )}
 
-            {/* Create Post Modal */}
             {showCreateModal && (
                 <CreatePostModal
                     onClose={() => setShowCreateModal(false)}
@@ -212,54 +203,43 @@ export default function Community() {
     );
 }
 
-// Post Card Component
 function PostCard({ post, onClick, onUpvote, navigate }) {
     const timeAgo = getTimeAgo(post.created_at);
-    // Handle author object or string
     const authorName = typeof post.author === 'object' ? post.author.username : post.author;
 
     return (
         <div onClick={onClick} style={styles.card}>
-            {/* User Info */}
             <div style={styles.cardHeader}>
                 <div
                     style={styles.userAvatar}
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        navigate(`/profile/${authorName}`);
-                    }}
+                    onClick={(e) => { e.stopPropagation(); navigate(`/profile/${authorName}`); }}
                 >
-                    <User size={16} />
+                    <User size={14} />
                 </div>
                 <div style={{ flex: 1 }}>
-                    <p
-                        style={styles.username}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/profile/${authorName}`);
-                        }}
-                    >
-                        {authorName}
-                    </p>
-                    <p style={styles.timeAgo}>{timeAgo}</p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <p style={styles.username} onClick={(e) => { e.stopPropagation(); navigate(`/profile/${authorName}`); }}>
+                            {authorName}
+                        </p>
+                        <span style={{ fontSize: '10px', color: '#8b949e' }}>•</span>
+                        <p style={styles.timeAgo}>{timeAgo}</p>
+                    </div>
                 </div>
+                {post.post_type === 'question' && <span style={styles.typeBadge}>?</span>}
             </div>
 
-            {/* Content */}
             <div style={styles.cardContent}>
                 <h3 style={styles.cardTitle}>{post.title}</h3>
                 <p style={styles.cardDescription}>{post.content}</p>
             </div>
 
-            {/* Footer */}
             <div style={styles.cardFooter}>
                 <div style={styles.stats}>
-                    <div
-                        style={styles.statItem}
-                        onClick={(e) => onUpvote(e, post.id)}
-                    >
-                        <ArrowBigUp size={18} color={post.is_upvoted ? '#3713ec' : '#8b949e'} />
-                        <span>{post.upvotes || 0}</span>
+                    <div style={styles.statItem} onClick={(e) => onUpvote(e, post.id)}>
+                        <ArrowBigUp size={20} color={post.is_upvoted ? 'var(--neon-cyan)' : '#8b949e'}
+                            style={{ filter: post.is_upvoted ? 'drop-shadow(0 0 5px var(--neon-cyan))' : 'none' }}
+                        />
+                        <span style={{ color: post.is_upvoted ? 'var(--neon-cyan)' : 'inherit', fontWeight: 'bold' }}>{post.upvotes || 0}</span>
                     </div>
                     <div style={styles.statItem}>
                         <MessageSquare size={18} />
@@ -268,10 +248,8 @@ function PostCard({ post, onClick, onUpvote, navigate }) {
                 </div>
                 {post.tags && post.tags.length > 0 && (
                     <div style={styles.tags}>
-                        {post.tags.slice(0, 2).map((tag, idx) => (
-                            <div key={idx} style={styles.tag}>
-                                {tag}
-                            </div>
+                        {post.tags.slice(0, 3).map((tag, idx) => (
+                            <div key={idx} style={styles.tag}>#{tag}</div>
                         ))}
                     </div>
                 )}
@@ -280,308 +258,154 @@ function PostCard({ post, onClick, onUpvote, navigate }) {
     );
 }
 
-// Post Detail View Component
 function PostDetailView({ post, onBack, onUpvote, currentUser, navigate }) {
     const [replies, setReplies] = useState([]);
     const [replyText, setReplyText] = useState('');
     const [loading, setLoading] = useState(false);
-
-    // Handle author object or string for main post
     const postAuthorName = typeof post.author === 'object' ? post.author.username : post.author;
 
     useEffect(() => {
+        const fetchReplies = async () => {
+            try {
+                const res = await api.get(`/api/community/posts/${post.id}/replies/`);
+                setReplies(res.data);
+            } catch (e) { console.error(e); }
+        };
         fetchReplies();
     }, [post.id]);
-
-    const fetchReplies = async () => {
-        try {
-            const res = await api.get(`/api/community/posts/${post.id}/replies/`);
-            setReplies(res.data);
-        } catch (e) {
-            console.error(e);
-        }
-    };
 
     const handleReply = async () => {
         if (!replyText.trim()) return;
         setLoading(true);
         try {
-            await api.post('/api/community/replies/', {
-                post: post.id,
-                content: replyText
-            });
+            await api.post('/api/community/replies/', { post: post.id, content: replyText });
             setReplyText('');
-            fetchReplies();
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setLoading(false);
-        }
+            const res = await api.get(`/api/community/posts/${post.id}/replies/`);
+            setReplies(res.data);
+        } catch (e) { console.error(e); } finally { setLoading(false); }
     };
 
     return (
-        <div style={styles.detailView}>
-            {/* Header */}
-            <div style={styles.detailHeader}>
-                <button onClick={onBack} style={styles.backButton}>
-                    <ArrowLeft size={20} />
-                    <span>Back</span>
+        <div style={{ minHeight: '100vh', background: '#05070a', paddingBottom: '40px' }}>
+            <div style={{
+                position: 'sticky', top: 0, zIndex: 10, background: 'rgba(5,7,10,0.9)', backdropFilter: 'blur(10px)',
+                padding: '16px', borderBottom: '1px solid #30363d', display: 'flex', alignItems: 'center', gap: '16px'
+            }}>
+                <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--neon-cyan)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <ArrowLeft size={18} /> BACK
                 </button>
             </div>
 
-            {/* Post Content */}
-            <div style={styles.detailPost}>
-                <div style={styles.cardHeader}>
-                    <div
-                        style={styles.userAvatar}
-                        onClick={() => navigate(`/profile/${postAuthorName}`)}
-                    >
-                        <User size={16} />
+            <div style={{ maxWidth: '900px', margin: '20px auto', padding: '0 16px' }}>
+                <div style={{ ...styles.card, marginBottom: '30px', border: '1px solid rgba(0,242,255,0.2)' }}>
+                    <div style={styles.cardHeader}>
+                        <h1 style={{ fontSize: '28px', color: '#fff', margin: 0 }}>{post.title}</h1>
                     </div>
-                    <div>
-                        <p
-                            style={styles.username}
-                            onClick={() => navigate(`/profile/${postAuthorName}`)}
-                        >
-                            {postAuthorName}
-                        </p>
-                        <p style={styles.timeAgo}>{getTimeAgo(post.created_at)}</p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', fontSize: '14px', color: '#8b949e' }}>
+                        <span style={{ color: 'var(--neon-cyan)', cursor: 'pointer' }} onClick={() => navigate(`/profile/${postAuthorName}`)}>@{postAuthorName}</span>
+                        <span>•</span>
+                        <span>{getTimeAgo(post.created_at)}</span>
                     </div>
-                </div>
+                    <p style={{ fontSize: '16px', lineHeight: '1.7', color: '#c9d1d9', whiteSpace: 'pre-wrap' }}>{post.content}</p>
 
-                <h2 style={styles.detailTitle}>{post.title}</h2>
-                <p style={styles.detailContent}>{post.content}</p>
-
-                {post.tags && post.tags.length > 0 && (
-                    <div style={{ ...styles.tags, marginTop: '16px' }}>
-                        {post.tags.map((tag, idx) => (
-                            <div key={idx} style={styles.tag}>{tag}</div>
-                        ))}
+                    <div style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
+                        {post.tags?.map(t => <span key={t} style={styles.tag}>#{t}</span>)}
                     </div>
-                )}
 
-                <div style={styles.detailStats}>
-                    <button
-                        onClick={onUpvote}
-                        style={{
-                            ...styles.statButton,
-                            color: post.is_upvoted ? '#3713ec' : '#8b949e'
-                        }}
-                    >
-                        <ArrowBigUp size={20} />
-                        <span>{post.upvotes || 0}</span>
-                    </button>
-                </div>
-            </div>
-
-            {/* Replies */}
-            <div style={styles.repliesSection}>
-                <h3 style={styles.repliesTitle}>
-                    {replies.length} {replies.length === 1 ? 'Reply' : 'Replies'}
-                </h3>
-
-                {replies.map(reply => {
-                    // Handle author object or string for replies
-                    const replyAuthorName = typeof reply.author === 'object' ? reply.author.username : reply.author;
-
-                    return (
-                        <div key={reply.id} style={styles.reply}>
-                            <div style={styles.cardHeader}>
-                                <div
-                                    style={styles.userAvatar}
-                                    onClick={() => navigate(`/profile/${replyAuthorName}`)}
-                                >
-                                    <User size={14} />
-                                </div>
-                                <div>
-                                    <p
-                                        style={{ ...styles.username, fontSize: '13px' }}
-                                        onClick={() => navigate(`/profile/${replyAuthorName}`)}
-                                    >
-                                        {replyAuthorName}
-                                    </p>
-                                    <p style={{ ...styles.timeAgo, fontSize: '11px' }}>
-                                        {getTimeAgo(reply.created_at)}
-                                    </p>
-                                </div>
-                            </div>
-                            <p style={styles.replyContent}>{reply.content}</p>
+                    <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid #30363d', display: 'flex', alignItems: 'center', gap: '20px' }}>
+                        <button onClick={onUpvote} style={{ background: 'none', border: 'none', color: post.is_upvoted ? 'var(--neon-cyan)' : '#8b949e', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px' }}>
+                            <ArrowBigUp size={24} /> {post.upvotes}
+                        </button>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#8b949e' }}>
+                            <MessageSquare size={20} /> {replies.length}
                         </div>
-                    );
-                })}
+                    </div>
+                </div>
 
-                {/* Reply Input */}
-                <div style={styles.replyInput}>
-                    <input
-                        type="text"
-                        placeholder="Write a reply..."
-                        value={replyText}
-                        onChange={(e) => setReplyText(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleReply()}
-                        style={styles.replyInputField}
-                    />
-                    <button
-                        onClick={handleReply}
-                        disabled={loading || !replyText.trim()}
-                        style={styles.sendButton}
-                    >
-                        <Send size={18} />
-                    </button>
+                <div style={{ marginBottom: '20px' }}>
+                    <h3 style={{ color: '#fff', fontFamily: 'JetBrains Mono' }}>TRANSMISSIONS ({replies.length})</h3>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '40px' }}>
+                    {replies.map(reply => (
+                        <div key={reply.id} style={{ padding: '16px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', borderLeft: '3px solid #30363d' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                <span style={{ color: 'var(--neon-cyan)', fontSize: '13px', fontWeight: 'bold' }}>
+                                    {typeof reply.author === 'object' ? reply.author.username : reply.author}
+                                </span>
+                                <span style={{ color: '#484f58', fontSize: '12px' }}>{getTimeAgo(reply.created_at)}</span>
+                            </div>
+                            <p style={{ margin: 0, color: '#c9d1d9', fontSize: '14px' }}>{reply.content}</p>
+                        </div>
+                    ))}
+                </div>
+
+                <div style={{ paddingBottom: '40px' }}>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                        <input
+                            type="text"
+                            placeholder="Send a transmission..."
+                            value={replyText}
+                            onChange={(e) => setReplyText(e.target.value)}
+                            style={{ flex: 1, background: '#0d1117', border: '1px solid #30363d', color: '#fff', padding: '12px', borderRadius: '8px', outline: 'none', fontFamily: 'JetBrains Mono' }}
+                        />
+                        <button onClick={handleReply} disabled={loading} style={{ background: 'var(--neon-cyan)', color: '#000', border: 'none', borderRadius: '8px', padding: '0 20px', fontWeight: 'bold', cursor: 'pointer' }}>
+                            SEND
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
     );
 }
 
-// Create Post Modal Component
 function CreatePostModal({ onClose, onSuccess, currentUser }) {
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
     const [postType, setPostType] = useState('question');
-    const [suggestedTags, setSuggestedTags] = useState([]);
     const [selectedTags, setSelectedTags] = useState([]);
-    const [loading, setLoading] = useState(false);
-
-    useEffect(() => {
-        // Smart tag suggestion based on content
-        const text = `${title} ${content}`.toLowerCase();
-        const suggested = PREDEFINED_TAGS.filter(tag =>
-            text.includes(tag.toLowerCase()) && !selectedTags.includes(tag)
-        ).slice(0, 5);
-        setSuggestedTags(suggested);
-    }, [title, content, selectedTags]);
 
     const handleSubmit = async () => {
         if (!title.trim() || !content.trim()) return;
-        setLoading(true);
         try {
-            await api.post('/api/community/posts/', {
-                title,
-                content,
-                post_type: postType,
-                tags: selectedTags
-            });
+            await api.post('/api/community/posts/', { title, content, post_type: postType, tags: selectedTags });
             onSuccess();
             onClose();
-        } catch (e) {
-            console.error(e);
-            alert('Failed to create post');
-        } finally {
-            setLoading(false);
-        }
+        } catch (e) { alert('Transmission failed'); }
     };
 
     return (
-        <div style={styles.modalOverlay} onClick={onClose}>
-            <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
-                <div style={styles.modalHeader}>
-                    <h2 style={styles.modalTitle}>Create Post</h2>
-                    <button onClick={onClose} style={styles.closeButton}>
-                        <X size={20} />
-                    </button>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(5px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
+            <div style={{ width: '600px', maxWidth: '90vw', background: '#0d1117', border: '1px solid var(--neon-cyan)', borderRadius: '12px', padding: '24px', boxShadow: '0 0 30px rgba(0,242,255,0.15)' }} onClick={e => e.stopPropagation()}>
+                <h2 style={{ color: 'var(--neon-cyan)', fontFamily: 'JetBrains Mono', marginTop: 0 }}>NEW_TRANSMISSION</h2>
+
+                <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+                    {['question', 'discussion'].map(type => (
+                        <button key={type} onClick={() => setPostType(type)} style={{
+                            flex: 1, padding: '10px', background: postType === type ? 'rgba(0,242,255,0.1)' : 'transparent',
+                            border: postType === type ? '1px solid var(--neon-cyan)' : '1px solid #30363d', color: postType === type ? 'var(--neon-cyan)' : '#8b949e',
+                            borderRadius: '6px', cursor: 'pointer', textTransform: 'uppercase', fontSize: '12px', fontWeight: 'bold'
+                        }}>{type}</button>
+                    ))}
                 </div>
 
-                <div style={styles.modalContent}>
-                    {/* Post Type */}
-                    <div style={styles.typeSelector}>
-                        {['question', 'discussion'].map(type => (
-                            <button
-                                key={type}
-                                onClick={() => setPostType(type)}
-                                style={{
-                                    ...styles.typeButton,
-                                    background: postType === type ? '#3713ec' : 'rgba(255, 255, 255, 0.05)',
-                                    color: postType === type ? '#fff' : '#8b949e'
-                                }}
-                            >
-                                {type === 'question' ? <CheckCircle size={16} /> : <MessageSquare size={16} />}
-                                <span style={{ textTransform: 'capitalize' }}>{type}</span>
-                            </button>
-                        ))}
-                    </div>
+                <input type="text" placeholder="Subject Line..." value={title} onChange={e => setTitle(e.target.value)}
+                    style={{ width: '100%', background: '#010409', border: '1px solid #30363d', padding: '12px', color: '#fff', borderRadius: '6px', marginBottom: '12px', fontFamily: 'JetBrains Mono' }} />
 
-                    {/* Title */}
-                    <input
-                        type="text"
-                        placeholder="Title"
-                        value={title}
-                        onChange={(e) => setTitle(e.target.value)}
-                        style={styles.titleInput}
-                    />
+                <textarea placeholder="Message content..." value={content} onChange={e => setContent(e.target.value)} rows={6}
+                    style={{ width: '100%', background: '#010409', border: '1px solid #30363d', padding: '12px', color: '#c9d1d9', borderRadius: '6px', marginBottom: '20px', resize: 'vertical' }} />
 
-                    {/* Content */}
-                    <textarea
-                        placeholder="What's on your mind?"
-                        value={content}
-                        onChange={(e) => setContent(e.target.value)}
-                        style={styles.contentTextarea}
-                        rows={6}
-                    />
-
-                    {/* Suggested Tags */}
-                    {suggestedTags.length > 0 && (
-                        <div style={styles.suggestedTags}>
-                            <p style={styles.suggestedLabel}>Suggested tags:</p>
-                            <div style={styles.tagList}>
-                                {suggestedTags.map(tag => (
-                                    <button
-                                        key={tag}
-                                        onClick={() => {
-                                            if (!selectedTags.includes(tag)) {
-                                                setSelectedTags([...selectedTags, tag]);
-                                            }
-                                        }}
-                                        style={styles.suggestedTag}
-                                    >
-                                        <Plus size={12} />
-                                        {tag}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Selected Tags */}
-                    {selectedTags.length > 0 && (
-                        <div style={styles.selectedTags}>
-                            {selectedTags.map(tag => (
-                                <div key={tag} style={styles.selectedTag}>
-                                    <span>{tag}</span>
-                                    <button
-                                        onClick={() => setSelectedTags(selectedTags.filter(t => t !== tag))}
-                                        style={styles.removeTagButton}
-                                    >
-                                        <X size={12} />
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    {/* Submit */}
-                    <button
-                        onClick={handleSubmit}
-                        disabled={loading || !title.trim() || !content.trim()}
-                        style={{
-                            ...styles.submitButton,
-                            opacity: (loading || !title.trim() || !content.trim()) ? 0.5 : 1,
-                            cursor: (loading || !title.trim() || !content.trim()) ? 'not-allowed' : 'pointer'
-                        }}
-                    >
-                        {loading ? 'Posting...' : 'Post'}
-                    </button>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                    <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#8b949e', cursor: 'pointer' }}>CANCEL</button>
+                    <button onClick={handleSubmit} style={{ background: 'var(--neon-cyan)', color: '#000', border: 'none', padding: '10px 24px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'JetBrains Mono' }}>TRANSMIT</button>
                 </div>
             </div>
         </div>
     );
 }
 
-// Utility function
 function getTimeAgo(dateString) {
-    const now = new Date();
-    const past = new Date(dateString);
-    const seconds = Math.floor((now - past) / 1000);
-
+    const seconds = Math.floor((new Date() - new Date(dateString)) / 1000);
     if (seconds < 60) return 'just now';
     if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
     if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
@@ -589,431 +413,38 @@ function getTimeAgo(dateString) {
     return `${Math.floor(seconds / 604800)}w ago`;
 }
 
-// Styles
 const styles = {
-    searchIcon: {
-        background: 'transparent',
-        border: 'none',
-        color: 'rgba(255, 255, 255, 0.8)',
-        cursor: 'pointer',
-        padding: '8px',
-        borderRadius: '50%',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center'
+    cyberButton: {
+        background: 'rgba(0,242,255,0.1)', border: '1px solid var(--neon-cyan)', color: 'var(--neon-cyan)',
+        padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
+        fontWeight: 'bold', fontSize: '12px', fontFamily: 'JetBrains Mono', boxShadow: '0 0 10px rgba(0,242,255,0.2)'
     },
     searchBar: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-        background: 'rgba(255, 255, 255, 0.05)',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-        borderRadius: '12px',
-        padding: '12px 16px',
-        marginBottom: '16px'
+        background: 'rgba(255,255,255,0.03)', border: '1px solid #30363d', borderRadius: '8px', padding: '10px 14px',
+        display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px'
     },
-    searchInput: {
-        flex: 1,
-        background: 'transparent',
-        border: 'none',
-        color: '#fff',
-        fontSize: '14px',
-        outline: 'none'
-    },
-    clearButton: {
-        background: 'transparent',
-        border: 'none',
-        color: '#8b949e',
-        cursor: 'pointer',
-        padding: '4px',
-        display: 'flex',
-        alignItems: 'center'
-    },
-    filterContainer: {
-        display: 'flex',
-        gap: '8px',
-        overflowX: 'auto',
-        paddingBottom: '4px',
-        scrollbarWidth: 'none',
-        msOverflowStyle: 'none'
-    },
+    searchInput: { flex: 1, background: 'none', border: 'none', color: '#fff', outline: 'none', fontFamily: 'JetBrains Mono', fontSize: '13px' },
+    clearButton: { background: 'none', border: 'none', color: '#8b949e', cursor: 'pointer' },
+    filterContainer: { display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '5px' },
     filterTag: {
-        padding: '8px 16px',
-        borderRadius: '20px',
-        border: 'none',
-        fontSize: '13px',
-        fontWeight: '500',
-        cursor: 'pointer',
-        whiteSpace: 'nowrap',
-        transition: 'all 0.2s'
+        padding: '6px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s', whiteSpace: 'nowrap'
     },
     card: {
-        background: 'rgba(255, 255, 255, 0.05)',
-        borderRadius: '16px',
-        padding: '16px',
-        marginBottom: '12px',
-        cursor: 'pointer',
-        transition: 'all 0.2s',
-        border: '1px solid transparent'
+        background: 'rgba(22, 27, 34, 0.6)', borderRadius: '8px', border: '1px solid #30363d', padding: '20px',
+        cursor: 'pointer', transition: 'all 0.2s', position: 'relative', overflow: 'hidden'
     },
-    cardHeader: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-        marginBottom: '12px'
-    },
-    userAvatar: {
-        width: '32px',
-        height: '32px',
-        borderRadius: '50%',
-        background: 'rgba(55, 19, 236, 0.2)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: '#3713ec',
-        cursor: 'pointer'
-    },
-    username: {
-        margin: 0,
-        fontSize: '14px',
-        fontWeight: '600',
-        color: '#fff',
-        cursor: 'pointer'
-    },
-    timeAgo: {
-        margin: 0,
-        fontSize: '12px',
-        color: 'rgba(255, 255, 255, 0.6)'
-    },
-    cardContent: {
-        marginBottom: '12px'
-    },
-    cardTitle: {
-        margin: '0 0 8px 0',
-        fontSize: '18px',
-        fontWeight: '700',
-        color: '#fff',
-        lineHeight: '1.4'
-    },
-    cardDescription: {
-        margin: 0,
-        fontSize: '14px',
-        color: 'rgba(255, 255, 255, 0.7)',
-        lineHeight: '1.6',
-        display: '-webkit-box',
-        WebkitLineClamp: 3,
-        WebkitBoxOrient: 'vertical',
-        overflow: 'hidden'
-    },
-    cardFooter: {
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: '12px'
-    },
-    stats: {
-        display: 'flex',
-        gap: '16px'
-    },
-    statItem: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '6px',
-        color: 'rgba(255, 255, 255, 0.6)',
-        fontSize: '14px',
-        cursor: 'pointer'
-    },
-    tags: {
-        display: 'flex',
-        gap: '8px',
-        flexWrap: 'wrap'
-    },
-    tag: {
-        background: 'rgba(55, 19, 236, 0.2)',
-        color: '#3713ec',
-        padding: '4px 12px',
-        borderRadius: '12px',
-        fontSize: '12px',
-        fontWeight: '500'
-    },
-    fab: {
-        position: 'fixed',
-        bottom: '96px',
-        right: '16px',
-        width: '56px',
-        height: '56px',
-        borderRadius: '50%',
-        background: '#3713ec',
-        border: 'none',
-        color: '#fff',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        cursor: 'pointer',
-        boxShadow: '0 4px 12px rgba(55, 19, 236, 0.4)',
-        zIndex: 20
-    },
-    detailView: {
-        minHeight: '100vh',
-        background: '#131022',
-        paddingBottom: '40px'
-    },
-    detailHeader: {
-        position: 'sticky',
-        top: 0,
-        zIndex: 10,
-        background: 'rgba(19, 16, 34, 0.8)',
-        backdropFilter: 'blur(10px)',
-        padding: '16px',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
-    },
-    backButton: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        background: 'transparent',
-        border: 'none',
-        color: '#fff',
-        fontSize: '14px',
-        cursor: 'pointer',
-        padding: '8px 0'
-    },
-    detailPost: {
-        padding: '24px 16px',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
-    },
-    detailTitle: {
-        margin: '16px 0',
-        fontSize: '24px',
-        fontWeight: '700',
-        color: '#fff',
-        lineHeight: '1.3'
-    },
-    detailContent: {
-        margin: 0,
-        fontSize: '15px',
-        color: 'rgba(255, 255, 255, 0.8)',
-        lineHeight: '1.7'
-    },
-    detailStats: {
-        marginTop: '20px',
-        display: 'flex',
-        gap: '16px'
-    },
-    statButton: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        background: 'rgba(255, 255, 255, 0.05)',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-        borderRadius: '8px',
-        padding: '8px 16px',
-        fontSize: '14px',
-        fontWeight: '500',
-        cursor: 'pointer'
-    },
-    repliesSection: {
-        padding: '24px 16px'
-    },
-    repliesTitle: {
-        margin: '0 0 20px 0',
-        fontSize: '18px',
-        fontWeight: '600',
-        color: '#fff'
-    },
-    reply: {
-        background: 'rgba(255, 255, 255, 0.03)',
-        borderRadius: '12px',
-        padding: '16px',
-        marginBottom: '12px'
-    },
-    replyContent: {
-        margin: '12px 0 0 0',
-        fontSize: '14px',
-        color: 'rgba(255, 255, 255, 0.8)',
-        lineHeight: '1.6'
-    },
-    replyInput: {
-        display: 'flex',
-        gap: '12px',
-        marginTop: '20px',
-        background: 'rgba(255, 255, 255, 0.05)',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-        borderRadius: '12px',
-        padding: '12px'
-    },
-    replyInputField: {
-        flex: 1,
-        background: 'transparent',
-        border: 'none',
-        color: '#fff',
-        fontSize: '14px',
-        outline: 'none'
-    },
-    sendButton: {
-        background: '#3713ec',
-        border: 'none',
-        borderRadius: '8px',
-        padding: '8px 12px',
-        color: '#fff',
-        cursor: 'pointer',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center'
-    },
-    modalOverlay: {
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0, 0, 0, 0.8)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1000,
-        padding: '20px'
-    },
-    modal: {
-        background: '#1a1625',
-        borderRadius: '16px',
-        maxWidth: '600px',
-        width: '100%',
-        maxHeight: '90vh',
-        overflowY: 'auto',
-        border: '1px solid rgba(255, 255, 255, 0.1)'
-    },
-    modalHeader: {
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '20px',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
-    },
-    modalTitle: {
-        margin: 0,
-        fontSize: '20px',
-        fontWeight: '600',
-        color: '#fff'
-    },
-    closeButton: {
-        background: 'transparent',
-        border: 'none',
-        color: '#8b949e',
-        cursor: 'pointer',
-        padding: '4px',
-        display: 'flex',
-        alignItems: 'center'
-    },
-    modalContent: {
-        padding: '20px'
-    },
-    typeSelector: {
-        display: 'flex',
-        gap: '12px',
-        marginBottom: '20px'
-    },
-    typeButton: {
-        flex: 1,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: '8px',
-        padding: '12px',
-        borderRadius: '8px',
-        border: 'none',
-        fontSize: '14px',
-        fontWeight: '500',
-        cursor: 'pointer',
-        transition: 'all 0.2s'
-    },
-    titleInput: {
-        width: '100%',
-        background: 'rgba(255, 255, 255, 0.05)',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-        borderRadius: '8px',
-        padding: '12px 16px',
-        color: '#fff',
-        fontSize: '16px',
-        fontWeight: '600',
-        outline: 'none',
-        marginBottom: '12px'
-    },
-    contentTextarea: {
-        width: '100%',
-        background: 'rgba(255, 255, 255, 0.05)',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-        borderRadius: '8px',
-        padding: '12px 16px',
-        color: '#fff',
-        fontSize: '14px',
-        outline: 'none',
-        resize: 'vertical',
-        fontFamily: 'inherit',
-        lineHeight: '1.6'
-    },
-    suggestedTags: {
-        marginTop: '16px'
-    },
-    suggestedLabel: {
-        margin: '0 0 8px 0',
-        fontSize: '13px',
-        color: '#8b949e',
-        fontWeight: '500'
-    },
-    tagList: {
-        display: 'flex',
-        gap: '8px',
-        flexWrap: 'wrap'
-    },
-    suggestedTag: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '4px',
-        background: 'rgba(55, 19, 236, 0.1)',
-        border: '1px solid rgba(55, 19, 236, 0.3)',
-        borderRadius: '12px',
-        padding: '6px 12px',
-        color: '#3713ec',
-        fontSize: '12px',
-        fontWeight: '500',
-        cursor: 'pointer',
-        transition: 'all 0.2s'
-    },
-    selectedTags: {
-        display: 'flex',
-        gap: '8px',
-        flexWrap: 'wrap',
-        marginTop: '12px'
-    },
-    selectedTag: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        background: '#3713ec',
-        borderRadius: '12px',
-        padding: '6px 12px',
-        color: '#fff',
-        fontSize: '12px',
-        fontWeight: '500'
-    },
-    removeTagButton: {
-        background: 'transparent',
-        border: 'none',
-        color: '#fff',
-        cursor: 'pointer',
-        padding: '0',
-        display: 'flex',
-        alignItems: 'center'
-    },
-    submitButton: {
-        width: '100%',
-        background: '#3713ec',
-        border: 'none',
-        borderRadius: '8px',
-        padding: '14px',
-        color: '#fff',
-        fontSize: '15px',
-        fontWeight: '600',
-        cursor: 'pointer',
-        marginTop: '20px',
-        transition: 'all 0.2s'
-    }
+    cardHeader: { display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px', position: 'relative', zIndex: 1 },
+    userAvatar: { width: '28px', height: '28px', borderRadius: '4px', background: '#21262d', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8b949e' },
+    username: { margin: 0, color: '#c9d1d9', fontSize: '14px', fontWeight: '600', cursor: 'pointer' },
+    timeAgo: { margin: 0, color: '#484f58', fontSize: '12px' },
+    cardTitle: { margin: '0 0 8px 0', color: '#fff', fontSize: '18px', fontWeight: '600', lineHeight: '1.4' },
+    cardDescription: { margin: 0, color: '#8b949e', fontSize: '14px', lineHeight: '1.6', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' },
+    cardFooter: { marginTop: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
+    stats: { display: 'flex', gap: '20px', color: '#8b949e', fontSize: '14px' },
+    statItem: { display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' },
+    tags: { display: 'flex', gap: '8px' },
+    tag: { color: 'var(--neon-cyan)', fontSize: '12px', opacity: 0.8 },
+    typeBadge: { position: 'absolute', top: 0, right: 0, background: '#30363d', width: '20px', height: '20px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', color: '#fff' },
+    fab: { position: 'fixed', bottom: '90px', right: '20px', width: '50px', height: '50px', borderRadius: '50%', background: 'var(--neon-cyan)', color: '#000', border: 'none', boxShadow: '0 0 20px rgba(0,242,255,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 },
+    cardGlow: { position: 'absolute', top: 0, left: 0, right: 0, height: '2px', background: 'linear-gradient(90deg, transparent, var(--neon-cyan), transparent)', opacity: 0.5 }
 };

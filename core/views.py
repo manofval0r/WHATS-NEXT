@@ -59,6 +59,8 @@ class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
 
     def create(self, request, *args, **kwargs):
+        print("DEBUG: RegisterView.create called")
+        print(f"DEBUG: Request data: {request.data}")
         try:
             return super().create(request, *args, **kwargs)
         except Exception as e:
@@ -236,7 +238,18 @@ def get_my_roadmap(request):
                 })
         
         print(f"Returning {len(formatted_nodes)} nodes from database")
-        return Response({ "nodes": formatted_nodes, "edges": formatted_edges })
+        
+        # Check if fallback
+        is_fallback = False
+        if items_list:
+            # Check the first item
+            is_fallback = items_list[0].resources.get('is_fallback', False)
+            
+        return Response({ 
+            "nodes": formatted_nodes, 
+            "edges": formatted_edges, 
+            "is_fallback": is_fallback 
+        })
 
     # Generate roadmap synchronously (new or force_regenerate)
     if force_regenerate:

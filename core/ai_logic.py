@@ -237,7 +237,13 @@ def get_fallback_roadmap(niche, uni_course):
             "project_prompt": "Full Capstone Build"
         }
     ]
-    return layout_engine(dummy_data)
+    roadmap_data = layout_engine(dummy_data)
+    # Mark as fallback so frontend knows to auto-regenerate
+    for item in roadmap_data:
+        if 'resources' not in item:
+            item['resources'] = {}
+        item['resources']['is_fallback'] = True
+    return roadmap_data
 
 def normalize_university_course(raw_course):
     """
