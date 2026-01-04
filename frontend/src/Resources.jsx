@@ -34,86 +34,61 @@ export default function Resources() {
       padding: isMobile ? '16px' : '40px',
       height: '100%',
       overflowY: 'auto',
-      background: 'radial-gradient(circle at 50% 0%, #1c2128 0%, #0d1117 100%)',
+      background: '#0d1117', // Solid dark uniformity
       paddingBottom: isMobile ? '100px' : '40px'
     }}>
-      <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
-
-        {/* HEADER */}
-        <div style={{ marginBottom: '30px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '10px' }}>
-            <div style={{
-              width: '48px', height: '48px', borderRadius: '12px',
-              background: 'rgba(0, 242, 255, 0.1)', border: '1px solid rgba(0, 242, 255, 0.2)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center'
-            }}>
-              <Cpu size={24} color="var(--neon-cyan)" />
-            </div>
-            <div>
-              <h1 style={{ margin: 0, fontSize: '28px', fontFamily: 'JetBrains Mono', color: '#fff' }}>
-                INTEL_HUB
-              </h1>
-              <p style={{ margin: '5px 0 0 0', color: 'var(--text-muted)', fontSize: '14px' }}>
-                {data.career_focus || 'Technology'} • Real-time market data & opportunities
-              </p>
-            </div>
+      {/* HEADER (Community Standard) */}
+      <div style={{
+        position: 'sticky', top: 0, zIndex: 10,
+        background: 'rgba(13, 17, 23, 0.85)',
+        backdropFilter: 'blur(12px)',
+        borderBottom: '1px solid rgba(0, 242, 255, 0.1)',
+        marginBottom: '30px',
+        margin: isMobile ? '-16px -16px 30px -16px' : '-40px -40px 40px -40px', // Negative margin to stretch
+        padding: isMobile ? '16px' : '24px 40px'
+      }}>
+        <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+            <div style={{ width: '4px', height: '24px', background: 'var(--neon-cyan)', boxShadow: '0 0 10px var(--neon-cyan)' }}></div>
+            <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 'bold', color: '#fff', fontFamily: 'JetBrains Mono', letterSpacing: '-0.5px' }}>
+              INTEL_HUB
+            </h1>
           </div>
 
-          {/* TABS */}
-          <div style={{
-            display: 'flex',
-            gap: '8px',
-            borderBottom: '1px solid var(--border-subtle)',
-            paddingTop: '20px',
-            overflowX: isMobile ? 'auto' : 'visible',
-            paddingBottom: isMobile ? '10px' : '0',
-            scrollbarWidth: 'none'
-          }}>
+          {/* TABS (Community Style) */}
+          <div style={{ display: 'flex', gap: '10px', overflowX: isMobile ? 'auto' : 'visible', scrollbarWidth: 'none' }}>
             {tabs.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 style={{
-                  background: activeTab === tab.id ? 'rgba(0, 242, 255, 0.1)' : 'transparent',
-                  border: 'none',
-                  borderBottom: activeTab === tab.id ? '2px solid var(--neon-cyan)' : '2px solid transparent',
-                  color: activeTab === tab.id ? 'var(--neon-cyan)' : 'var(--text-muted)',
-                  padding: '12px 20px',
+                  background: activeTab === tab.id ? 'rgba(0, 242, 255, 0.15)' : 'rgba(255, 255, 255, 0.03)',
+                  color: activeTab === tab.id ? 'var(--neon-cyan)' : '#8b949e',
+                  border: activeTab === tab.id ? '1px solid var(--neon-cyan)' : '1px solid transparent',
+                  padding: '8px 16px',
+                  borderRadius: '2px', // Tech square
                   cursor: 'pointer',
-                  fontFamily: 'Inter',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  transition: 'all 0.2s',
-                  marginBottom: '-1px',
-                  whiteSpace: 'nowrap'
-                }}
-                onMouseEnter={(e) => {
-                  if (activeTab !== tab.id) e.currentTarget.style.color = 'var(--text-main)';
-                }}
-                onMouseLeave={(e) => {
-                  if (activeTab !== tab.id) e.currentTarget.style.color = 'var(--text-muted)';
+                  fontFamily: 'JetBrains Mono, monospace',
+                  fontSize: '12px',
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                  whiteSpace: 'nowrap',
+                  transition: 'all 0.2s'
                 }}
               >
                 {tab.icon}
                 {tab.label}
                 <span style={{
-                  background: activeTab === tab.id ? 'var(--neon-cyan)' : 'rgba(255,255,255,0.1)',
-                  color: activeTab === tab.id ? '#000' : 'var(--text-muted)',
-                  padding: '2px 8px',
-                  borderRadius: '12px',
-                  fontSize: '11px',
-                  fontWeight: 'bold'
-                }}>
-                  {tab.count}
-                </span>
+                  background: activeTab === tab.id ? 'var(--neon-cyan)' : '#21262d',
+                  color: activeTab === tab.id ? '#000' : '#8b949e',
+                  padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold'
+                }}>{tab.count}</span>
               </button>
             ))}
           </div>
         </div>
+      </div>
 
+      <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
         {loading ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '400px' }}>
             <div className="terminal-loader">
@@ -137,10 +112,9 @@ export default function Resources() {
                     rel="noreferrer"
                     style={{
                       textDecoration: 'none',
-                      background: 'rgba(22, 27, 34, 0.6)',
-                      backdropFilter: 'blur(12px)',
-                      border: '1px solid var(--border-subtle)',
-                      borderRadius: '16px',
+                      background: '#161b22', // Solid tech dark
+                      border: '1px solid #30363d', // Tech border
+                      borderRadius: '12px',
                       padding: '20px',
                       transition: 'all 0.3s',
                       display: 'flex',
@@ -149,13 +123,13 @@ export default function Resources() {
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.borderColor = 'var(--neon-cyan)';
-                      e.currentTarget.style.transform = 'translateY(-4px)';
-                      e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 242, 255, 0.15)';
+                      const title = e.currentTarget.querySelector('.card-title');
+                      if (title) title.style.color = 'var(--neon-cyan)';
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--border-subtle)';
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = 'none';
+                      e.currentTarget.style.borderColor = '#30363d';
+                      const title = e.currentTarget.querySelector('.card-title');
+                      if (title) title.style.color = '#fff';
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -164,7 +138,7 @@ export default function Resources() {
                         {item.source}
                       </span>
                     </div>
-                    <h3 style={{
+                    <h3 className="card-title" style={{
                       margin: 0,
                       fontSize: '16px',
                       fontWeight: '600',
@@ -173,7 +147,8 @@ export default function Resources() {
                       display: '-webkit-box',
                       WebkitLineClamp: 3,
                       WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden'
+                      overflow: 'hidden',
+                      transition: 'color 0.2s'
                     }}>
                       {item.title}
                     </h3>
@@ -208,22 +183,21 @@ export default function Resources() {
                     rel="noreferrer"
                     style={{
                       textDecoration: 'none',
-                      background: 'rgba(22, 27, 34, 0.6)',
-                      backdropFilter: 'blur(12px)',
-                      border: '1px solid var(--border-subtle)',
+                      background: '#161b22',
+                      border: '1px solid #30363d',
                       borderRadius: '16px',
                       overflow: 'hidden',
                       transition: 'all 0.3s'
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.borderColor = '#FF0000';
-                      e.currentTarget.style.transform = 'translateY(-4px)';
-                      e.currentTarget.style.boxShadow = '0 8px 24px rgba(255, 0, 0, 0.2)';
+                      const title = e.currentTarget.querySelector('.card-title');
+                      if (title) title.style.color = '#ffffffff';
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--border-subtle)';
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = 'none';
+                      e.currentTarget.style.borderColor = '#30363d';
+                      const title = e.currentTarget.querySelector('.card-title');
+                      if (title) title.style.color = '#fff';
                     }}
                   >
                     {/* Thumbnail */}
@@ -259,7 +233,7 @@ export default function Resources() {
 
                     {/* Info */}
                     <div style={{ padding: '16px' }}>
-                      <h3 style={{
+                      <h3 className="card-title" style={{
                         margin: '0 0 8px 0',
                         fontSize: '15px',
                         fontWeight: '600',
@@ -268,7 +242,8 @@ export default function Resources() {
                         display: '-webkit-box',
                         WebkitLineClamp: 2,
                         WebkitBoxOrient: 'vertical',
-                        overflow: 'hidden'
+                        overflow: 'hidden',
+                        transition: 'color 0.2s'
                       }}>
                         {video.title}
                       </h3>
@@ -302,9 +277,8 @@ export default function Resources() {
                     rel="noreferrer"
                     style={{
                       textDecoration: 'none',
-                      background: 'rgba(22, 27, 34, 0.6)',
-                      backdropFilter: 'blur(12px)',
-                      border: '1px solid var(--border-subtle)',
+                      background: '#161b22',
+                      border: '1px solid #30363d',
                       borderRadius: '16px',
                       padding: '20px',
                       transition: 'all 0.3s',
@@ -315,13 +289,13 @@ export default function Resources() {
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.borderColor = 'var(--success-green)';
-                      e.currentTarget.style.transform = 'translateY(-4px)';
-                      e.currentTarget.style.boxShadow = '0 8px 24px rgba(46, 213, 115, 0.15)';
+                      const title = e.currentTarget.querySelector('.card-title');
+                      if (title) title.style.color = 'var(--success-green)';
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--border-subtle)';
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = 'none';
+                      e.currentTarget.style.borderColor = '#30363d';
+                      const title = e.currentTarget.querySelector('.card-title');
+                      if (title) title.style.color = '#fff';
                     }}
                   >
                     {job.is_hot && (
@@ -349,13 +323,14 @@ export default function Resources() {
                         {job.company}
                       </span>
                     </div>
-                    <h3 style={{
+                    <h3 className="card-title" style={{
                       margin: 0,
                       fontSize: '16px',
                       fontWeight: '600',
                       color: '#fff',
                       lineHeight: '1.4',
-                      paddingRight: job.is_hot ? '100px' : '0'
+                      paddingRight: job.is_hot ? '100px' : '0',
+                      transition: 'color 0.2s'
                     }}>
                       {job.title}
                     </h3>

@@ -3,7 +3,7 @@ import api from './api';
 import { useNavigate } from 'react-router-dom';
 import {
     Download, Award, Hash, Github, Linkedin, Edit2, Check,
-    ExternalLink, Briefcase, Terminal, User, FileText, Share2
+    ExternalLink, Briefcase, Terminal, User, FileText, Share2, Settings as SettingsIcon
 } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
 import ContributionGraph from './ContributionGraph';
@@ -89,7 +89,7 @@ export default function Profile() {
     if (loading) return (
         <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0d1117' }}>
             <div className="terminal-loader">
-                <div className="text">DECRYPTING_IDENTITY...</div>
+                <div className="text">GATHERING DEVELOPER RECORDS...</div>
             </div>
         </div>
     );
@@ -101,34 +101,70 @@ export default function Profile() {
     return (
         <div style={{
             padding: isMobile ? '16px' : '40px',
+            paddingTop: isMobile ? '16px' : '0px',
             height: '100%',
             overflowY: 'auto',
-            background: 'radial-gradient(circle at 50% 0%, #1c2128 0%, #0d1117 100%)',
+            background: '#05070a',
             paddingBottom: isMobile ? '100px' : '40px'
         }}>
             <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
 
-                {/* HEADER */}
-                <div style={{ marginBottom: '40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                        <h1 style={{ margin: 0, fontSize: '28px', fontFamily: 'JetBrains Mono', color: '#fff' }}>
-                            OPERATIVE_PROFILE
-                        </h1>
-                        <p style={{ margin: '5px 0 0 0', color: 'var(--text-muted)', fontSize: '14px' }}>
-                            Manage your identity and export your credentials.
-                        </p>
+                {/* HEADER (Community Standard) */}
+                <div style={{
+                    position: 'sticky', top: 0, zIndex: 10,
+                    background: 'rgba(5, 7, 10, 0.85)',
+                    backdropFilter: 'blur(12px)',
+                    borderBottom: '1px solid rgba(0, 242, 255, 0.1)',
+                    marginBottom: '50px',
+                    margin: isMobile ? '-16px -16px 30px -16px' : '-40px -40px 40px -40px',
+                    padding: isMobile ? '16px' : '18px 20px',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ width: '4px', height: '24px', background: 'var(--neon-cyan)', boxShadow: '0 0 10px var(--neon-cyan)' }}></div>
+                        <div>
+                            <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 'bold', color: '#fff', fontFamily: 'JetBrains Mono', letterSpacing: '-0.5px' }}>
+                                DEV_PROFILE
+                            </h1>
+                            <p style={{ margin: '4px 0 0 0', color: 'var(--text-muted)', fontSize: '12px', fontFamily: 'Inter' }}>
+                                YOUR RECORDS
+                            </p>
+                        </div>
                     </div>
-                    <button
-                        onClick={handleExportPDF}
-                        style={{
-                            background: 'var(--neon-cyan)', color: '#000', border: 'none',
-                            padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold',
-                            display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer',
-                            boxShadow: '0 0 15px rgba(0, 242, 255, 0.3)'
-                        }}
-                    >
-                        <Download size={18} /> EXPORT_CV
-                    </button>
+
+                    <div style={{ display: 'flex', gap: '12px' }}>
+                        {isMobile && (
+                            <button
+                                onClick={() => navigate('/settings')}
+                                style={{
+                                    background: 'rgba(255, 255, 255, 0.05)',
+                                    color: '#fff',
+                                    border: '1px solid #30363d',
+                                    padding: '8px',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                }}
+                            >
+                                <SettingsIcon size={20} />
+                            </button>
+                        )}
+
+                        <button
+                            onClick={handleExportPDF}
+                            style={{
+                                background: 'rgba(0, 242, 255, 0.1)',
+                                color: 'var(--neon-cyan)',
+                                border: '1px solid var(--neon-cyan)',
+                                padding: '8px 16px', borderRadius: '4px', fontWeight: 'bold',
+                                display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer',
+                                fontSize: '12px',
+                                fontFamily: 'JetBrains Mono'
+                            }}
+                        >
+                            <Download size={16} /> {isMobile ? 'CV' : 'EXPORT_CV'}
+                        </button>
+                    </div>
                 </div>
 
                 <div style={{
@@ -139,14 +175,19 @@ export default function Profile() {
 
                     {/* LEFT COLUMN: IDENTITY CARD */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                        <div style={cardStyle}>
+                        <div style={{
+                            background: '#161b22', // Solid tech dark
+                            border: '1px solid #30363d', // Tech border
+                            borderRadius: '6px',
+                            padding: '30px'
+                        }}>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
                                 <div style={{
                                     width: '120px', height: '120px', borderRadius: '50%',
-                                    background: 'linear-gradient(135deg, #21262d, #0d1117)',
+                                    background: '#0d1117',
                                     border: '2px solid var(--neon-cyan)',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    marginBottom: '20px', boxShadow: '0 0 20px rgba(0, 242, 255, 0.2)'
+                                    marginBottom: '20px'
                                 }}>
                                     <span style={{ fontSize: '48px', fontWeight: 'bold', color: '#fff', fontFamily: 'JetBrains Mono' }}>
                                         {profile.username[0].toUpperCase()}
@@ -231,7 +272,7 @@ export default function Profile() {
                                 onClick={() => setActiveTab('cv')}
                                 style={activeTab === 'cv' ? activeTabStyle : tabStyle}
                             >
-                                <FileText size={16} /> IDENTITY_RECORD (CV)
+                                <FileText size={16} /> CV
                             </button>
                         </div>
 
@@ -338,10 +379,7 @@ export default function Profile() {
 }
 
 // --- STYLES ---
-const cardStyle = {
-    background: 'rgba(22, 27, 34, 0.6)', backdropFilter: 'blur(10px)',
-    border: '1px solid var(--border-subtle)', borderRadius: '16px', padding: '30px'
-};
+// cardStyle replaced inline with solid tech style
 
 const statBadgeStyle = {
     display: 'flex', alignItems: 'center', gap: '6px',

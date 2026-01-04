@@ -54,9 +54,8 @@ export default function MobileModuleModal({ node, onClose, onSubmitProject, onMa
             <div style={{
                 position: 'sticky',
                 top: 0,
-                background: 'rgba(13, 17, 23, 0.95)',
-                backdropFilter: 'blur(20px)',
-                borderBottom: '1px solid var(--border-subtle)',
+                background: '#0d1117', // Solid tech dark
+                borderBottom: '1px solid #30363d',
                 padding: '16px',
                 display: 'flex',
                 alignItems: 'center',
@@ -102,17 +101,16 @@ export default function MobileModuleModal({ node, onClose, onSubmitProject, onMa
                         width: '80px',
                         height: '80px',
                         margin: '0 auto 16px',
-                        background: isCompleted ? 'rgba(138, 92, 254, 0.2)' :
-                            isActive ? 'rgba(0, 242, 255, 0.1)' :
-                                'var(--bg-surface)',
-                        border: isCompleted ? '3px solid var(--neon-purple)' :
-                            isActive ? '3px solid var(--neon-cyan)' :
-                                '3px solid var(--border-subtle)',
-                        borderRadius: '16px',
+                        background: '#0d1117',
+                        border: isCompleted ? '2px solid #238636' :
+                            isActive ? '2px solid #58a6ff' :
+                                '2px dashed #484f58',
+                        borderRadius: '50%', // Tech circle
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        fontSize: '36px'
+                        fontSize: '32px',
+                        color: isCompleted ? '#238636' : isActive ? '#58a6ff' : '#484f58'
                     }}>
                         {isCompleted ? '✓' : isActive ? '▶' : '🔒'}
                     </div>
@@ -371,9 +369,8 @@ export default function MobileModuleModal({ node, onClose, onSubmitProject, onMa
             <div style={{
                 position: 'sticky',
                 bottom: 0,
-                background: 'rgba(13, 17, 23, 0.95)',
-                backdropFilter: 'blur(20px)',
-                borderTop: '1px solid var(--border-subtle)',
+                background: '#0d1117',
+                borderTop: '1px solid #30363d',
                 padding: '16px',
                 zIndex: 10
             }}>
@@ -399,7 +396,7 @@ export default function MobileModuleModal({ node, onClose, onSubmitProject, onMa
                             gap: '8px',
                             textTransform: 'uppercase',
                             letterSpacing: '1px',
-                            boxShadow: isCompleted ? 'none' : '0 4px 20px rgba(0, 242, 255, 0.4)'
+                            boxShadow: 'none'
                         }}
                     >
                         <CheckCircle size={20} />

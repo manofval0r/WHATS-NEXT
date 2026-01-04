@@ -75,7 +75,7 @@ export default function MobileRoadmap({ nodes, onNodeClick }) {
                 <path
                     d={pathData}
                     stroke="var(--border-subtle)"
-                    strokeWidth="4"
+                    strokeWidth="2"
                     strokeDasharray="10 5"
                     style={{
                         animation: 'dash 1.6s linear infinite'
@@ -109,7 +109,7 @@ export default function MobileRoadmap({ nodes, onNodeClick }) {
                                 <span style={{
                                     fontSize: '11px',
                                     lineHeight: '1.2',
-                                    fontFamily: 'var(--font-code)'
+                                    fontFamily: 'Inter, sans-serif' // Clean font
                                 }}>
                                     {node.data.label}
                                 </span>

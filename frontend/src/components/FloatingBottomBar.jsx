@@ -7,7 +7,7 @@ export default function FloatingBottomBar() {
 
     const navItems = [
         { icon: Home, label: 'Home', path: '/dashboard' },
-        { icon: BookOpen, label: 'Roadmap', path: '/resources' },
+        { icon: BookOpen, label: 'Resources', path: '/resources' },
         { icon: Users, label: 'Community', path: '/community' },
         { icon: User, label: 'Profile', path: '/profile' }
     ];
