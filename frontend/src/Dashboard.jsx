@@ -71,7 +71,20 @@ export default function Dashboard() {
 
       // Handle the response - ensure nodes is always an array
       const nodeData = res.data.nodes || res.data || [];
-      setNodes(Array.isArray(nodeData) ? nodeData : []);
+      const rawNodes = Array.isArray(nodeData) ? nodeData : [];
+
+      // Deduplicate nodes based on content (label + step_order) to handle backend duplicates with different IDs
+      const uniqueNodesMap = new Map();
+      rawNodes.forEach(node => {
+        // Create a unique key based on content
+        const key = `${node.data.step_order}-${node.data.label}`;
+        if (!uniqueNodesMap.has(key)) {
+          uniqueNodesMap.set(key, node);
+        }
+      });
+      const uniqueNodes = Array.from(uniqueNodesMap.values());
+
+      setNodes(uniqueNodes);
 
       // If we only got the 3 fallback nodes, it means the endpoint returned a roadmap
       // This is fine - it either comes from DB or from Gemini API
@@ -619,51 +632,98 @@ export default function Dashboard() {
       {!isMobile && (
         <div style={{
           position: 'absolute', top: 0, right: 0, bottom: 0,
-          width: '400px', background: 'rgba(22, 27, 34, 0.95)',
-          backdropFilter: 'blur(20px)', borderLeft: '1px solid var(--border-active)',
+          width: '600px', maxWidth: '50%', // Wider panel
+          background: '#0d1117', // Solid dark background (Clean Tech)
+          borderLeft: '1px solid #30363d', // Subtle border
           transform: selectedNode ? 'translateX(0)' : 'translateX(100%)',
           transition: 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
           zIndex: 20, display: 'flex', flexDirection: 'column',
-          boxShadow: '-10px 0 30px rgba(0,0,0,0.5)'
+          boxShadow: '-4px 0 24px rgba(0,0,0,0.4)',
+          fontFamily: 'Inter, sans-serif'
         }}>
           {selectedNode ? (
             <>
-              <div style={{ padding: '30px', flex: 1, overflowY: 'auto' }}>
+              <div style={{ padding: '32px', flex: 1, overflowY: 'auto' }}>
                 {/* HEADER */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>
                   <div>
-                    <h2 style={{ margin: 0, fontSize: '24px', color: '#fff', fontFamily: 'JetBrains Mono' }}>
-                      MODULE_{selectedNode.data.step_order}
+                    <h2 style={{
+                      margin: '0 0 8px 0',
+                      fontSize: '24px',
+                      color: '#c9d1d9',
+                      fontFamily: 'JetBrains Mono',
+                      fontWeight: '600',
+                      letterSpacing: '-0.5px'
+                    }}>
+                      MODULE_{(selectedNode.data.step_order || 0).toString().padStart(2, '0')}
                     </h2>
-                    <span style={{ color: selectedNode.data.status === 'completed' ? 'var(--success-green)' : 'var(--neon-cyan)', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px' }}>
-                      STATUS: {selectedNode.data.status.toUpperCase()}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{
+                        width: '8px', height: '8px', borderRadius: '50%',
+                        background: selectedNode.data.status === 'completed' ? '#238636' : '#2f81f7'
+                      }}></div>
+                      <span style={{
+                        color: '#8b949e',
+                        fontSize: '12px',
+                        fontFamily: 'JetBrains Mono',
+                        textTransform: 'uppercase'
+                      }}>
+                        STATUS: {selectedNode.data.status}
+                      </span>
+                    </div>
                   </div>
                   <button
                     onClick={() => setSelectedNode(null)}
-                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                    style={{
+                      background: 'none',
+                      border: '1px solid #30363d',
+                      borderRadius: '6px',
+                      color: '#8b949e',
+                      cursor: 'pointer',
+                      padding: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#8b949e'; e.currentTarget.style.color = '#c9d1d9'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#30363d'; e.currentTarget.style.color = '#8b949e'; }}
                   >
-                    <X size={24} />
+                    <X size={20} />
                   </button>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
 
                   {/* DESCRIPTION */}
-                  <div style={{ background: 'rgba(255,255,255,0.03)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
-                    <h3 style={{ margin: '0 0 10px 0', fontSize: '14px', color: 'var(--text-header)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <Terminal size={16} color="var(--neon-cyan)" /> SYSTEM_DESCRIPTION
+                  <div>
+                    <h3 style={{
+                      fontSize: '13px',
+                      color: '#8b949e',
+                      marginBottom: '12px',
+                      fontFamily: 'JetBrains Mono',
+                      textTransform: 'uppercase',
+                      letterSpacing: '1px'
+                    }}>
+                       // SYSTEM_DESCRIPTION
                     </h3>
-                    <p style={{ margin: 0, fontSize: '14px', lineHeight: '1.6', color: 'var(--text-muted)' }}>
+                    <p style={{ margin: 0, fontSize: '15px', lineHeight: '1.6', color: '#c9d1d9' }}>
                       {selectedNode.data.description}
                     </p>
                   </div>
 
                   {/* RESOURCES PREVIEW */}
                   {selectedNode?.data?.resources && (
-                    <div style={{ marginTop: '20px' }}>
-                      <h3 style={{ fontSize: '14px', color: 'var(--text-header)', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <BookOpen size={16} color="var(--electric-purple)" /> LEARNING_RESOURCES
+                    <div>
+                      <h3 style={{
+                        fontSize: '13px',
+                        color: '#8b949e',
+                        marginBottom: '16px',
+                        fontFamily: 'JetBrains Mono',
+                        textTransform: 'uppercase',
+                        letterSpacing: '1px'
+                      }}>
+                        // LEARNING_RESOURCES
                       </h3>
 
                       {/* PRIMARY RESOURCES (Always shown) */}
@@ -678,37 +738,37 @@ export default function Dashboard() {
                               style={{
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '10px',
-                                padding: '12px',
-                                background: 'rgba(0, 242, 255, 0.05)',
-                                border: '1px solid rgba(0, 242, 255, 0.2)',
-                                borderRadius: '8px',
-                                color: 'var(--neon-cyan)',
+                                gap: '12px',
+                                padding: '16px',
+                                background: '#161b22',
+                                border: '1px solid #30363d',
+                                borderRadius: '6px',
+                                color: '#c9d1d9',
                                 textDecoration: 'none',
                                 transition: 'all 0.2s'
                               }}
                               onMouseEnter={(e) => {
-                                e.currentTarget.style.background = 'rgba(0, 242, 255, 0.1)';
-                                e.currentTarget.style.borderColor = 'var(--neon-cyan)';
+                                e.currentTarget.style.borderColor = '#8b949e';
+                                e.currentTarget.style.transform = 'translateX(4px)';
                               }}
                               onMouseLeave={(e) => {
-                                e.currentTarget.style.background = 'rgba(0, 242, 255, 0.05)';
-                                e.currentTarget.style.borderColor = 'rgba(0, 242, 255, 0.2)';
+                                e.currentTarget.style.borderColor = '#30363d';
+                                e.currentTarget.style.transform = 'translateX(0)';
                               }}
                             >
-                              <span style={{ fontSize: '16px' }}>
+                              <span style={{ fontSize: '18px', opacity: 0.8 }}>
                                 {resource.type === 'interactive' && '🎮'}
                                 {resource.type === 'docs' && '📖'}
                                 {resource.type === 'video' && '🎥'}
                                 {resource.type === 'course' && '🎓'}
                               </span>
                               <div style={{ flex: 1 }}>
-                                <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{resource.title}</div>
-                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                                  {resource.type} • {idx === 0 ? 'RECOMMENDED' : 'ALTERNATIVE'}
+                                <div style={{ fontWeight: '600', fontSize: '14px', marginBottom: '2px' }}>{resource.title}</div>
+                                <div style={{ fontSize: '12px', color: '#8b949e', fontFamily: 'JetBrains Mono' }}>
+                                  {resource.type.toUpperCase()} • {idx === 0 ? 'RECOMMENDED' : 'ALTERNATIVE'}
                                 </div>
                               </div>
-                              <ExternalLink size={14} />
+                              <ExternalLink size={16} color="#8b949e" />
                             </a>
                           ))}
                         </div>
@@ -723,17 +783,19 @@ export default function Dashboard() {
                               style={{
                                 width: '100%',
                                 padding: '10px',
-                                background: 'rgba(255,255,255,0.05)',
-                                border: '1px solid var(--border-subtle)',
-                                borderRadius: '8px',
-                                color: 'var(--text-main)',
+                                background: 'transparent',
+                                border: '1px dashed #30363d',
+                                borderRadius: '6px',
+                                color: '#8b949e',
                                 cursor: 'pointer',
                                 fontFamily: 'JetBrains Mono',
                                 fontSize: '12px',
-                                marginBottom: '12px'
+                                transition: 'all 0.2s'
                               }}
+                              onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#8b949e'; e.currentTarget.style.color = '#c9d1d9'; }}
+                              onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#30363d'; e.currentTarget.style.color = '#8b949e'; }}
                             >
-                              SHOW_MORE ({selectedNode.data.resources.additional.length} more resources)
+                              + EXPAND_ADDITIONAL_RESOURCES ({selectedNode.data.resources.additional.length})
                             </button>
                           )}
 
@@ -750,35 +812,37 @@ export default function Dashboard() {
                                     display: 'flex',
                                     alignItems: 'center',
                                     gap: '10px',
-                                    padding: '10px',
-                                    background: 'rgba(255,255,255,0.03)',
-                                    border: '1px solid var(--border-subtle)',
-                                    borderRadius: '8px',
-                                    color: 'var(--text-main)',
+                                    padding: '12px',
+                                    background: '#161b22', // Slightly lighter surface
+                                    border: '1px solid #30363d',
+                                    borderRadius: '6px',
+                                    color: '#8b949e',
                                     textDecoration: 'none',
                                     fontSize: '13px',
                                     transition: 'all 0.2s'
                                   }}
                                   onMouseEnter={(e) => {
-                                    e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+                                    e.currentTarget.style.borderColor = '#8b949e';
+                                    e.currentTarget.style.color = '#c9d1d9';
                                   }}
                                   onMouseLeave={(e) => {
-                                    e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+                                    e.currentTarget.style.borderColor = '#30363d';
+                                    e.currentTarget.style.color = '#8b949e';
                                   }}
                                 >
-                                  <span style={{ fontSize: '14px' }}>
+                                  <span style={{ fontSize: '14px', opacity: 0.7 }}>
                                     {resource.type === 'interactive' && '🎮'}
                                     {resource.type === 'docs' && '📖'}
                                     {resource.type === 'video' && '🎥'}
                                     {resource.type === 'course' && '🎓'}
                                   </span>
                                   <div style={{ flex: 1 }}>
-                                    <div style={{ fontSize: '13px' }}>{resource.title}</div>
-                                    <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                                    <div style={{ fontSize: '13px', fontWeight: '500' }}>{resource.title}</div>
+                                    <div style={{ fontSize: '10px', fontFamily: 'JetBrains Mono', textTransform: 'uppercase', opacity: 0.7 }}>
                                       {resource.type}
                                     </div>
                                   </div>
-                                  <ExternalLink size={12} />
+                                  <ExternalLink size={14} />
                                 </a>
                               ))}
 
@@ -788,16 +852,17 @@ export default function Dashboard() {
                                   width: '100%',
                                   padding: '8px',
                                   background: 'none',
-                                  border: '1px solid var(--border-subtle)',
-                                  borderRadius: '8px',
-                                  color: 'var(--text-muted)',
+                                  border: 'none',
+                                  color: '#8b949e',
                                   cursor: 'pointer',
                                   fontFamily: 'JetBrains Mono',
                                   fontSize: '11px',
-                                  marginTop: '4px'
+                                  marginTop: '4px',
+                                  textDecoration: 'underline'
                                 }}
                               >
-                                SHOW_LESS
+                                COLLAPSE_RESOURCES
+
                               </button>
                             </div>
                           )}

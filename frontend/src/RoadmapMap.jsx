@@ -44,35 +44,20 @@ const RoadmapMap = ({ nodes, onNodeClick }) => {
       const style = document.createElement('style');
       style.id = 'roadmap-styles';
       style.innerHTML = `
-            @keyframes subtleFloat {
-                0%, 100% { transform: translateY(0px); }
-                50% { transform: translateY(-3px); }
-            }
-            .node-floating {
-                animation: subtleFloat 3s ease-in-out infinite;
-            }
-            .node-floating:nth-child(even) {
-                animation-delay: 1.5s;
-            }
-            
-            /* Holo Effect */
-            @keyframes hologram {
-                0% { opacity: 0.8; }
-                50% { opacity: 1; text-shadow: 0 0 5px rgba(0,242,255,0.8); }
-                100% { opacity: 0.8; }
-            }
-            .holo-text {
-                animation: hologram 2s infinite;
-            }
-            
-            /* Initial fade in */
             .node-item {
                 opacity: 0;
                 animation: fadeIn 0.5s forwards;
-                transform-box: fill-box; /* Ensure transform works on SVG groups */
+                transform-box: fill-box;
+                transition: all 0.3s ease;
             }
             @keyframes fadeIn {
                 to { opacity: 1; }
+            }
+            /* Tech Pulse for Active Node */
+            @keyframes techPulse {
+                0% { box-shadow: 0 0 0 0 rgba(88, 166, 255, 0.4); }
+                70% { box-shadow: 0 0 0 10px rgba(88, 166, 255, 0); }
+                100% { box-shadow: 0 0 0 0 rgba(88, 166, 255, 0); }
             }
         `;
       document.head.appendChild(style);
@@ -110,10 +95,10 @@ const RoadmapMap = ({ nodes, onNodeClick }) => {
       .datum(pathPoints)
       .attr("d", lineGenerator)
       .attr("fill", "none")
-      .attr("stroke", "#21262d")
-      .attr("stroke-width", 16)
-      .attr("stroke-linecap", "round")
-      .attr("stroke-linejoin", "round");
+      .attr("stroke", "#30363d") // Darker, more technical path
+      .attr("stroke-width", 2)   // Thinner precision line
+      .attr("stroke-dasharray", "4,4") // Schematic dashed look
+      .attr("fill", "none");
 
     // Active "Cable" (Progress)
     let activeIndex = nodes.findIndex(n => n.data.status === 'active');
@@ -128,10 +113,12 @@ const RoadmapMap = ({ nodes, onNodeClick }) => {
         .datum(activePoints)
         .attr("d", lineGenerator)
         .attr("fill", "none")
-        .attr("stroke", "#58a6ff")
-        .attr("stroke-width", 8)
-        .attr("stroke-linecap", "round")
-        .attr("filter", "drop-shadow(0 0 6px rgba(88, 166, 255, 0.6))");
+        .attr("d", lineGenerator)
+        .attr("fill", "none")
+        .attr("stroke", "#58a6ff") // Cyan/Blue active path
+        .attr("stroke-width", 2)
+        .attr("stroke-linecap", "round");
+      // Removed heavy drop-shadow
     }
 
     // --- 3. DRAW NODES ---
@@ -139,8 +126,7 @@ const RoadmapMap = ({ nodes, onNodeClick }) => {
       .data(pathPoints)
       .enter()
       .append("g")
-      // Add floating class to Active/Locked too, but mainly Active looks best floating
-      .attr("class", d => `node-group node-item node-floating`)
+      .attr("class", d => `node-group node-item`) // Removed node-floating
       .attr("transform", d => `translate(${d.x}, ${d.y})`)
       .style("cursor", "pointer")
       .on("click", (event, d) => onNodeClick(event, d.data))
@@ -150,10 +136,10 @@ const RoadmapMap = ({ nodes, onNodeClick }) => {
           x: d.x,
           y: d.y
         });
-        // Enhanced Hover Scale
+        // Subtle Scale only
         d3.select(event.currentTarget)
-          .transition().duration(300).ease(d3.easeElasticOut)
-          .attr("transform", `translate(${d.x}, ${d.y}) scale(1.15)`);
+          .transition().duration(200).ease(d3.easeCubicOut)
+          .attr("transform", `translate(${d.x}, ${d.y}) scale(1.05)`);
       })
       .on("mouseleave", (event, d) => {
         setHoveredNode(null);
@@ -163,59 +149,52 @@ const RoadmapMap = ({ nodes, onNodeClick }) => {
           .attr("transform", `translate(${d.x}, ${d.y}) scale(1)`);
       });
 
-    // 3A. Base Circle (Shadow)
-    nodeGroups.append("circle")
-      .attr("r", 42)
-      .attr("cy", 6)
-      .attr("fill", "rgba(0,0,0,0.5)");
-
-    // 3B. Main Circle
+    // 3A. Base Circle (Dark Fill)
     nodeGroups.append("circle")
       .attr("r", 40)
-      .attr("fill", d => {
-        if (d.data.data.status === 'completed') return "#0d1117"; // Dark center for completed
-        if (d.data.data.status === 'active') return "#0d1117";    // Dark center for active
-        return "#161b22"; // Locked
-      })
+      .attr("fill", "#0d1117") // Deep dark fill
       .attr("stroke", d => {
-        if (d.data.data.status === 'completed') return "#2ea043";
-        if (d.data.data.status === 'active') return "#58a6ff";
-        return "#30363d";
+        if (d.data.data.status === 'completed') return "#238636"; // Tech Green
+        if (d.data.data.status === 'active') return "#58a6ff";    // Tech Cyan
+        return "#30363d"; // Muted Gray
       })
-      .attr("stroke-width", d => d.data.data.status === 'active' ? 3 : 2)
-      // Glow for active/completed
-      .attr("filter", d => {
-        if (d.data.data.status === 'active') return "drop-shadow(0 0 8px rgba(88, 166, 255, 0.5))";
-        if (d.data.data.status === 'completed') return "drop-shadow(0 0 8px rgba(46, 160, 67, 0.5))";
-        return "none";
-      });
+      .attr("stroke-width", d => d.data.data.status === 'active' ? 2 : 1);
 
-    // 3C. Inner Ring / Progress
+    // 3B. Tech Ring (Outer Rim)
     nodeGroups.append("circle")
-      .attr("r", 32)
+      .attr("r", 46)
       .attr("fill", "none")
       .attr("stroke", d => {
-        if (d.data.data.status === 'completed') return "#2ea043";
-        if (d.data.data.status === 'active') return "#58a6ff";
-        return "none";
+        if (d.data.data.status === 'completed') return "rgba(35, 134, 54, 0.4)";
+        if (d.data.data.status === 'active') return "rgba(88, 166, 255, 0.4)";
+        return "transparent";
       })
       .attr("stroke-width", 1)
-      .attr("stroke-dasharray", "3,3")
-      .attr("opacity", 0.5);
+      .attr("stroke-dasharray", "2,4"); // Mechanical dash ring
 
-    // 3D. Icon / Text
+    // 3C. Inner Logic (Status Indicator)
+    nodeGroups.append("circle")
+      .attr("r", 4)
+      .attr("cy", -25) // Top indicator
+      .attr("fill", d => {
+        if (d.data.data.status === 'completed') return "#238636";
+        if (d.data.data.status === 'active') return "#58a6ff";
+        return "#30363d";
+      });
+
+    // 3D. Icon / Text (Clean)
     nodeGroups.append("text")
       .attr("dy", 6)
       .attr("text-anchor", "middle")
       .attr("fill", d => {
-        if (d.data.data.status === 'locked') return "#8b949e";
-        return "#ffffff";
+        if (d.data.data.status === 'locked') return "#484f58";
+        return "#e6edf3"; // High contrast text
       })
       .style("font-family", "JetBrains Mono, monospace")
-      .style("font-size", "18px")
-      .style("font-weight", "bold")
+      .style("font-size", "14px")
+      .style("font-weight", "600")
       .style("pointer-events", "none")
-      .text((d, i) => i + 1);
+      .text((d, i) => `0${i + 1}`); // 01, 02 format
 
   }, [dimensions, nodes, onNodeClick]);
 
@@ -236,58 +215,58 @@ const RoadmapMap = ({ nodes, onNodeClick }) => {
       <AnimatePresence>
         {hoveredNode && (
           <motion.div
-            initial={{ opacity: 0, y: 10, scale: 0.9, rotateX: 20 }}
-            animate={{ opacity: 1, y: 0, scale: 1, rotateX: 0 }}
-            exit={{ opacity: 0, scale: 0.9, rotateX: 20 }}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.15 }}
             style={{
               position: 'absolute',
               left: hoveredNode.x,
-              top: hoveredNode.y - 110,
+              top: hoveredNode.y - 90,
               transform: 'translateX(-50%)',
-              background: 'rgba(13, 17, 23, 0.95)',
-              border: '1px solid #58a6ff',
-              boxShadow: '0 0 15px rgba(88, 166, 255, 0.3), inset 0 0 20px rgba(88, 166, 255, 0.1)',
-              borderRadius: '8px',
+              background: '#0d1117', // Solid dark
+              border: '1px solid #30363d', // Clean border
+              boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+              borderRadius: '6px',
               padding: '16px',
               pointerEvents: 'none',
               zIndex: 100,
-              minWidth: '240px',
-              textAlign: 'center',
-              backdropFilter: 'blur(10px)',
-              overflow: 'hidden'
+              minWidth: '220px',
+              textAlign: 'left' // Left align for tech feel
             }}
           >
-            {/* Scanlines */}
-            <div style={{
-              position: 'absolute', inset: 0,
-              background: 'linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06))',
-              backgroundSize: '100% 2px, 3px 100%',
-              pointerEvents: 'none',
-              zIndex: -1
-            }}></div>
-
             {/* Connection Line */}
             <div style={{
-              position: 'absolute', bottom: '-8px', left: '50%', transform: 'translateX(-50%) rotate(45deg)',
-              width: '16px', height: '16px',
+              position: 'absolute', bottom: '-6px', left: '50%', transform: 'translateX(-50%) rotate(45deg)',
+              width: '12px', height: '12px',
               background: '#0d1117',
-              borderBottom: '1px solid #58a6ff',
-              borderRight: '1px solid #58a6ff',
+              borderBottom: '1px solid #30363d',
+              borderRight: '1px solid #30363d',
               zIndex: 1
             }}></div>
 
-            <h4 className="holo-text" style={{ margin: '0 0 8px 0', color: '#58a6ff', fontSize: '16px', fontFamily: 'JetBrains Mono', fontWeight: 'bold', textTransform: 'uppercase' }}>
-              {hoveredNode.data.label}
-            </h4>
-
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', margin: '4px 0' }}>
-              <span style={{ fontSize: '11px', padding: '2px 6px', background: 'rgba(56, 139, 253, 0.2)', color: '#58a6ff', borderRadius: '4px' }}>
-                STATUS: {hoveredNode.data.status.toUpperCase()}
+            <div style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px',
+              borderBottom: '1px solid #21262d', paddingBottom: '8px'
+            }}>
+              <span style={{ fontSize: '11px', fontFamily: 'JetBrains Mono', color: '#8b949e', textTransform: 'uppercase' }}>
+                    // MODULE_INFO
+              </span>
+              <span style={{
+                fontSize: '10px', fontWeight: 'bold',
+                color: hoveredNode.data.status === 'completed' ? '#238636' : hoveredNode.data.status === 'active' ? '#58a6ff' : '#484f58',
+                fontFamily: 'JetBrains Mono'
+              }}>
+                [{hoveredNode.data.status.toUpperCase()}]
               </span>
             </div>
 
-            <p style={{ margin: '8px 0 0 0', color: '#8b949e', fontSize: '12px', fontFamily: 'Inter' }}>
-              {hoveredNode.data.description?.slice(0, 80)}...
+            <h4 style={{ margin: '0 0 4px 0', color: '#e6edf3', fontSize: '14px', fontFamily: 'Inter', fontWeight: '600' }}>
+              {hoveredNode.data.label}
+            </h4>
+
+            <p style={{ margin: 0, color: '#8b949e', fontSize: '12px', fontFamily: 'Inter', lineHeight: '1.4' }}>
+              {hoveredNode.data.description?.slice(0, 100)}...
             </p>
 
           </motion.div>
