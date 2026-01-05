@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from './api';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { User, Lock, Mail, Briefcase, GraduationCap, ArrowRight, Sparkles, Code2, Zap, Github, Chrome, AlertCircle, CheckCircle2, XCircle, Eye, EyeOff } from 'lucide-react';
 import { useIsMobile } from './hooks/useMediaQuery';
 
@@ -26,6 +26,7 @@ export default function AuthPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const isMobile = useIsMobile();
 
   // Animated background particles
@@ -43,6 +44,16 @@ export default function AuthPage() {
     }));
     setParticles(newParticles);
   }, []);
+
+  // Check for OAuth errors in URL
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const urlError = params.get('error');
+    if (urlError) {
+      setError(urlError === 'oauth_failed' ? 'Authentication failed. Please try again.' : decodeURIComponent(urlError));
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [location]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import api from './api';
 
 export default function AuthCallback() {
     const navigate = useNavigate();
@@ -9,38 +10,37 @@ export default function AuthCallback() {
         const params = new URLSearchParams(location.search);
         const accessToken = params.get('access');
         const refreshToken = params.get('refresh');
+        const error = params.get('error');
 
         if (accessToken && refreshToken) {
             localStorage.setItem('access_token', accessToken);
             localStorage.setItem('refresh_token', refreshToken);
 
-            // Decode JWT to check for needs_onboarding flag
-            try {
-                const payload = JSON.parse(atob(accessToken.split('.')[1]));
-                const needsOnboarding = payload.needs_onboarding || false;
+            // Use the token immediately to verify session and check onboarding status
+            api.get('/api/profile/')
+                .then(response => {
+                    const data = response.data;
+                    const profile = data.profile || data; // Handle potential structure variations
 
-                // Store username for use across the app
-                if (payload.username) {
-                    localStorage.setItem('username', payload.username);
-                } else if (payload.user_id) {
-                    localStorage.setItem('username', payload.user_id);
-                }
+                    // Store username for UI consistency
+                    if (profile.username) {
+                        localStorage.setItem('username', profile.username);
+                    }
 
-                if (needsOnboarding) {
-                    // User needs to complete onboarding
-                    navigate('/onboarding', { replace: true });
-                } else {
-                    // User profile is complete, go to dashboard
-                    navigate('/dashboard', { replace: true });
-                }
-            } catch (err) {
-                console.error('Failed to decode JWT:', err);
-                // Fallback to dashboard if decode fails
-                navigate('/dashboard', { replace: true });
-            }
+                    // If user hasn't set a target career, send to onboarding
+                    if (!profile.target_career) {
+                        navigate('/onboarding', { replace: true });
+                    } else {
+                        navigate('/dashboard', { replace: true });
+                    }
+                })
+                .catch(err => {
+                    console.error('Token verification failed:', err);
+                    navigate('/auth?error=token_verification_failed', { replace: true });
+                });
         } else {
             // Handle error or redirect to login
-            navigate('/auth?error=oauth_failed', { replace: true });
+            navigate(`/auth?error=${error || 'oauth_failed'}`, { replace: true });
         }
     }, [location, navigate]);
 
