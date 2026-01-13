@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const RoadmapMap = ({ nodes, onNodeClick }) => {
+const RoadmapMap = ({ nodes, onNodeClick, isMobile }) => {
   const svgRef = useRef(null);
   const containerRef = useRef(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
@@ -67,8 +67,10 @@ const RoadmapMap = ({ nodes, onNodeClick }) => {
     svg.selectAll("*").remove();
 
     const width = dimensions.width;
-    const waveWidth = Math.min(width * 0.5, 300);
-    const nodeSpacing = 220;
+    // Mobile adjustments: tighter wave, closer nodes
+    const mobileView = isMobile || width < 600;
+    const waveWidth = mobileView ? Math.min(width * 0.3, 100) : Math.min(width * 0.5, 300);
+    const nodeSpacing = mobileView ? 160 : 220;
     const totalHeight = nodes.length * nodeSpacing + 400;
 
     svg.attr("height", totalHeight);
@@ -129,17 +131,23 @@ const RoadmapMap = ({ nodes, onNodeClick }) => {
       .attr("class", d => `node-group node-item`) // Removed node-floating
       .attr("transform", d => `translate(${d.x}, ${d.y})`)
       .style("cursor", "pointer")
-      .on("click", (event, d) => onNodeClick(event, d.data))
+      .on("click", (event, d) => {
+        setHoveredNode(null); // Clear tooltip immediately to prevent persistence
+        onNodeClick(event, d.data);
+      })
       .on("mouseenter", (event, d) => {
-        setHoveredNode({
-          data: d.data.data,
-          x: d.x,
-          y: d.y
-        });
+        // Disable tooltip on mobile/narrow screens to avoid "sticky" hover issues
+        if (!mobileView) {
+          setHoveredNode({
+            data: d.data.data,
+            x: d.x,
+            y: d.y
+          });
+        }
         // Subtle Scale only
         d3.select(event.currentTarget)
           .transition().duration(200).ease(d3.easeCubicOut)
-          .attr("transform", `translate(${d.x}, ${d.y}) scale(1.05)`);
+          .attr("transform", `translate(${d.x}, ${d.y}) scale(${mobileView ? 1.02 : 1.05})`);
       })
       .on("mouseleave", (event, d) => {
         setHoveredNode(null);
@@ -149,54 +157,80 @@ const RoadmapMap = ({ nodes, onNodeClick }) => {
           .attr("transform", `translate(${d.x}, ${d.y}) scale(1)`);
       });
 
+    const radius = mobileView ? 32 : 40;
+
     // 3A. Base Circle (Dark Fill)
     nodeGroups.append("circle")
-      .attr("r", 40)
-      .attr("fill", "#0d1117") // Deep dark fill
-      .attr("stroke", d => {
-        if (d.data.data.status === 'completed') return "#238636"; // Tech Green
-        if (d.data.data.status === 'active') return "#58a6ff";    // Tech Cyan
-        return "#30363d"; // Muted Gray
+      .attr("r", radius)
+      .attr("fill", d => {
+        if (d.data.data.status === 'completed') return "#0d1117";
+        if (d.data.data.status === 'active') return "#0d1117";
+        return "#0d1117"; // All same base
       })
-      .attr("stroke-width", d => d.data.data.status === 'active' ? 2 : 1);
+      .attr("stroke", d => {
+        if (d.data.data.status === 'completed') return "#238636"; // Green
+        if (d.data.data.status === 'active') return "#58a6ff";    // Cyan
+        return "#30363d"; // Gray for locked
+      })
+      .attr("stroke-width", d => d.data.data.status === 'active' ? 3 : 2);
 
-    // 3B. Tech Ring (Outer Rim)
-    nodeGroups.append("circle")
-      .attr("r", 46)
+    // 3B. Outer Glow Ring (Active only)
+    nodeGroups.filter(d => d.data.data.status === 'active')
+      .append("circle")
+      .attr("r", radius + 8)
       .attr("fill", "none")
-      .attr("stroke", d => {
-        if (d.data.data.status === 'completed') return "rgba(35, 134, 54, 0.4)";
-        if (d.data.data.status === 'active') return "rgba(88, 166, 255, 0.4)";
-        return "transparent";
-      })
-      .attr("stroke-width", 1)
-      .attr("stroke-dasharray", "2,4"); // Mechanical dash ring
+      .attr("stroke", "rgba(88, 166, 255, 0.3)")
+      .attr("stroke-width", 2)
+      .style("animation", "pulse-ring 2s ease-in-out infinite");
 
-    // 3C. Inner Logic (Status Indicator)
-    nodeGroups.append("circle")
-      .attr("r", 4)
-      .attr("cy", -25) // Top indicator
-      .attr("fill", d => {
-        if (d.data.data.status === 'completed') return "#238636";
-        if (d.data.data.status === 'active') return "#58a6ff";
-        return "#30363d";
-      });
+    // Add pulse animation
+    if (!document.getElementById('pulse-ring-animation')) {
+      const style = document.createElement('style');
+      style.id = 'pulse-ring-animation';
+      style.innerHTML = `
+        @keyframes pulse-ring {
+          0%, 100% { opacity: 0.3; transform: scale(1); }
+          50% { opacity: 0.6; transform: scale(1.05); }
+        }
+      `;
+      document.head.appendChild(style);
+    }
 
-    // 3D. Icon / Text (Clean)
-    nodeGroups.append("text")
-      .attr("dy", 6)
-      .attr("text-anchor", "middle")
-      .attr("fill", d => {
-        if (d.data.data.status === 'locked') return "#484f58";
-        return "#e6edf3"; // High contrast text
-      })
-      .style("font-family", "JetBrains Mono, monospace")
-      .style("font-size", "14px")
-      .style("font-weight", "600")
-      .style("pointer-events", "none")
-      .text((d, i) => `0${i + 1}`); // 01, 02 format
+    // 3C. Status Icons (Checkmark for completed, Number for others)
+    nodeGroups.each(function(d, i) {
+      const group = d3.select(this);
+      const status = d.data.data.status;
 
-  }, [dimensions, nodes, onNodeClick]);
+      if (status === 'completed') {
+        // Checkmark Icon
+        group.append("text")
+          .attr("dy", 6)
+          .attr("text-anchor", "middle")
+          .attr("fill", "#238636")
+          .style("font-size", mobileView ? "20px" : "24px")
+          .style("pointer-events", "none")
+          .text("✓");
+      } else {
+        // Show number for all other states (locked, active, etc.)
+        group.append("text")
+          .attr("dy", 6)
+          .attr("text-anchor", "middle")
+          .attr("fill", status === 'active' ? "#58a6ff" : "#484f58")
+          .style("font-family", "JetBrains Mono, monospace")
+          .style("font-size", "14px")
+          .style("font-weight", "600")
+          .style("pointer-events", "none")
+          .style("opacity", status === 'locked' ? "0.4" : "1")
+          .text(`0${i + 1}`);
+      }
+    });
+
+    // Apply overall opacity to locked nodes
+    nodeGroups.filter(d => d.data.data.status === 'locked')
+      .style("opacity", "0.4")
+      .style("cursor", "not-allowed");
+
+  }, [dimensions, nodes, onNodeClick, isMobile]);
 
   return (
     <div
@@ -221,28 +255,28 @@ const RoadmapMap = ({ nodes, onNodeClick }) => {
             transition={{ duration: 0.15 }}
             style={{
               position: 'absolute',
-              left: hoveredNode.x,
+              left: hoveredNode.x, // Centered logic handled in mouseenter
               top: hoveredNode.y - 90,
               transform: 'translateX(-50%)',
               background: '#0d1117', // Solid dark
               border: '1px solid #30363d', // Clean border
               boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
               borderRadius: '6px',
-              padding: '16px',
+              padding: '12px',
               pointerEvents: 'none',
-              zIndex: 100,
-              minWidth: '220px',
+              zIndex: 1000,
+              minWidth: '200px',
               textAlign: 'left' // Left align for tech feel
             }}
           >
-            {/* Connection Line */}
+            {/* Connection Line - Directed Arrow */}
             <div style={{
-              position: 'absolute', bottom: '-6px', left: '50%', transform: 'translateX(-50%) rotate(45deg)',
-              width: '12px', height: '12px',
+              position: 'absolute', bottom: '-8px', left: '50%', transform: 'translateX(-50%) rotate(45deg)',
+              width: '16px', height: '16px',
               background: '#0d1117',
               borderBottom: '1px solid #30363d',
               borderRight: '1px solid #30363d',
-              zIndex: 1
+              zIndex: 2
             }}></div>
 
             <div style={{
@@ -250,7 +284,7 @@ const RoadmapMap = ({ nodes, onNodeClick }) => {
               borderBottom: '1px solid #21262d', paddingBottom: '8px'
             }}>
               <span style={{ fontSize: '11px', fontFamily: 'JetBrains Mono', color: '#8b949e', textTransform: 'uppercase' }}>
-                    // MODULE_INFO
+                    MODULE_INFO
               </span>
               <span style={{
                 fontSize: '10px', fontWeight: 'bold',
@@ -261,13 +295,53 @@ const RoadmapMap = ({ nodes, onNodeClick }) => {
               </span>
             </div>
 
-            <h4 style={{ margin: '0 0 4px 0', color: '#e6edf3', fontSize: '14px', fontFamily: 'Inter', fontWeight: '600' }}>
+            <h4 style={{ margin: '0 0 8px 0', color: '#e6edf3', fontSize: '14px', fontFamily: 'Inter', fontWeight: '600' }}>
               {hoveredNode.data.label}
             </h4>
 
-            <p style={{ margin: 0, color: '#8b949e', fontSize: '12px', fontFamily: 'Inter', lineHeight: '1.4' }}>
+            <p style={{ margin: '0 0 12px 0', color: '#8b949e', fontSize: '12px', fontFamily: 'Inter', lineHeight: '1.4' }}>
               {hoveredNode.data.description?.slice(0, 100)}...
             </p>
+
+            {/* Progress Bar (if active or completed) */}
+            {(hoveredNode.data.status === 'active' || hoveredNode.data.status === 'completed') && (
+              <div style={{ marginBottom: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <span style={{ fontSize: '10px', color: '#8b949e' }}>Progress</span>
+                  <span style={{ fontSize: '10px', color: '#58a6ff', fontFamily: 'JetBrains Mono' }}>
+                    {hoveredNode.data.status === 'completed' ? '100%' : '45%'}
+                  </span>
+                </div>
+                <div style={{ width: '100%', height: '4px', background: '#21262d', borderRadius: '2px', overflow: 'hidden' }}>
+                  <div style={{
+                    width: hoveredNode.data.status === 'completed' ? '100%' : '45%',
+                    height: '100%',
+                    background: hoveredNode.data.status === 'completed' ? '#238636' : '#58a6ff',
+                    transition: 'width 0.3s ease'
+                  }}></div>
+                </div>
+              </div>
+            )}
+
+            {/* Estimated Time */}
+            <div style={{ fontSize: '11px', color: '#8b949e', marginTop: '8px' }}>
+              ⏱️ Est. Time: <span style={{ color: '#e6edf3' }}>2-3 hours</span>
+            </div>
+
+            {/* Prerequisites (if locked) */}
+            {hoveredNode.data.status === 'locked' && (
+              <div style={{ 
+                marginTop: '8px', 
+                padding: '8px', 
+                background: 'rgba(255, 190, 11, 0.1)', 
+                border: '1px solid rgba(255, 190, 11, 0.3)',
+                borderRadius: '4px',
+                fontSize: '11px',
+                color: '#ffbe0b'
+              }}>
+                🔒 Complete previous modules to unlock
+              </div>
+            )}
 
           </motion.div>
         )}

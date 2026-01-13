@@ -1,254 +1,209 @@
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from './api';
+import { Cpu, Code, Globe, Database, Zap, Sparkles, Brain, Layout } from 'lucide-react';
+import './Onboarding.css';
+
+const STEPS = [
+  "Role Selection",
+  "Experience Level",
+  "Learning Focus",
+  "Calibration"
+];
 
 export default function Onboarding() {
-    const [niche, setNiche] = useState('');
-    const [universityCourse, setUniversityCourse] = useState('');
-    const [budget, setBudget] = useState('FREE');
-    const [loading, setLoading] = useState(false);
-    const [loadingMessage, setLoadingMessage] = useState('GENERATING_ROADMAP...');
-    const [error, setError] = useState('');
-    const navigate = useNavigate();
+  const navigate = useNavigate();
+  const [currentStep, setCurrentStep] = useState(0);
+  const [isCalibrating, setIsCalibrating] = useState(false);
+  
+  // Form State
+  const [formData, setFormData] = useState({
+    role: null,
+    level: null,
+    focus: null
+  });
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
+  const handleSelect = (key, value) => {
+    setFormData(prev => ({ ...prev, [key]: value }));
+  };
 
-        if (!niche.trim()) {
-            setError('Career path is required');
-            return;
-        }
+  const handleNext = () => {
+    if (currentStep < STEPS.length - 2) {
+      setCurrentStep(prev => prev + 1);
+    } else {
+      // Final Step -> Calibration
+      setCurrentStep(prev => prev + 1);
+      startCalibration();
+    }
+  };
 
-        setLoading(true);
-        setError('');
-        setLoadingMessage('GENERATING_ROADMAP...');
+  const handleBack = () => {
+    if (currentStep > 0) setCurrentStep(prev => prev - 1);
+  };
 
-        try {
-            await api.post('/api/complete-onboarding/', {
-                niche: niche.trim(),
-                university_course: universityCourse.trim(),
-                budget
-            });
+  const startCalibration = () => {
+    setIsCalibrating(true);
+    // Fake async process
+    setTimeout(() => {
+        navigate('/roadmap'); // Redirect to Dashboard after "calibration"
+    }, 3000);
+  };
 
-            // Show success message before redirect
-            setLoadingMessage('ROADMAP_CREATED! Loading dashboard...');
-            await new Promise(resolve => setTimeout(resolve, 1500));
-
-            // Redirect to dashboard after successful onboarding
-            navigate('/dashboard');
-        } catch (err) {
-            console.error('Onboarding error:', err);
-            setError(err.response?.data?.error || 'Failed to complete onboarding. Please try again.');
-            setLoading(false);
-        }
-    };
-
-    return (
-        <div style={{
-            minHeight: '100vh',
-            background: 'linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '20px'
-        }}>
-            <div style={{
-                width: '100%',
-                maxWidth: '500px',
-                background: 'rgba(22, 27, 34, 0.95)',
-                backdropFilter: 'blur(20px)',
-                border: '1px solid rgba(0, 242, 255, 0.2)',
-                borderRadius: '16px',
-                padding: '40px',
-                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)'
-            }}>
-                {/* Header */}
-                <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-                    <h1 style={{
-                        fontSize: '32px',
-                        fontFamily: 'JetBrains Mono',
-                        color: 'var(--neon-cyan)',
-                        margin: '0 0 10px 0',
-                        textShadow: '0 0 10px rgba(0, 242, 255, 0.5)'
-                    }}>
-                        COMPLETE_PROFILE
-                    </h1>
-                    <p style={{
-                        fontSize: '14px',
-                        color: 'var(--text-muted)',
-                        margin: 0
-                    }}>
-                        Tell us about your goals to generate your personalized roadmap
-                    </p>
-                </div>
-
-                {/* Form */}
-                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                    {/* Career Path */}
-                    <div>
-                        <label style={{
-                            display: 'block',
-                            fontSize: '12px',
-                            fontFamily: 'JetBrains Mono',
-                            color: 'var(--neon-cyan)',
-                            marginBottom: '8px',
-                            textTransform: 'uppercase',
-                            letterSpacing: '1px'
-                        }}>
-                            Career Path <span style={{ color: '#ff4444' }}>*</span>
-                        </label>
-                        <input
-                            type="text"
-                            value={niche}
-                            onChange={(e) => setNiche(e.target.value)}
-                            placeholder="e.g., Full Stack Developer, Data Scientist"
-                            required
-                            style={{
-                                width: '100%',
-                                padding: '12px',
-                                background: 'rgba(255,255,255,0.05)',
-                                border: '1px solid rgba(0, 242, 255, 0.3)',
-                                borderRadius: '8px',
-                                color: '#fff',
-                                fontSize: '14px',
-                                fontFamily: 'Inter',
-                                outline: 'none',
-                                transition: 'all 0.2s'
-                            }}
-                            onFocus={(e) => {
-                                e.target.style.borderColor = 'var(--neon-cyan)';
-                                e.target.style.boxShadow = '0 0 10px rgba(0, 242, 255, 0.3)';
-                            }}
-                            onBlur={(e) => {
-                                e.target.style.borderColor = 'rgba(0, 242, 255, 0.3)';
-                                e.target.style.boxShadow = 'none';
-                            }}
-                        />
-                    </div>
-
-                    {/* University Course (Optional) */}
-                    <div>
-                        <label style={{
-                            display: 'block',
-                            fontSize: '12px',
-                            fontFamily: 'JetBrains Mono',
-                            color: 'var(--neon-cyan)',
-                            marginBottom: '8px',
-                            textTransform: 'uppercase',
-                            letterSpacing: '1px'
-                        }}>
-                            University Course <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>(Optional)</span>
-                        </label>
-                        <input
-                            type="text"
-                            value={universityCourse}
-                            onChange={(e) => setUniversityCourse(e.target.value)}
-                            placeholder="e.g., Computer Science, Self-taught"
-                            style={{
-                                width: '100%',
-                                padding: '12px',
-                                background: 'rgba(255,255,255,0.05)',
-                                border: '1px solid rgba(0, 242, 255, 0.3)',
-                                borderRadius: '8px',
-                                color: '#fff',
-                                fontSize: '14px',
-                                fontFamily: 'Inter',
-                                outline: 'none',
-                                transition: 'all 0.2s'
-                            }}
-                            onFocus={(e) => {
-                                e.target.style.borderColor = 'var(--neon-cyan)';
-                                e.target.style.boxShadow = '0 0 10px rgba(0, 242, 255, 0.3)';
-                            }}
-                            onBlur={(e) => {
-                                e.target.style.borderColor = 'rgba(0, 242, 255, 0.3)';
-                                e.target.style.boxShadow = 'none';
-                            }}
-                        />
-                    </div>
-
-                    {/* Budget Preference */}
-                    <div>
-                        <label style={{
-                            display: 'block',
-                            fontSize: '12px',
-                            fontFamily: 'JetBrains Mono',
-                            color: 'var(--neon-cyan)',
-                            marginBottom: '12px',
-                            textTransform: 'uppercase',
-                            letterSpacing: '1px'
-                        }}>
-                            Resource Preference
-                        </label>
-                        <div style={{ display: 'flex', gap: '12px' }}>
-                            {['FREE', 'PAID'].map((option) => (
-                                <label key={option} style={{
-                                    flex: 1,
-                                    padding: '12px',
-                                    background: budget === option ? 'rgba(0, 242, 255, 0.1)' : 'rgba(255,255,255,0.05)',
-                                    border: budget === option ? '1px solid var(--neon-cyan)' : '1px solid rgba(0, 242, 255, 0.3)',
-                                    borderRadius: '8px',
-                                    cursor: 'pointer',
-                                    textAlign: 'center',
-                                    fontSize: '14px',
-                                    fontFamily: 'JetBrains Mono',
-                                    color: budget === option ? 'var(--neon-cyan)' : 'var(--text-main)',
-                                    transition: 'all 0.2s'
-                                }}>
-                                    <input
-                                        type="radio"
-                                        name="budget"
-                                        value={option}
-                                        checked={budget === option}
-                                        onChange={(e) => setBudget(e.target.value)}
-                                        style={{ display: 'none' }}
-                                    />
-                                    {option}
-                                </label>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Error Message */}
-                    {error && (
-                        <div style={{
-                            padding: '12px',
-                            background: 'rgba(255, 68, 68, 0.1)',
-                            border: '1px solid rgba(255, 68, 68, 0.3)',
-                            borderRadius: '8px',
-                            color: '#ff4444',
-                            fontSize: '14px',
-                            fontFamily: 'Inter'
-                        }}>
-                            {error}
-                        </div>
-                    )}
-
-                    {/* Submit Button */}
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        style={{
-                            width: '100%',
-                            padding: '14px',
-                            background: loading ? 'rgba(0, 242, 255, 0.3)' : 'linear-gradient(90deg, var(--neon-cyan), var(--electric-purple))',
-                            border: 'none',
-                            borderRadius: '8px',
-                            color: '#000',
-                            fontSize: '14px',
-                            fontFamily: 'JetBrains Mono',
-                            fontWeight: 'bold',
-                            cursor: loading ? 'not-allowed' : 'pointer',
-                            textTransform: 'uppercase',
-                            letterSpacing: '1px',
-                            transition: 'all 0.2s',
-                            boxShadow: loading ? 'none' : '0 4px 15px rgba(0, 242, 255, 0.4)'
-                        }}
-                    >
-                        {loading ? loadingMessage : 'START_JOURNEY'}
-                    </button>
-                </form>
+  // Content for each step
+  const renderStepContent = () => {
+    switch (currentStep) {
+      case 0: // Role
+        return (
+          <>
+            <h2 className="neural-title">Select Your Path</h2>
+            <p className="neural-subtitle">Which archetype aligns with your goals?</p>
+            <div className="options-grid">
+              <OptionCard 
+                icon={<Globe />} 
+                label="Full Stack Developer" 
+                selected={formData.role === 'fullstack'} 
+                onClick={() => handleSelect('role', 'fullstack')}
+              />
+              <OptionCard 
+                icon={<Layout />} 
+                label="Frontend Engineer" 
+                selected={formData.role === 'frontend'} 
+                onClick={() => handleSelect('role', 'frontend')}
+              />
+              <OptionCard 
+                icon={<Database />} 
+                label="Backend Architect" 
+                selected={formData.role === 'backend'} 
+                onClick={() => handleSelect('role', 'backend')}
+              />
+              <OptionCard 
+                icon={<Brain />} 
+                label="AI Engineer" 
+                selected={formData.role === 'ai'} 
+                onClick={() => handleSelect('role', 'ai')}
+              />
             </div>
+          </>
+        );
+      case 1: // Level
+        return (
+          <>
+            <h2 className="neural-title">Experience Calibration</h2>
+            <p className="neural-subtitle">Current technical proficiency level.</p>
+            <div className="options-grid">
+              <OptionCard 
+                icon={<Sparkles />} 
+                label="Novice (0-1 yr)" 
+                selected={formData.level === 'novice'} 
+                onClick={() => handleSelect('level', 'novice')}
+              />
+              <OptionCard 
+                icon={<Zap />} 
+                label="Apprentice (1-3 yrs)" 
+                selected={formData.level === 'apprentice'} 
+                onClick={() => handleSelect('level', 'apprentice')}
+              />
+              <OptionCard 
+                icon={<Code />} 
+                label="Professional (3+ yrs)" 
+                selected={formData.level === 'pro'} 
+                onClick={() => handleSelect('level', 'pro')}
+              />
+              <OptionCard 
+                icon={<Cpu />} 
+                label="Expert (5+ yrs)" 
+                selected={formData.level === 'expert'} 
+                onClick={() => handleSelect('level', 'expert')}
+              />
+            </div>
+          </>
+        );
+      case 2: // Focus
+        return (
+          <>
+             <h2 className="neural-title">Learning Directive</h2>
+             <p className="neural-subtitle">What is your primary optimization target?</p>
+             <div className="options-grid single-col">
+              <OptionCard 
+                icon={<Cpu />} 
+                label="Build Real-World Projects" 
+                selected={formData.focus === 'projects'} 
+                onClick={() => handleSelect('focus', 'projects')}
+              />
+              <OptionCard 
+                icon={<Database />} 
+                label="Master Computer Science Fundamentals" 
+                selected={formData.focus === 'foundations'} 
+                onClick={() => handleSelect('focus', 'foundations')}
+              />
+               <OptionCard 
+                icon={<Zap />} 
+                label="Fast-Track Career Switch" 
+                selected={formData.focus === 'career'} 
+                onClick={() => handleSelect('focus', 'career')}
+              />
+             </div>
+          </>
+        );
+      case 3: // Calibration (Loading)
+        return (
+          <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 0'}}>
+             <div className="calibration-loader"></div>
+             <h2 className="neural-title">Initializing Neural Link...</h2>
+             <p className="neural-subtitle">Generating dynamic roadmap based on your profile.</p>
+          </div>
+        );
+      default: return null;
+    }
+  };
+
+  // disable next button if current step selection is empty
+  const isNextDisabled = () => {
+    if (currentStep === 0 && !formData.role) return true;
+    if (currentStep === 1 && !formData.level) return true;
+    if (currentStep === 2 && !formData.focus) return true;
+    return false;
+  };
+
+  return (
+    <div className="onboarding-container">
+        <div className="neural-overlay"></div>
+        
+        <div className="onboarding-card">
+            {currentStep < 3 && (
+                <div className="step-indicator">
+                    {STEPS.slice(0,3).map((_, idx) => (
+                        <div key={idx} className={`step-dot ${idx <= currentStep ? 'active' : ''}`}></div>
+                    ))}
+                </div>
+            )}
+
+            {renderStepContent()}
+
+            {currentStep < 3 && (
+                <div className="nav-buttons">
+                    <button className="btn-back" onClick={handleBack} disabled={currentStep === 0}>
+                        {currentStep === 0 ? '' : 'BACK'}
+                    </button>
+                    <button 
+                        className="btn-next" 
+                        onClick={handleNext} 
+                        disabled={isNextDisabled()}
+                    >
+                        {currentStep === 2 ? 'INITIALIZE' : 'NEXT'}
+                    </button>
+                </div>
+            )}
+        </div>
+    </div>
+  );
+}
+
+// Sub-component for options
+function OptionCard({ icon, label, selected, onClick }) {
+    return (
+        <div className={`option-card ${selected ? 'selected' : ''}`} onClick={onClick}>
+            <div className="option-icon">{icon}</div>
+            <span className="option-label">{label}</span>
         </div>
     );
 }

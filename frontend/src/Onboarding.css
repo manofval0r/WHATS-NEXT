@@ -1,0 +1,208 @@
+/* ONBOARDING - NEURAL LINK STYLES */
+
+.onboarding-container {
+  min-height: 100vh;
+  width: 100vw;
+  background-color: #050014; /* Deep Void */
+  background-image: 
+    linear-gradient(rgba(95, 245, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(95, 245, 255, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-body);
+  color: white;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Background Effects */
+.neural-overlay {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: radial-gradient(circle at 50% 50%, rgba(13, 110, 253, 0.1), transparent 70%);
+    pointer-events: none;
+    z-index: 1;
+}
+
+.onboarding-card {
+    position: relative;
+    z-index: 10;
+    width: 100%;
+    max-width: 600px;
+    background: rgba(13, 17, 23, 0.8);
+    backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 24px;
+    padding: 48px;
+    box-shadow: 0 20px 80px rgba(0, 0, 0, 0.6);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    animation: slideUp 0.6s cubic-bezier(0.2, 1, 0.3, 1);
+}
+
+.onboarding-card::before {
+    content: '';
+    position: absolute;
+    top: -1px; left: 50%; transform: translateX(-50%);
+    width: 60%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--neon-cyan), transparent);
+    box-shadow: 0 0 15px var(--neon-cyan);
+}
+
+/* Progress Steps */
+.step-indicator {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 32px;
+}
+
+.step-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.2);
+    transition: all 0.3s;
+}
+
+.step-dot.active {
+    background: var(--neon-cyan);
+    box-shadow: 0 0 10px var(--neon-cyan);
+    transform: scale(1.2);
+}
+
+.step-dot.completed {
+    background: var(--neon-green);
+}
+
+/* Typography */
+.neural-title {
+    font-family: var(--font-display);
+    font-size: 28px;
+    margin-bottom: 12px;
+    background: linear-gradient(135deg, #fff, #b8b8d1);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.neural-subtitle {
+    color: #8b949e;
+    font-size: 16px;
+    margin-bottom: 40px;
+    line-height: 1.5;
+}
+
+/* Form Options Grid */
+.options-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    width: 100%;
+    margin-bottom: 32px;
+}
+
+.option-card {
+    background: rgba(30, 41, 59, 0.4);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.2, 1, 0.3, 1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+.option-card:hover {
+    border-color: var(--neon-cyan);
+    background: rgba(6, 182, 212, 0.1);
+    transform: translateY(-2px);
+}
+
+.option-card.selected {
+    border-color: var(--neon-cyan);
+    background: rgba(6, 182, 212, 0.15);
+    box-shadow: 0 0 20px rgba(6, 182, 212, 0.2);
+}
+
+.option-icon {
+    font-size: 24px;
+    color: var(--neon-cyan);
+}
+
+.option-label {
+    font-weight: 600;
+    font-size: 15px;
+    color: white;
+}
+
+/* Navigation Buttons */
+.nav-buttons {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    margin-top: auto;
+}
+
+.btn-back {
+    padding: 12px 24px;
+    background: transparent;
+    border: none;
+    color: #8b949e;
+    font-family: var(--font-mono);
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.btn-back:hover { color: white; }
+
+.btn-next {
+    padding: 12px 40px;
+    background: var(--neon-cyan); /* Fallback */
+    background: linear-gradient(135deg, var(--neon-cyan), #2563eb);
+    border: none;
+    border-radius: 8px;
+    color: white;
+    font-weight: 700;
+    font-family: var(--font-display);
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: all 0.3s;
+    box-shadow: 0 4px 15px rgba(6, 182, 212, 0.3);
+}
+
+.btn-next:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(6, 182, 212, 0.5);
+}
+
+.btn-next:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+/* Special Loading State */
+.calibration-loader {
+    width: 60px;
+    height: 60px;
+    border: 4px solid rgba(255,255,255,0.1);
+    border-top-color: var(--neon-cyan);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 24px;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Single Column Grid for specialized steps */
+.options-grid.single-col {
+    grid-template-columns: 1fr;
+}

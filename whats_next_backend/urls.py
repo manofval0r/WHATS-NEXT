@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.urls import path, include
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from core import views
+from core.lesson_endpoint import generate_module_lessons
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -21,6 +22,7 @@ urlpatterns = [
     # --- APPLICATION (The Dashboard) ---
     path('api/my-roadmap/', views.get_my_roadmap),
     path('api/roadmap-status/<str:task_id>/', views.check_roadmap_status),
+    path('api/modules/<int:module_id>/generate-lessons/',generate_module_lessons),
     path('api/submit-project/<int:node_id>/', views.submit_project),
     path('api/profile/', views.get_user_profile),
     path('api/profile/me/', views.get_my_profile),

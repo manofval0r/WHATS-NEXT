@@ -1,17 +1,21 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Landing from './Landing';
-import Signup from './AuthPage';
+import AuthPage from './AuthPage';
+import ProfilePage from './ProfilePage';
+
 import Dashboard from './Dashboard';
+import Onboarding from './Onboarding'; // Added import
 import Profile from './Profile';
 import Settings from './Settings';
 import Community from './Community';
+import Leaderboard from './components/community/Leaderboard';
 import Resources from './Resources';
 import MainLayout from './MainLayout';
 import UserProfile from './UserProfile';
 import ActivityLog from './ActivityLog';
 
 import AuthCallback from './AuthCallback';
-import Onboarding from './Onboarding';
+
 
 // Wrapper to check if user is logged in
 function ProtectedRoute({ children }) {
@@ -39,22 +43,24 @@ export default function App() {
         <Route path="/" element={<LandingRoute />} />
 
         {/* Auth Route - Sign up/Login */}
-        <Route path="/auth" element={<Signup />} />
+        <Route path="/auth" element={<AuthPage />} />
+        <Route path="/login" element={<AuthPage />} />
+        <Route path="/register" element={<AuthPage />} />
+        <Route path="/signup" element={<AuthPage />} />
         <Route path="/auth-callback" element={<AuthCallback />} />
         <Route path="/onboarding" element={<Onboarding />} />
 
         {/* Private Routes */}
+        <Route path="/roadmap" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+        <Route path="/module/:id" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/dashboard" element={
           <ProtectedRoute>
             <Dashboard />
           </ProtectedRoute>
         } />
 
-        <Route path="/profile" element={
-          <ProtectedRoute>
-            <Profile />
-          </ProtectedRoute>
-        } />
+
 
         <Route path="/settings" element={
           <ProtectedRoute>
@@ -65,6 +71,12 @@ export default function App() {
         <Route path="/community" element={
           <ProtectedRoute>
             <Community />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/leaderboard" element={
+          <ProtectedRoute>
+            <Leaderboard />
           </ProtectedRoute>
         } />
 

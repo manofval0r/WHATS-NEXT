@@ -64,7 +64,7 @@ export default function UserProfile() {
     }
 
     return (
-        <div style={{ padding: '40px', height: '100%', overflowY: 'auto', background: 'var(--bg-dark)' }}>
+        <div style={{ padding: '20px', height: '100%', overflowY: 'auto', background: 'var(--bg-dark)' }}>
             <div style={{ maxWidth: '900px', margin: '0 auto' }}>
 
                 {/* PROFILE HEADER CARD */}
@@ -72,7 +72,7 @@ export default function UserProfile() {
                     background: 'var(--bg-card)',
                     borderRadius: '16px',
                     border: '1px solid var(--border-subtle)',
-                    padding: '30px',
+                    padding: '20px',
                     marginBottom: '30px',
                     position: 'relative',
                     overflow: 'hidden'
@@ -82,7 +82,7 @@ export default function UserProfile() {
                         background: 'linear-gradient(90deg, var(--neon-cyan), var(--electric-purple))'
                     }} />
 
-                    <div style={{ display: 'flex', gap: '30px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', alignItems: 'center', textAlign: 'center' }}>
 
                         {/* Avatar */}
                         <div style={{
@@ -99,8 +99,8 @@ export default function UserProfile() {
                         </div>
 
                         {/* Info */}
-                        <div style={{ flex: 1 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '10px' }}>
+                        <div style={{ width: '100%' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
                                 <h1 style={{ margin: 0, fontSize: '32px', color: '#fff', fontFamily: 'JetBrains Mono' }}>
                                     @{profile.username}
                                 </h1>
@@ -114,7 +114,7 @@ export default function UserProfile() {
                                 </span>
                             </div>
 
-                            <div style={{ display: 'flex', gap: '20px', color: 'var(--text-muted)', fontSize: '14px', marginBottom: '20px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', color: 'var(--text-muted)', fontSize: '14px', marginBottom: '20px' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                     <Briefcase size={16} /> {profile.target_career || "Tech Explorer"}
                                 </div>
@@ -127,7 +127,7 @@ export default function UserProfile() {
                             </div>
 
                             {/* Stats Row */}
-                            <div style={{ display: 'flex', gap: '40px', borderTop: '1px solid var(--border-subtle)', paddingTop: '20px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-around', gap: '20px', borderTop: '1px solid var(--border-subtle)', paddingTop: '20px', flexWrap: 'wrap' }}>
                                 <div>
                                     <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#fff', fontFamily: 'JetBrains Mono' }}>
                                         {profile.progress}%
@@ -141,7 +141,7 @@ export default function UserProfile() {
                                     <div style={{ fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Projects Built</div>
                                 </div>
                                 {/* Socials */}
-                                <div style={{ marginLeft: 'auto', display: 'flex', gap: '10px' }}>
+                                <div style={{ display: 'flex', gap: '10px' }}>
                                     {profile.github && (
                                         <a href={profile.github} target="_blank" rel="noreferrer" style={socialBtnStyle}>
                                             <Github size={18} />
@@ -171,7 +171,7 @@ export default function UserProfile() {
                                 background: 'rgba(22, 27, 34, 0.6)',
                                 border: '1px solid var(--border-subtle)',
                                 borderRadius: '12px', padding: '20px',
-                                display: 'flex', gap: '20px', alignItems: 'center'
+                                display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'flex-start'
                             }}>
                                 <div style={{
                                     width: '50px', height: '50px', borderRadius: '10px',
@@ -182,7 +182,7 @@ export default function UserProfile() {
                                     <Code size={24} />
                                 </div>
 
-                                <div style={{ flex: 1 }}>
+                                <div style={{ width: '100%' }}>
                                     <h3 style={{ margin: '0 0 5px 0', color: '#fff', fontSize: '16px' }}>{project.label}</h3>
                                     <div style={{ display: 'flex', gap: '15px', fontSize: '12px', color: 'var(--text-muted)' }}>
                                         <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -201,7 +201,7 @@ export default function UserProfile() {
                                     <a href={project.link} target="_blank" rel="noreferrer" style={{
                                         padding: '8px 16px', borderRadius: '6px',
                                         background: 'var(--bg-dark)', border: '1px solid var(--border-subtle)',
-                                        color: 'var(--text-main)', textDecoration: 'none', fontSize: '13px',
+                                        color: 'var(--text-main)', textDecoration: 'none', fontSize: '13px', width: '100%', justifyContent: 'center',
                                         display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s'
                                     }}>
                                         View Code <ExternalLink size={14} />

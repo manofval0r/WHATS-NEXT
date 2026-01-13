@@ -1,409 +1,179 @@
-import { X, ExternalLink, CheckCircle, Send } from 'lucide-react';
-import { useState } from 'react';
+import React, { useState } from 'react';
+import { X, Lock, ExternalLink, PlayCircle, BookOpen, Code, CheckCircle } from 'lucide-react';
+import Button from './common/Button';
+import Badge from './common/Badge';
+import Card from './common/Card';
+import LessonCard from './dashboard/LessonCard';
 
 export default function MobileModuleModal({ node, onClose, onSubmitProject, onMarkComplete }) {
-    const [submissionLink, setSubmissionLink] = useState('');
-    const [submitting, setSubmitting] = useState(false);
+  const [submissionLink, setSubmissionLink] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [showMore, setShowMore] = useState(false);
 
-    if (!node) return null;
+  if (!node) return null;
 
-    const { data } = node;
-    const isCompleted = data.status === 'completed';
-    const isActive = data.status === 'active';
-    const isLocked = data.status === 'locked';
+  const { data } = node;
+  const isLocked = data.status === 'locked';
+  const isCompleted = data.status === 'completed';
 
-    const handleSubmit = async () => {
-        if (!submissionLink.trim()) {
-            alert('Please enter a project link');
-            return;
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    await onSubmitProject(submissionLink);
+    setSubmitting(false);
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 200,
+      background: 'var(--void-deep)',
+      display: 'flex', flexDirection: 'column',
+      animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+    }}>
+      <style>{`
+        @keyframes slideUp {
+          from { transform: translateY(100%); }
+          to { transform: translateY(0); }
         }
+      `}</style>
 
-        setSubmitting(true);
-        try {
-            await onSubmitProject(node.id, submissionLink);
-            setSubmissionLink('');
-        } catch (error) {
-            console.error('Submission error:', error);
-        } finally {
-            setSubmitting(false);
-        }
-    };
+      {/* HEADER */}
+      <div style={{
+        padding: '16px',
+        borderBottom: '1px solid var(--void-glow)',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        background: 'rgba(13, 17, 23, 0.95)', backdropFilter: 'blur(10px)'
+      }}>
+        <div>
+          <div style={{ fontSize: '10px', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', marginBottom: '4px' }}>
+            MODULE_{(data.step_order || 0).toString().padStart(2, '0')}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+             <h2 style={{ margin: 0, fontSize: '16px', color: 'var(--text-primary)' }}>{data.label}</h2>
+             {isLocked && <Lock size={14} color="var(--text-muted)" />}
+          </div>
+        </div>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)' }}>
+          <X size={24} />
+        </button>
+      </div>
 
-    const handleMarkComplete = async () => {
-        try {
-            await onMarkComplete(node.id);
-        } catch (error) {
-            console.error('Mark complete error:', error);
-        }
-    };
+      {/* SCROLLABLE CONTENT */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px', paddingBottom: '100px' }}>
+        
+        {/* DESCRIPTION */}
+        <p style={{ fontSize: '14px', lineHeight: '1.6', color: 'var(--text-secondary)', marginBottom: '24px' }}>
+          {data.description}
+        </p>
 
-    return (
-        <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'var(--bg-dark)',
-            zIndex: 100,
-            display: 'flex',
-            flexDirection: 'column',
-            overflowY: 'auto'
-        }}>
-            {/* Header */}
-            <div style={{
-                position: 'sticky',
-                top: 0,
-                background: '#0d1117', // Solid tech dark
-                borderBottom: '1px solid #30363d',
-                padding: '16px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                zIndex: 10
-            }}>
-                <button
-                    onClick={onClose}
-                    style={{
-                        background: 'none',
-                        border: 'none',
-                        color: 'var(--neon-cyan)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        fontSize: '14px',
-                        fontFamily: 'var(--font-code)',
-                        padding: '8px'
-                    }}
-                >
-                    <span style={{ fontSize: '20px' }}>←</span>
-                    <span>Back to Roadmap</span>
-                </button>
-
-                <button
-                    onClick={onClose}
-                    style={{
-                        background: 'none',
-                        border: 'none',
-                        color: 'var(--text-muted)',
-                        padding: '8px'
-                    }}
-                >
-                    <X size={24} />
-                </button>
+        {/* LESSONS (Always Visible) */}
+        {data.lessons && data.lessons.length > 0 && (
+          <div style={{ marginBottom: '32px' }}>
+            <h3 style={{ fontSize: '12px', color: 'var(--neon-cyan)', marginBottom: '12px', fontFamily: 'var(--font-mono)' }}>
+              // LEARNING_UNITS
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {data.lessons.slice(0, 3).map(lesson => (
+                <LessonCard 
+                    key={lesson.id} 
+                    lesson={lesson} 
+                    isCompleted={lesson.is_completed}
+                    onToggleComplete={() => {}} // Read-only in mobile preview if locked?
+                    confidenceRating={lesson.confidence_rating}
+                    onConfidenceChange={() => {}}
+                />
+              ))}
+              {data.lessons.length > 3 && (
+                  <div style={{ textAlign: 'center', padding: '8px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                      + {data.lessons.length - 3} more lessons
+                  </div>
+              )}
             </div>
+          </div>
+        )}
 
-            {/* Content */}
-            <div style={{ flex: 1, padding: '24px 16px' }}>
-                {/* Module Icon & Title */}
-                <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-                    <div style={{
-                        width: '80px',
-                        height: '80px',
-                        margin: '0 auto 16px',
-                        background: '#0d1117',
-                        border: isCompleted ? '2px solid #238636' :
-                            isActive ? '2px solid #58a6ff' :
-                                '2px dashed #484f58',
-                        borderRadius: '50%', // Tech circle
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '32px',
-                        color: isCompleted ? '#238636' : isActive ? '#58a6ff' : '#484f58'
+        {/* RESOURCES & ARCHIVES (Blurred if Locked) */}
+        <div style={{ position: 'relative' }}>
+            
+            {/* BLUR OVERLAY */}
+            {isLocked && (
+                <div style={{
+                    position: 'absolute', inset: -10, zIndex: 10,
+                    background: 'rgba(5, 0, 20, 0.6)',
+                    backdropFilter: 'blur(4px)',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)'
+                }}>
+                    <div style={{ 
+                        background: '#0d1117', padding: '16px 24px', borderRadius: '12px', 
+                        border: '1px solid var(--neon-red)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
+                        boxShadow: '0 0 20px rgba(255, 0, 60, 0.2)'
                     }}>
-                        {isCompleted ? '✓' : isActive ? '▶' : '🔒'}
+                        <Lock size={24} color="var(--neon-red)" />
+                        <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '14px' }}>ACCESS DENIED</span>
+                        <span style={{ color: 'var(--text-secondary)', fontSize: '12px', textAlign: 'center' }}>
+                            Complete Module {(data.step_order - 1).toString().padStart(2, '0')} first.
+                        </span>
                     </div>
-
-                    <h1 style={{
-                        fontSize: '24px',
-                        fontFamily: 'var(--font-code)',
-                        color: 'var(--text-header)',
-                        marginBottom: '8px'
-                    }}>
-                        {data.label}
-                    </h1>
-
-                    <p style={{
-                        fontSize: '14px',
-                        color: 'var(--text-muted)',
-                        fontFamily: 'var(--font-body)'
-                    }}>
-                        {data.description || 'Introduction to this module'}
-                    </p>
                 </div>
+            )}
 
-                {/* Resources Section */}
-                {data.resources && (
-                    <div style={{
-                        background: 'var(--bg-surface)',
-                        border: '1px solid var(--border-subtle)',
-                        borderRadius: '12px',
-                        padding: '16px',
-                        marginBottom: '24px'
-                    }}>
-                        <h3 style={{
-                            fontSize: '14px',
-                            fontFamily: 'var(--font-code)',
-                            color: 'var(--text-header)',
-                            marginBottom: '12px',
-                            textTransform: 'uppercase',
-                            letterSpacing: '1px'
-                        }}>
-                            Resources
-                        </h3>
-
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                            {/* Combine primary and additional resources if they exist */}
-                            {[
-                                ...(data.resources.primary || []),
-                                ...(data.resources.additional || [])
-                            ].map((resource, idx) => (
-                                <a
-                                    key={idx}
-                                    href={resource.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'space-between',
-                                        padding: '12px',
-                                        background: 'var(--bg-panel)',
-                                        border: '1px solid var(--border-subtle)',
-                                        borderRadius: '8px',
-                                        textDecoration: 'none',
-                                        color: 'var(--text-main)',
-                                        transition: 'all 0.2s'
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        e.currentTarget.style.borderColor = 'var(--neon-cyan)';
-                                        e.currentTarget.style.background = 'rgba(0, 242, 255, 0.05)';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.borderColor = 'var(--border-subtle)';
-                                        e.currentTarget.style.background = 'var(--bg-panel)';
-                                    }}
-                                >
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                        <div style={{
-                                            width: '40px',
-                                            height: '40px',
-                                            background: 'var(--bg-dark)',
-                                            borderRadius: '8px',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            fontSize: '20px'
-                                        }}>
-                                            {resource.type === 'video' ? '🎥' :
-                                                resource.type === 'interactive' ? '🎮' :
-                                                    resource.type === 'course' ? '🎓' : '🔗'}
-                                        </div>
-                                        <div>
-                                            <div style={{
-                                                fontSize: '14px',
-                                                fontWeight: '600',
-                                                color: 'var(--text-header)',
-                                                marginBottom: '2px'
-                                            }}>
-                                                {resource.title}
-                                            </div>
-                                            <div style={{
-                                                fontSize: '12px',
-                                                color: 'var(--text-muted)',
-                                                textTransform: 'uppercase'
-                                            }}>
-                                                {resource.type || 'External Resource'}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <ExternalLink size={20} color="var(--neon-cyan)" />
-                                </a>
-                            ))}
-
-                            {/* Fallback for old data structure if any */}
-                            {!data.resources.primary && !data.resources.additional && Object.entries(data.resources).map(([key, value]) => (
-                                <a
-                                    key={key}
-                                    href={value}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'space-between',
-                                        padding: '12px',
-                                        background: 'var(--bg-panel)',
-                                        border: '1px solid var(--border-subtle)',
-                                        borderRadius: '8px',
-                                        textDecoration: 'none',
-                                        color: 'var(--text-main)',
-                                        transition: 'all 0.2s'
-                                    }}
-                                >
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                        <div style={{
-                                            width: '40px',
-                                            height: '40px',
-                                            background: 'var(--bg-dark)',
-                                            borderRadius: '8px',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            fontSize: '20px'
-                                        }}>
-                                            🔗
-                                        </div>
-                                        <div>
-                                            <div style={{
-                                                fontSize: '14px',
-                                                fontWeight: '600',
-                                                color: 'var(--text-header)',
-                                                marginBottom: '2px'
-                                            }}>
-                                                {key}
-                                            </div>
-                                            <div style={{
-                                                fontSize: '12px',
-                                                color: 'var(--text-muted)'
-                                            }}>
-                                                External Resource
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <ExternalLink size={20} color="var(--neon-cyan)" />
-                                </a>
-                            ))}
+            <div style={{ filter: isLocked ? 'blur(8px)' : 'none', opacity: isLocked ? 0.5 : 1, pointerEvents: isLocked ? 'none' : 'auto' }}>
+                <h3 style={{ fontSize: '12px', color: 'var(--neon-cyan)', marginBottom: '12px', fontFamily: 'var(--font-mono)' }}>
+                // CLASSIFIED_RESOURCES
+                </h3>
+                
+                {data.resources?.primary?.map((res, i) => (
+                    <Card key={i} variant="glass" style={{ padding: '12px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <ExternalLink size={16} color="var(--neon-cyan)" />
+                        <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: '14px', color: '#fff', fontWeight: '500' }}>{res.title}</div>
+                            <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{res.type.toUpperCase()}</div>
                         </div>
+                    </Card>
+                ))}
+
+                <div style={{ marginTop: '24px' }}>
+                    <h3 style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '12px', fontFamily: 'var(--font-mono)' }}>
+                    // ARCHIVES
+                    </h3>
+                    <div style={{ padding: '12px', border: '1px dashed var(--border-subtle)', borderRadius: '8px', color: 'var(--text-muted)', fontSize: '12px' }}>
+                        Additional documentation and legacy code samples available upon unlock.
                     </div>
-                )}
-
-                {/* Description Section */}
-                {data.project_prompt && (
-                    <div style={{ marginBottom: '24px' }}>
-                        <h3 style={{
-                            fontSize: '16px',
-                            fontFamily: 'var(--font-code)',
-                            color: 'var(--text-header)',
-                            marginBottom: '12px'
-                        }}>
-                            Description
-                        </h3>
-                        <p style={{
-                            fontSize: '14px',
-                            color: 'var(--text-main)',
-                            lineHeight: '1.6',
-                            fontFamily: 'var(--font-body)'
-                        }}>
-                            {data.project_prompt}
-                        </p>
-                    </div>
-                )}
-
-                {/* Project Submission (for active modules) */}
-                {isActive && !isCompleted && (
-                    <div style={{
-                        background: 'var(--bg-surface)',
-                        border: '1px solid var(--border-subtle)',
-                        borderRadius: '12px',
-                        padding: '16px',
-                        marginBottom: '24px'
-                    }}>
-                        <h3 style={{
-                            fontSize: '14px',
-                            fontFamily: 'var(--font-code)',
-                            color: 'var(--text-header)',
-                            marginBottom: '12px',
-                            textTransform: 'uppercase',
-                            letterSpacing: '1px'
-                        }}>
-                            Submit Your Project
-                        </h3>
-
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                            <input
-                                type="url"
-                                value={submissionLink}
-                                onChange={(e) => setSubmissionLink(e.target.value)}
-                                placeholder="https://github.com/your-project"
-                                style={{
-                                    flex: 1,
-                                    padding: '12px',
-                                    background: 'var(--bg-panel)',
-                                    border: '1px solid var(--border-subtle)',
-                                    borderRadius: '8px',
-                                    color: 'var(--text-main)',
-                                    fontSize: '14px',
-                                    fontFamily: 'var(--font-body)',
-                                    outline: 'none'
-                                }}
-                                onFocus={(e) => e.target.style.borderColor = 'var(--neon-cyan)'}
-                                onBlur={(e) => e.target.style.borderColor = 'var(--border-subtle)'}
-                            />
-                            <button
-                                onClick={handleSubmit}
-                                disabled={submitting || !submissionLink.trim()}
-                                style={{
-                                    padding: '12px 16px',
-                                    background: submitting || !submissionLink.trim() ? 'var(--bg-panel)' : 'var(--neon-cyan)',
-                                    border: 'none',
-                                    borderRadius: '8px',
-                                    color: submitting || !submissionLink.trim() ? 'var(--text-muted)' : '#000',
-                                    cursor: submitting || !submissionLink.trim() ? 'not-allowed' : 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '8px',
-                                    fontFamily: 'var(--font-code)',
-                                    fontWeight: 'bold'
-                                }}
-                            >
-                                <Send size={18} />
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            {/* Bottom Action Button */}
-            <div style={{
-                position: 'sticky',
-                bottom: 0,
-                background: '#0d1117',
-                borderTop: '1px solid #30363d',
-                padding: '16px',
-                zIndex: 10
-            }}>
-                {!isLocked && (
-                    <button
-                        onClick={handleMarkComplete}
-                        disabled={isCompleted}
-                        style={{
-                            width: '100%',
-                            padding: '16px',
-                            background: isCompleted ? 'var(--bg-surface)' :
-                                'linear-gradient(90deg, var(--neon-cyan), var(--electric-purple))',
-                            border: isCompleted ? '1px solid var(--border-subtle)' : 'none',
-                            borderRadius: '12px',
-                            color: isCompleted ? 'var(--text-muted)' : '#000',
-                            fontSize: '16px',
-                            fontFamily: 'var(--font-code)',
-                            fontWeight: 'bold',
-                            cursor: isCompleted ? 'not-allowed' : 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '8px',
-                            textTransform: 'uppercase',
-                            letterSpacing: '1px',
-                            boxShadow: 'none'
-                        }}
-                    >
-                        <CheckCircle size={20} />
-                        {isCompleted ? 'Completed' : 'Mark Complete'}
-                    </button>
-                )}
+                </div>
             </div>
         </div>
-    );
+
+      </div>
+
+      {/* FOOTER ACTION */}
+      {!isLocked && !isCompleted && (
+          <div style={{
+            position: 'absolute', bottom: 0, left: 0, right: 0,
+            padding: '16px', background: 'var(--void-deep)', borderTop: '1px solid var(--void-glow)'
+          }}>
+             {data.verification_project ? (
+                 <div style={{ display: 'flex', gap: '8px' }}>
+                    <input 
+                        type="text" 
+                        placeholder="github.com/project-link"
+                        value={submissionLink}
+                        onChange={(e) => setSubmissionLink(e.target.value)}
+                        style={{
+                            flex: 1, background: '#0d1117', border: '1px solid var(--border-subtle)',
+                            color: '#fff', padding: '10px', borderRadius: '6px', outline: 'none'
+                        }}
+                    />
+                    <Button variant="primary" onClick={handleSubmit} disabled={submitting}>
+                        {submitting ? '...' : 'VERIFY'}
+                    </Button>
+                 </div>
+             ) : (
+                 <Button variant="primary" style={{ width: '100%' }} onClick={() => onMarkComplete(node.id)}>
+                    MARK MODULE COMPLETE
+                 </Button>
+             )}
+          </div>
+      )}
+    </div>
+  );
 }

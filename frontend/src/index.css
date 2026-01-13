@@ -1,283 +1,173 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=JetBrains+Mono:wght@400;700&family=Poppins:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;700&family=Orbitron:wght@600;700&family=Rajdhani:wght@500;600;700&display=swap');
 
 :root {
-  /* --- PALETTE: Terminal Chic --- */
-  --bg-dark: #0d1117;
-  /* GitHub Dark Dimmed */
-  --bg-surface: #161b22;
-  /* Card Background */
-  --bg-panel: #21262d;
-  /* Slide-out / Modals */
+  /* ═══════════════════════════════════════════
+     BACKGROUND LAYERS (Void Purple)
+     ═══════════════════════════════════════════ */
+  --void-deepest: #0a0015;      /* Pure void, darkest areas */
+  --void-deep: #0d0a1f;         /* Primary background */
+  --void-mid: #1a1335;          /* Elevated surfaces (cards) */
+  --void-light: #2a1f4a;        /* Highest elevation (modals) */
+  --void-glow: #3d2f5f;         /* Subtle borders, dividers */
 
-  --border-subtle: #30363d;
-  --border-active: #8b949e;
+  /* ═══════════════════════════════════════════
+     NEON SPECTRUM (Brand Colors)
+     ═══════════════════════════════════════════ */
+  --neon-magenta: #ff2e88;      /* Primary CTA, active states */
+  --neon-coral: #ff6b9d;        /* Warm accents, encouragement */
+  --neon-cyan: #5ff5ff;         /* Interactive elements, links */
+  --neon-gold: #ffbe0b;         /* Success, achievements, XP */
+  --neon-violet: #a78bfa;       /* Progression, mastery */
+  --neon-mint: #6ee7b7;         /* Trust signals, verification */
+  --neon-orange: #ff6b35;       /* Urgency, streak fire */
+  --neon-red: #ff0055;          /* Errors, locked states */
 
-  /* --- ACCENTS --- */
-  --neon-cyan: #00f2ff;
-  --neon-purple: #bc13fe;
-  --neon-green: #2ea043;
-  /* Success */
-  --neon-red: #da3633;
-  /* Error */
+  /* ═══════════════════════════════════════════
+     TEXT HIERARCHY
+     ═══════════════════════════════════════════ */
+  --text-primary: #f8f8ff;      /* Main text (almost white) */
+  --text-secondary: #b8b8d1;    /* Secondary text (muted) */
+  --text-tertiary: #6a6a8a;     /* Hints, metadata */
+  --text-disabled: #4a4a5f;     /* Disabled states */
 
-  /* --- TEXT --- */
-  --text-main: #c9d1d9;
-  --text-muted: #8b949e;
-  --text-header: #f0f6fc;
+  /* ═══════════════════════════════════════════
+     GRADIENTS
+     ═══════════════════════════════════════════ */
+  --gradient-cta: linear-gradient(135deg, #ff2e88 0%, #ff6b9d 100%);
+  --gradient-mastery: linear-gradient(90deg, #5ff5ff 0%, #ff2e88 50%, #a78bfa 100%);
+  --gradient-achievement: linear-gradient(135deg, #ffbe0b 0%, #ff6b35 50%, #ff2e88 100%);
+  --gradient-neural: radial-gradient(circle at center, #5ff5ff 0%, #a78bfa 50%, transparent 100%);
+  --gradient-glow: radial-gradient(circle at center, rgba(95, 245, 255, 0.15) 0%, transparent 70%);
 
-  /* --- FONTS --- */
-  --font-body: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-code: 'JetBrains Mono', monospace;
+  /* ═══════════════════════════════════════════
+     FONTS
+     ═══════════════════════════════════════════ */
+  --font-display: 'Orbitron', 'Rajdhani', sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 
-  /* --- ALIASES & EXTRAS --- */
-  --electric-purple: var(--neon-purple);
-  --bg-card: var(--bg-surface);
+  /* ═══════════════════════════════════════════
+     SHADOWS & GLOWS
+     ═══════════════════════════════════════════ */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.15);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.25);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.35);
+  
+  --glow-sm: 0 0 8px rgba(95, 245, 255, 0.3);
+  --glow-md: 0 0 16px rgba(95, 245, 255, 0.5);
+  --glow-lg: 0 0 24px rgba(95, 245, 255, 0.7);
+  --glow-magenta: 0 0 20px rgba(255, 46, 136, 0.5);
+  
+  /* ═══════════════════════════════════════════
+     SPACING & RADIUS
+     ═══════════════════════════════════════════ */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+  
+  /* Base Aliases for Legacy Compatibility */
+  --bg-dark: var(--void-deep);
+  --bg-surface: var(--void-mid);
+  --bg-panel: var(--void-light);
+  --border-subtle: var(--void-glow);
   --accent-primary: var(--neon-cyan);
-  --bg-lighter: var(--bg-panel);
-  --success-green: var(--neon-green);
-  --error-red: var(--neon-red);
 }
 
 body {
   margin: 0;
   padding: 0;
-  background-color: var(--bg-dark);
-  color: var(--text-main);
+  background-color: var(--void-deep);
+  color: var(--text-primary);
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   overflow-y: auto;
   overflow-x: hidden;
+  transition: background-color 0.3s ease;
 }
 
 /* Scrollbar Styling */
 ::-webkit-scrollbar {
   width: 8px;
 }
-
 ::-webkit-scrollbar-track {
-  background: var(--bg-dark);
+  background: var(--void-deep);
 }
-
 ::-webkit-scrollbar-thumb {
-  background: var(--border-subtle);
+  background: var(--void-glow);
   border-radius: 4px;
 }
-
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text-muted);
+  background: var(--text-secondary);
 }
 
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
-  color: var(--text-header);
-  font-family: var(--font-code);
+h1, h2, h3, h4, h5, h6 {
+  color: var(--text-primary);
+  font-family: var(--font-display);
   margin: 0;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 a {
   color: var(--neon-cyan);
   text-decoration: none;
-  transition: 0.2s;
+  transition: all 0.2s ease;
 }
-
 a:hover {
-  text-shadow: 0 0 8px var(--neon-cyan);
+  color: #fff;
 }
 
 button {
-  font-family: var(--font-code);
+  font-family: var(--font-display);
   cursor: pointer;
+}
+
+/* ═══════════════════════════════════════════
+   ANIMATIONS
+   ═══════════════════════════════════════════ */
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scalePop {
+  0% { transform: scale(0); opacity: 0; }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 16px rgba(95, 245, 255, 0.3); }
+  50% { box-shadow: 0 0 24px rgba(95, 245, 255, 0.7); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -1000px 0; }
+  100% { background-position: 1000px 0; }
 }
 
 @keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-
-  to {
-    transform: rotate(360deg);
-  }
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
-/* ============================================
-   MOBILE RESPONSIVE UTILITIES
-   ============================================ */
-
-/* Touch-friendly sizing */
-.touch-target {
-  min-height: 48px;
-  min-width: 48px;
-}
-
-.mobile-button {
-  min-height: 56px;
-  padding: 12px 24px;
-  font-size: 16px;
-}
-
-/* Mobile-specific utilities */
-@media (max-width: 768px) {
-  .hide-on-mobile {
-    display: none !important;
-  }
-
-  .mobile-full-width {
-    width: 100% !important;
-  }
-
-  .mobile-padding {
-    padding: 16px !important;
-  }
-
-  .mobile-text-sm {
-    font-size: 14px !important;
-  }
-
-  .mobile-text-base {
-    font-size: 16px !important;
-  }
-}
-
-/* Desktop-specific utilities */
-@media (min-width: 769px) {
-  .hide-on-desktop {
-    display: none !important;
-  }
-}
-
-/* Floating bottom bar */
-.floating-bottom-bar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 50;
-  background: rgba(22, 27, 34, 0.95);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-top: 1px solid rgba(138, 92, 254, 0.2);
-  padding: 12px 16px;
-  transform: translateY(0);
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
-}
-
-.floating-bottom-bar.hidden {
-  transform: translateY(100%);
-}
-
-/* Mobile roadmap styles */
-.mobile-roadmap-container {
-  position: relative;
-  padding: 20px 0;
-  min-height: 100vh;
-}
-
-.mobile-roadmap-path {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 0;
-  pointer-events: none;
-}
-
-.mobile-roadmap-node {
-  position: relative;
-  z-index: 10;
-  margin-bottom: 120px;
-  display: flex;
-  justify-content: center;
-}
-
-.mobile-roadmap-node.align-left {
-  justify-content: flex-start;
-  padding-left: 10%;
-}
-
-.mobile-roadmap-node.align-right {
-  justify-content: flex-end;
-  padding-right: 10%;
-}
-
-/* Node badge styles */
-.node-badge {
-  width: 96px;
-  height: 96px;
-  border-radius: 50%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: bold;
-  text-align: center;
-  padding: 8px;
-  transition: all 0.3s ease;
-  cursor: pointer;
-}
-
-.node-badge.completed {
-  background: #0d1117;
-  border: 2px solid #238636;
-  color: #238636;
-  box-shadow: none;
-}
-
-.node-badge.active {
-  background: #0d1117;
-  border: 2px solid #58a6ff;
-  color: #58a6ff;
-  box-shadow: 0 0 0 4px rgba(88, 166, 255, 0.1);
-}
-
-.node-badge.locked {
-  background: #161b22;
-  border: 2px dashed #30363d;
-  color: #484f58;
-  opacity: 1;
-  cursor: not-allowed;
-}
-
-/* Progress indicator below node */
-.node-progress {
-  margin-top: 8px;
-  padding: 8px 12px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
-  font-size: 12px;
-  text-align: center;
-  min-width: 200px;
-}
-
-.node-progress-bar {
-  width: 100%;
-  height: 6px;
-  background: var(--bg-panel);
-  border-radius: 3px;
-  overflow: hidden;
-  margin-bottom: 4px;
-}
-
-.node-progress-fill {
-  height: 100%;
-  background: var(--neon-green);
-  transition: width 0.3s ease;
-}
-
-.node-progress-fill.active {
-  background: var(--neon-cyan);
-}
-
-/* Glassmorphism effect */
-.glass-effect {
-  background: rgba(22, 27, 34, 0.8);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+.glass-card {
+  background: rgba(26, 19, 53, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(95, 245, 255, 0.1);
+  box-shadow: var(--shadow-sm);
 }

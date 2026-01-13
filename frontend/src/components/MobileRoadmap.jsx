@@ -109,7 +109,7 @@ export default function MobileRoadmap({ nodes, onNodeClick }) {
                                 <span style={{
                                     fontSize: '11px',
                                     lineHeight: '1.2',
-                                    fontFamily: 'Inter, sans-serif' // Clean font
+                                    fontFamily: 'var(--font-body)' // Clean font
                                 }}>
                                     {node.data.label}
                                 </span>

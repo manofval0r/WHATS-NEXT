@@ -11,8 +11,8 @@ export default function MainLayout({ children }) {
       display: 'flex',
       height: '100vh',
       width: '100vw',
-      background: 'var(--bg-dark)',
-      color: 'var(--text-main)',
+      background: 'var(--void-deep)',
+      color: 'var(--text-primary)',
       overflow: 'hidden'
     }}>
       {/* Sidebar - Hidden on mobile */}
@@ -33,3 +33,4 @@ export default function MainLayout({ children }) {
     </div>
   );
 }
+

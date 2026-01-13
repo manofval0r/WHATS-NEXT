@@ -3,7 +3,10 @@ import api from './api';
 import { useNavigate } from 'react-router-dom';
 import {
     MessageSquare, Search, Plus, ArrowLeft,
-    CheckCircle, X, Send, ArrowBigUp, User
+    CheckCircle, X, Send, ArrowBigUp, ArrowBigDown, User,
+    Image as ImageIcon, Link as LinkIcon, MoreVertical,
+    Share2, Bookmark, Flag, Users, Trophy, Star, Filter,
+    Hash, Code, Youtube
 } from 'lucide-react';
 import { useIsMobile } from './hooks/useMediaQuery';
 
@@ -13,31 +16,53 @@ const PREDEFINED_TAGS = [
     'MongoDB', 'Git', 'Docker', 'AWS', 'Firebase', 'Next.js'
 ];
 
+const MOCK_GROUPS = [
+    { id: 1, name: "React Zero-to-Hero", members: 12, limit: 15, topic: "React", description: "Grinding through the official docs.", progress: 45 },
+    { id: 2, name: "Python Algos", members: 8, limit: 10, topic: "Python", description: "Daily LeetCode challenges.", progress: 70 },
+    { id: 3, name: "System Design Club", members: 25, limit: 50, topic: "Architecture", description: "Preparing for senior interviews.", progress: 20 },
+    { id: 4, name: "CSS Art", members: 4, limit: 8, topic: "CSS", description: "Weekly creative challenges.", progress: 10 },
+];
+
 export default function Community() {
     const [feed, setFeed] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [filter, setFilter] = useState('All');
+    const [activeTab, setActiveTab] = useState('feed'); // feed, discussions, showcases, groups
+    const [sortOption, setSortOption] = useState('new'); // new, top, hot
+    const [selectedTopic, setSelectedTopic] = useState('All');
     const [searchQuery, setSearchQuery] = useState('');
-    const [showCreateModal, setShowCreateModal] = useState(false);
     const [selectedPost, setSelectedPost] = useState(null);
+    
+    // Composer State
+    const [isComposerExpanded, setIsComposerExpanded] = useState(false);
+    const [postContent, setPostContent] = useState('');
+    const [postTitle, setPostTitle] = useState('');
+    const [postType, setPostType] = useState('question');
+
     const navigate = useNavigate();
     const isMobile = useIsMobile();
     const currentUser = localStorage.getItem('username');
 
     useEffect(() => {
         fetchFeed();
-    }, [filter]);
+    }, [activeTab, sortOption, selectedTopic]);
 
     const fetchFeed = async () => {
+        if (activeTab === 'groups') return; // No API for groups yet
+
         setLoading(true);
         try {
             let url = '/api/community/posts/';
-            if (filter !== 'All' && filter !== 'Trending') {
-                url += `?type=${filter.toLowerCase()}`;
-            }
+            const params = [];
+            if (activeTab === 'discussions') params.push('type=discussion');
+            if (activeTab === 'showcases') params.push('type=showcase');
+            
+            if (params.length > 0) url += `?${params.join('&')}`;
+
             const res = await api.get(url);
             let posts = res.data;
-            if (filter === 'Trending') {
+            
+            // Client-side sort for now (Backend usually handles this)
+            if (sortOption === 'top') {
                 posts = posts.sort((a, b) => b.upvotes - a.upvotes);
             }
             setFeed(posts);
@@ -61,6 +86,22 @@ export default function Community() {
         }
     };
 
+    const handleCreatePost = async () => {
+        if (!postTitle.trim() || !postContent.trim()) return;
+        try {
+            await api.post('/api/community/posts/', { 
+                title: postTitle, 
+                content: postContent, 
+                post_type: postType,
+                tags: [selectedTopic !== 'All' ? selectedTopic : 'General'] 
+            });
+            setPostTitle('');
+            setPostContent('');
+            setIsComposerExpanded(false);
+            fetchFeed();
+        } catch (e) { alert('Transmission failed'); }
+    };
+
     const filteredFeed = feed.filter(post =>
         post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         post.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -79,7 +120,12 @@ export default function Community() {
         );
     }
 
-    const filterTags = ['All', 'Trending', ...PREDEFINED_TAGS.slice(0, 8)];
+    const tabs = [
+        { id: 'feed', label: 'Unified Feed', icon: <Filter size={14} /> },
+        { id: 'discussions', label: 'Discussions', icon: <MessageSquare size={14} /> },
+        { id: 'showcases', label: 'Showcases', icon: <ImageIcon size={14} /> },
+        { id: 'groups', label: 'Study Groups', icon: <Users size={14} /> },
+    ];
 
     return (
         <div style={{
@@ -102,7 +148,7 @@ export default function Community() {
                 backdropFilter: 'blur(12px)',
                 borderBottom: '1px solid rgba(0, 242, 255, 0.1)'
             }}>
-                <div style={{ padding: '16px 24px', maxWidth: '1200px', margin: '0 auto' }}>
+                <div style={{ padding: isMobile ? '12px 16px' : '16px 24px', maxWidth: '1200px', margin: '0 auto' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                             <div style={{ width: '4px', height: '24px', background: 'var(--neon-cyan)', boxShadow: '0 0 10px var(--neon-cyan)' }}></div>
@@ -111,18 +157,21 @@ export default function Community() {
                             </h1>
                         </div>
 
-                        {!isMobile && (
-                            <button
-                                onClick={() => setShowCreateModal(true)}
-                                style={styles.cyberButton}
-                            >
-                                <Plus size={16} />
-                                <span>NEW_TRANSMISSION</span>
-                            </button>
-                        )}
+                        <button 
+                            onClick={() => setIsComposerExpanded(!isComposerExpanded)}
+                            style={{
+                                background: 'var(--neon-cyan)', color: '#000', border: 'none',
+                                padding: '8px 16px', borderRadius: '4px', fontWeight: 'bold',
+                                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
+                                fontFamily: 'JetBrains Mono', fontSize: '12px',
+                                boxShadow: '0 0 10px rgba(0, 242, 255, 0.3)'
+                            }}
+                        >
+                            <Plus size={16} /> {isMobile ? 'NEW' : 'NEW_TRANSMISSION'}
+                        </button>
                     </div>
 
-                    <div style={styles.searchBar}>
+                    <div style={{...styles.searchBar, flexDirection: isMobile ? 'row' : 'row'}}>
                         <Search size={18} color="var(--neon-cyan)" />
                         <input
                             type="text"
@@ -139,66 +188,168 @@ export default function Community() {
                     </div>
 
                     <div style={styles.filterContainer}>
-                        {filterTags.map(tag => (
+                        {tabs.map(tab => (
                             <button
-                                key={tag}
-                                onClick={() => setFilter(tag)}
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id)}
                                 style={{
                                     ...styles.filterTag,
-                                    background: filter === tag ? 'rgba(0, 242, 255, 0.15)' : 'rgba(255, 255, 255, 0.03)',
-                                    color: filter === tag ? 'var(--neon-cyan)' : '#8b949e',
-                                    border: filter === tag ? '1px solid var(--neon-cyan)' : '1px solid transparent',
-                                    boxShadow: filter === tag ? '0 0 10px rgba(0, 242, 255, 0.2)' : 'none'
+                                    background: activeTab === tab.id ? 'rgba(0, 242, 255, 0.15)' : 'rgba(255, 255, 255, 0.03)',
+                                    color: activeTab === tab.id ? 'var(--neon-cyan)' : '#8b949e',
+                                    border: activeTab === tab.id ? '1px solid var(--neon-cyan)' : '1px solid transparent',
+                                    display: 'flex', alignItems: 'center', gap: '6px'
                                 }}
                             >
-                                {tag === 'Trending' ? '⚡ Trending' : tag}
+                                {tab.icon} {tab.label}
                             </button>
                         ))}
                     </div>
                 </div>
             </div>
 
-            {/* Feed */}
+            {/* Main Content */}
             <main style={{ padding: isMobile ? '12px' : '24px', maxWidth: '1000px', margin: '0 auto' }}>
-                {loading ? (
-                    <div style={{ textAlign: 'center', padding: '60px', color: '#8b949e', fontFamily: 'JetBrains Mono' }}>
-                        <span className="blink">{'>'}</span> ACCESSING_NETWORK...
-                    </div>
-                ) : filteredFeed.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '60px', color: '#8b949e', fontFamily: 'JetBrains Mono' }}>
-                        NO_SIGNALS_DETECTED
-                    </div>
-                ) : (
-                    <div style={{ display: 'grid', gap: '16px' }}>
-                        {filteredFeed.map(post => (
-                            <PostCard
-                                key={post.id}
-                                post={post}
-                                onClick={() => setSelectedPost(post)}
-                                onUpvote={handleUpvote}
-                                navigate={navigate}
-                            />
+                
+                {/* GROUPS VIEW */}
+                {activeTab === 'groups' ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
+                        {/* Create Group Card */}
+                        <div style={{ ...styles.card, border: '1px dashed var(--neon-cyan)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '200px' }}>
+                            <div style={{ width: '50px', height: '50px', borderRadius: '50%', background: 'rgba(0,242,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
+                                <Plus size={24} color="var(--neon-cyan)" />
+                            </div>
+                            <h3 style={{ color: '#fff', margin: '0 0 8px 0' }}>Create Squad</h3>
+                            <p style={{ color: '#8b949e', textAlign: 'center', fontSize: '13px' }}>Start a new study group and grind together.</p>
+                        </div>
+
+                        {MOCK_GROUPS.map(group => (
+                            <div key={group.id} style={styles.card}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                                    <span style={{ fontSize: '12px', color: 'var(--neon-cyan)', border: '1px solid rgba(0,242,255,0.3)', padding: '2px 8px', borderRadius: '4px' }}>{group.topic}</span>
+                                    <span style={{ fontSize: '12px', color: '#8b949e' }}>{group.members}/{group.limit} Members</span>
+                                </div>
+                                <h3 style={{ color: '#fff', margin: '0 0 8px 0' }}>{group.name}</h3>
+                                <p style={{ color: '#8b949e', fontSize: '13px', marginBottom: '16px' }}>{group.description}</p>
+                                
+                                <div style={{ marginBottom: '16px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#8b949e', marginBottom: '4px' }}>
+                                        <span>Group Progress</span>
+                                        <span>{group.progress}%</span>
+                                    </div>
+                                    <div style={{ width: '100%', height: '4px', background: '#21262d', borderRadius: '2px' }}>
+                                        <div style={{ width: `${group.progress}%`, height: '100%', background: 'var(--neon-cyan)', borderRadius: '2px' }}></div>
+                                    </div>
+                                </div>
+
+                                <button style={{ width: '100%', padding: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid #30363d', color: '#fff', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
+                                    JOIN SQUAD
+                                </button>
+                            </div>
                         ))}
                     </div>
+                ) : (
+                    <>
+                        {/* QUICK COMPOSER */}
+                        <div style={{ ...styles.card, marginBottom: '24px', padding: '0' }}>
+                            {!isComposerExpanded ? (
+                                <div onClick={() => setIsComposerExpanded(true)} style={{ padding: isMobile ? '12px' : '16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'text' }}>
+                                    <div style={styles.userAvatar}><User size={14} /></div>
+                                    <span style={{ color: '#8b949e' }}>Start a transmission...</span>
+                                </div>
+                            ) : (
+                                <div style={{ padding: '16px' }}>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Subject Line" 
+                                        value={postTitle}
+                                        onChange={e => setPostTitle(e.target.value)}
+                                        style={{ width: '100%', background: 'none', border: 'none', color: '#fff', fontSize: '16px', fontWeight: 'bold', marginBottom: '12px', outline: 'none' }}
+                                    />
+                                    <textarea 
+                                        placeholder="What's on your mind? (Markdown supported)" 
+                                        value={postContent}
+                                        onChange={e => setPostContent(e.target.value)}
+                                        style={{ width: '100%', background: 'none', border: 'none', color: '#c9d1d9', fontSize: '14px', minHeight: '100px', resize: 'vertical', outline: 'none', fontFamily: 'JetBrains Mono' }}
+                                    />
+                                    
+                                    <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '16px' : '0', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', marginTop: '16px', borderTop: '1px solid #30363d', paddingTop: '12px' }}>
+                                        <div style={{ display: 'flex', gap: '8px' }}>
+                                            {['question', 'discussion', 'showcase', 'achievement'].map(type => (
+                                                <button 
+                                                    key={type}
+                                                    onClick={() => setPostType(type)}
+                                                    style={{ 
+                                                        padding: '6px 10px', borderRadius: '4px', fontSize: '11px', cursor: 'pointer',
+                                                        background: postType === type ? 'rgba(0,242,255,0.1)' : 'transparent',
+                                                        border: postType === type ? '1px solid var(--neon-cyan)' : '1px solid transparent',
+                                                        color: postType === type ? 'var(--neon-cyan)' : '#8b949e',
+                                                        textTransform: 'capitalize'
+                                                    }}
+                                                >
+                                                    {type}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '12px', justifyContent: isMobile ? 'flex-end' : 'flex-start' }}>
+                                            <button onClick={() => setIsComposerExpanded(false)} style={{ background: 'none', border: 'none', color: '#8b949e', cursor: 'pointer' }}>Cancel</button>
+                                            <button onClick={handleCreatePost} style={styles.cyberButton}>TRANSMIT</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* FEED CONTROLS */}
+                        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '12px' : '0', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'center', marginBottom: '16px' }}>
+                            <div style={{ display: 'flex', gap: '10px' }}>
+                                {['new', 'top', 'hot'].map(opt => (
+                                    <button 
+                                        key={opt} 
+                                        onClick={() => setSortOption(opt)}
+                                        style={{ background: 'none', border: 'none', color: sortOption === opt ? '#fff' : '#8b949e', fontWeight: sortOption === opt ? 'bold' : 'normal', cursor: 'pointer', textTransform: 'capitalize' }}
+                                    >
+                                        {opt}
+                                    </button>
+                                ))}
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                <span style={{ color: '#8b949e', fontSize: '12px' }}>Topic:</span>
+                                <select 
+                                    value={selectedTopic} 
+                                    onChange={(e) => setSelectedTopic(e.target.value)}
+                                    style={{ background: '#0d1117', border: '1px solid #30363d', color: '#fff', padding: '4px', borderRadius: '4px', fontSize: '12px' }}
+                                >
+                                    <option value="All">All Frequencies</option>
+                                    {PREDEFINED_TAGS.map(tag => <option key={tag} value={tag}>{tag}</option>)}
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* POSTS LIST */}
+                        {loading ? (
+                            <div style={{ textAlign: 'center', padding: '60px', color: '#8b949e', fontFamily: 'JetBrains Mono' }}>
+                                <span className="blink">{'>'}</span> ACCESSING_NETWORK...
+                            </div>
+                        ) : filteredFeed.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: '60px', color: '#8b949e', fontFamily: 'JetBrains Mono' }}>
+                                NO_SIGNALS_DETECTED
+                            </div>
+                        ) : (
+                            <div style={{ display: 'grid', gap: '16px' }}>
+                                {filteredFeed.map(post => (
+                                    <PostCard
+                                        key={post.id}
+                                        post={post}
+                                        onClick={() => setSelectedPost(post)}
+                                        onUpvote={handleUpvote}
+                                        navigate={navigate}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                    </>
                 )}
             </main>
-
-            {isMobile && (
-                <button
-                    onClick={() => setShowCreateModal(true)}
-                    style={styles.fab}
-                >
-                    <Plus size={24} />
-                </button>
-            )}
-
-            {showCreateModal && (
-                <CreatePostModal
-                    onClose={() => setShowCreateModal(false)}
-                    onSuccess={fetchFeed}
-                    currentUser={currentUser}
-                />
-            )}
         </div>
     );
 }
@@ -206,9 +357,14 @@ export default function Community() {
 function PostCard({ post, onClick, onUpvote, navigate }) {
     const timeAgo = getTimeAgo(post.created_at);
     const authorName = typeof post.author === 'object' ? post.author.username : post.author;
+    const isAchievement = post.post_type === 'achievement';
 
     return (
-        <div onClick={onClick} style={styles.card}>
+        <div onClick={onClick} style={{
+            ...styles.card,
+            border: isAchievement ? '1px solid var(--neon-gold)' : styles.card.border,
+            boxShadow: isAchievement ? '0 0 15px rgba(255, 190, 11, 0.1)' : 'none'
+        }}>
             <div style={styles.cardHeader}>
                 <div
                     style={styles.userAvatar}
@@ -225,7 +381,11 @@ function PostCard({ post, onClick, onUpvote, navigate }) {
                         <p style={styles.timeAgo}>{timeAgo}</p>
                     </div>
                 </div>
-                {post.post_type === 'question' && <span style={styles.typeBadge}>?</span>}
+                <div style={{ display: 'flex', gap: '8px' }}>
+                    {post.post_type === 'question' && <span style={{...styles.typeBadge, background: 'rgba(239, 68, 68, 0.2)', color: '#fca5a5'}}>?</span>}
+                    {post.post_type === 'showcase' && <span style={{...styles.typeBadge, background: 'rgba(168, 85, 247, 0.2)', color: '#d8b4fe'}}>🎨</span>}
+                    {post.post_type === 'achievement' && <span style={{...styles.typeBadge, background: 'rgba(255, 190, 11, 0.2)', color: '#fcd34d'}}>🏆</span>}
+                </div>
             </div>
 
             <div style={styles.cardContent}>
@@ -235,15 +395,29 @@ function PostCard({ post, onClick, onUpvote, navigate }) {
 
             <div style={styles.cardFooter}>
                 <div style={styles.stats}>
-                    <div style={styles.statItem} onClick={(e) => onUpvote(e, post.id)}>
-                        <ArrowBigUp size={20} color={post.is_upvoted ? 'var(--neon-cyan)' : '#8b949e'}
-                            style={{ filter: post.is_upvoted ? 'drop-shadow(0 0 5px var(--neon-cyan))' : 'none' }}
-                        />
-                        <span style={{ color: post.is_upvoted ? 'var(--neon-cyan)' : 'inherit', fontWeight: 'bold' }}>{post.upvotes || 0}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', background: '#0d1117', borderRadius: '4px', border: '1px solid #30363d' }}>
+                        <button 
+                            onClick={(e) => onUpvote(e, post.id)}
+                            style={{ background: 'none', border: 'none', padding: '4px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                        >
+                            <ArrowBigUp size={18} color={post.is_upvoted ? 'var(--neon-cyan)' : '#8b949e'} />
+                        </button>
+                        <span style={{ fontSize: '13px', fontWeight: 'bold', color: post.is_upvoted ? 'var(--neon-cyan)' : '#c9d1d9', minWidth: '20px', textAlign: 'center' }}>
+                            {post.upvotes || 0}
+                        </span>
+                        <button style={{ background: 'none', border: 'none', padding: '4px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                            <ArrowBigDown size={18} color="#8b949e" />
+                        </button>
                     </div>
+
                     <div style={styles.statItem}>
                         <MessageSquare size={18} />
                         <span>{post.reply_count || 0}</span>
+                    </div>
+
+                    <div style={styles.statItem} onClick={(e) => e.stopPropagation()}>
+                        <Share2 size={16} />
+                        <span style={{ fontSize: '12px' }}>Share</span>
                     </div>
                 </div>
                 {post.tags && post.tags.length > 0 && (
@@ -359,51 +533,6 @@ function PostDetailView({ post, onBack, onUpvote, currentUser, navigate }) {
     );
 }
 
-function CreatePostModal({ onClose, onSuccess, currentUser }) {
-    const [title, setTitle] = useState('');
-    const [content, setContent] = useState('');
-    const [postType, setPostType] = useState('question');
-    const [selectedTags, setSelectedTags] = useState([]);
-
-    const handleSubmit = async () => {
-        if (!title.trim() || !content.trim()) return;
-        try {
-            await api.post('/api/community/posts/', { title, content, post_type: postType, tags: selectedTags });
-            onSuccess();
-            onClose();
-        } catch (e) { alert('Transmission failed'); }
-    };
-
-    return (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(5px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
-            <div style={{ width: '600px', maxWidth: '90vw', background: '#0d1117', border: '1px solid var(--neon-cyan)', borderRadius: '12px', padding: '24px', boxShadow: '0 0 30px rgba(0,242,255,0.15)' }} onClick={e => e.stopPropagation()}>
-                <h2 style={{ color: 'var(--neon-cyan)', fontFamily: 'JetBrains Mono', marginTop: 0 }}>NEW_TRANSMISSION</h2>
-
-                <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-                    {['question', 'discussion'].map(type => (
-                        <button key={type} onClick={() => setPostType(type)} style={{
-                            flex: 1, padding: '10px', background: postType === type ? 'rgba(0,242,255,0.1)' : 'transparent',
-                            border: postType === type ? '1px solid var(--neon-cyan)' : '1px solid #30363d', color: postType === type ? 'var(--neon-cyan)' : '#8b949e',
-                            borderRadius: '6px', cursor: 'pointer', textTransform: 'uppercase', fontSize: '12px', fontWeight: 'bold'
-                        }}>{type}</button>
-                    ))}
-                </div>
-
-                <input type="text" placeholder="Subject Line..." value={title} onChange={e => setTitle(e.target.value)}
-                    style={{ width: '100%', background: '#010409', border: '1px solid #30363d', padding: '12px', color: '#fff', borderRadius: '6px', marginBottom: '12px', fontFamily: 'JetBrains Mono' }} />
-
-                <textarea placeholder="Message content..." value={content} onChange={e => setContent(e.target.value)} rows={6}
-                    style={{ width: '100%', background: '#010409', border: '1px solid #30363d', padding: '12px', color: '#c9d1d9', borderRadius: '6px', marginBottom: '20px', resize: 'vertical' }} />
-
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                    <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#8b949e', cursor: 'pointer' }}>CANCEL</button>
-                    <button onClick={handleSubmit} style={{ background: 'var(--neon-cyan)', color: '#000', border: 'none', padding: '10px 24px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'JetBrains Mono' }}>TRANSMIT</button>
-                </div>
-            </div>
-        </div>
-    );
-}
-
 function getTimeAgo(dateString) {
     const seconds = Math.floor((new Date() - new Date(dateString)) / 1000);
     if (seconds < 60) return 'just now';
@@ -444,7 +573,7 @@ const styles = {
     statItem: { display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' },
     tags: { display: 'flex', gap: '8px' },
     tag: { color: 'var(--neon-cyan)', fontSize: '12px', opacity: 0.8 },
-    typeBadge: { position: 'absolute', top: 0, right: 0, background: '#30363d', width: '20px', height: '20px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', color: '#fff' },
+    typeBadge: { width: '24px', height: '24px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold' },
     fab: { position: 'fixed', bottom: '90px', right: '20px', width: '50px', height: '50px', borderRadius: '50%', background: 'var(--neon-cyan)', color: '#000', border: 'none', boxShadow: '0 0 20px rgba(0,242,255,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 },
     cardGlow: { position: 'absolute', top: 0, left: 0, right: 0, height: '2px', background: 'linear-gradient(90deg, transparent, var(--neon-cyan), transparent)', opacity: 0.5 }
 };

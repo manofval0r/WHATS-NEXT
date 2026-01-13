@@ -8,7 +8,7 @@ import { useIsMobile } from './hooks/useMediaQuery';
 export default function Settings() {
     const [budget, setBudget] = useState('FREE');
     const [loading, setLoading] = useState(false);
-    const [selectedTheme, setSelectedTheme] = useState('dark-not-boring');
+    const [selectedTheme, setSelectedTheme] = useState('neon-dojo');
     const [isPublic, setIsPublic] = useState(true);
     const [emailNotifications, setEmailNotifications] = useState(true);
     const navigate = useNavigate();
@@ -16,7 +16,7 @@ export default function Settings() {
 
     useEffect(() => {
         initTheme();
-        const saved = localStorage.getItem('selectedTheme') || 'dark-not-boring';
+        const saved = localStorage.getItem('app-theme') || 'neon-dojo';
         setSelectedTheme(saved);
         fetchSettings();
     }, []);
@@ -133,6 +133,7 @@ export default function Settings() {
                             onChange={handleThemeChange}
                             style={selectStyle}
                         >
+                            <option value="neon-dojo">Neon Dojo (Default)</option>
                             <option value="github-dark">GitHub Dark</option>
                             <option value="github-light">GitHub Light</option>
                             <option value="monokai-pro">Monokai Pro</option>
