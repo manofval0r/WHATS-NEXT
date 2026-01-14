@@ -217,33 +217,6 @@ export default function Landing() {
 
   return (
     <div className="landing-page">
-      <style>{`
-        @media (max-width: 768px) {
-          .hero-headline { font-size: 2.5rem !important; }
-          .pipeline-container { flex-direction: column; gap: 40px; padding-left: 20px; }
-          .pipeline-track { width: 4px; height: 100%; left: 40px; top: 0; transform: none; }
-          .pipeline-track-fill { width: 100%; height: 50%; }
-          .pipeline-node { flex-direction: row; text-align: left; gap: 20px; align-items: flex-start; width: 100%; }
-          .pipeline-icon-wrapper { margin-bottom: 0; }
-          .proof-grid { flex-direction: column; }
-          .holo-card { width: 100%; min-height: auto; }
-          .magnetic-btn-wrap button { padding: 16px 40px !important; font-size: 1.1rem !important; width: 100%; }
-          .footer-grid { grid-template-columns: 1fr; gap: 40px; }
-          .nav-links { display: none; }
-          .nav-container { justify-content: space-between; }
-          .nav-actions { gap: 10px; }
-          .hero-subtext { font-size: 1rem; padding: 0 20px; }
-          .cta-container { flex-direction: column; gap: 16px; width: 100%; padding: 0 20px; }
-          .btn-primary-cta, .btn-secondary-cta { width: 100%; display: block; text-align: center; }
-          
-          /* Pipeline vertical adjustments */
-          .pipeline-node::before { display: none; } /* Hide connector dots if they exist in CSS */
-          .pipeline-step-num { position: static; transform: none; margin-bottom: 4px; display: block; }
-          
-          /* Holo form mobile */
-          .holo-form { grid-template-columns: 1fr; }
-        }
-      `}</style>
       
       {/* NAVBAR */}
       <nav className={`navbar ${scrolled ? 'scrolled' : ''}`}>

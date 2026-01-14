@@ -1,6 +1,6 @@
 /* WHATS-NEXT: Landing Page Complete Specifications (Round 2 Polish) */
 
-/* 📐 GLOBAL FIXES & ALIGNMENT */
+/*  GLOBAL FIXES & ALIGNMENT */
 .landing-page {
   background-color: var(--void-deep);
   min-height: 100vh;
@@ -806,59 +806,73 @@
 /* 📱 MOBILE RESPONSIVENESS */
 @media (max-width: 768px) {
   
-  /* Navbar Mobile */
+  /* Navbar Mobile Overhaul */
   .navbar {
-    padding: 1rem;
-    backdrop-filter: blur(20px); /* Enhance blur on mobile */
+    padding: 16px;
+    background: rgba(10, 0, 21, 0.8);
   }
   
-  .nav-logo {
-    font-size: 1.2rem;
+  .navbar.scrolled {
+    width: calc(100% - 32px); /* Floating card effect */
+    margin: 12px 16px;
+    padding: 12px 16px;
+    border-radius: 16px;
+    background: rgba(13, 17, 23, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    left: 0;
+    top: 0;
   }
   
   .nav-container {
-    flex-wrap: wrap;
-    gap: 16px;
-    justify-content: space-between;
+    flex-wrap: nowrap;
+    gap: 12px;
   }
   
-  /* Hide standard links on mobile */
+  .nav-logo {
+    font-size: 1.1rem;
+    white-space: nowrap;
+  }
+  
   .nav-links {
     display: none; 
   }
   
-  /* Keep actions visible but compacted */
   .nav-actions {
-    margin-left: 0;
+    margin-left: auto;
     gap: 12px;
   }
-  
-  .btn-secondary-cta {
-     padding: 8px 16px;
-     font-size: 14px;
+
+  .nav-actions a {
+    font-size: 0.85rem;
+  }
+
+  .nav-actions button {
+    padding: 8px 16px !important;
+    font-size: 0.85rem !important;
+    height: 36px;
   }
 
   /* Hero Section */
   .hero-section {
-    padding: 100px 20px 40px;
-    height: auto;
-    min-height: 100vh;
+    padding: 120px 20px 60px;
+    min-height: auto;
   }
   
   .headline-line1 {
-    font-size: clamp(32px, 10vw, 48px);
+    font-size: clamp(32px, 10vw, 42px);
     line-height: 1.1;
   }
   
   .headline-line2 {
-    font-size: 1.1rem;
-    max-width: 300px;
-    margin-top: 10px;
+    font-size: 1rem;
+    margin-top: 16px;
+    max-width: 100%;
   }
   
   .hero-subtext {
     font-size: 1rem;
-    padding: 0 16px;
+    padding: 0;
+    margin: 32px auto;
   }
   
   .cta-container {
@@ -867,39 +881,97 @@
     gap: 16px;
   }
   
-  .btn-primary-cta, .btn-secondary-cta {
+  .btn-primary-cta {
     width: 100%;
-    justify-content: center;
     padding: 16px;
+    font-size: 1rem;
+  }
+
+  .btn-secondary-cta {
+    width: 100%;
+    padding: 16px;
+    font-size: 0.9rem;
+    text-align: center;
   }
 
   /* 3D Container Sizing */
   .roadmap-preview-container {
-    height: 300px;
+    height: 280px;
     width: 100%;
-    margin: 32px auto;
+    margin: 40px auto;
   }
 
-  /* Pipeline (Promise) */
+  /* Pipeline (Promise) - Vertical Timeline */
   .section-promise {
-    padding: 80px 20px;
+    padding: 60px 20px;
   }
 
   .pipeline-container {
-    grid-template-columns: 1fr;
-    gap: 48px;
-    padding-left: 0;
     display: flex;
     flex-direction: column;
+    gap: 40px;
+    position: relative;
+    padding-left: 24px;
   }
   
-  /* Hide horizontal track, stacks nodes naturally */
+  /* Vertical Line */
+  .pipeline-container::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 20px;
+    bottom: 20px;
+    width: 2px;
+    background: linear-gradient(to bottom, var(--neon-cyan), var(--neon-violet));
+    opacity: 0.3;
+    border-radius: 2px;
+  }
+  
   .pipeline-track { display: none; }
-  .pipeline-node { width: 100%; margin: 0; }
+
+  .pipeline-node {
+    width: 100%;
+    margin: 0;
+    align-items: flex-start;
+    text-align: left;
+    padding: 24px;
+    background: rgba(13, 10, 31, 0.8);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.05);
+    position: relative;
+  }
+
+  /* Dot on the line */
+  .pipeline-node::before {
+    content: '';
+    position: absolute;
+    left: -29px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 12px;
+    height: 12px;
+    background: var(--void-deep);
+    border: 2px solid var(--neon-cyan);
+    border-radius: 50%;
+    z-index: 2;
+  }
+
+  .pipeline-icon-wrapper {
+    width: 56px;
+    height: 56px;
+    font-size: 24px;
+    margin-bottom: 16px;
+    box-shadow: none;
+    background: rgba(255,255,255,0.03);
+  }
+
+  .pipeline-title {
+    font-size: 1.1rem;
+  }
 
   /* Proof Section */
   .section-proof {
-    padding: 80px 20px;
+    padding: 60px 20px;
   }
   
   .proof-grid {
@@ -909,58 +981,93 @@
   }
   
   .holo-card {
-    min-width: unset;
     padding: 24px;
     width: 100%;
+    border-radius: 16px;
   }
   
   .holo-header {
-    flex-direction: column;
-    align-items: flex-start;
+    flex-direction: row;
+    flex-wrap: wrap;
     gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .holo-form {
+    gap: 16px;
+  }
+
+  .holo-select {
+    padding: 14px;
+    font-size: 16px; /* Prevent iOS zoom */
+  }
+
+  .holo-btn {
+    padding: 14px;
   }
   
   .result-row {
+    flex-direction: row;
     flex-wrap: wrap;
-    flex-direction: column;
+    gap: 12px;
   }
   
   .result-stat {
-    width: 100%;
+    flex: 1 1 40%;
   }
 
   /* Invitation */
+  .section-invitation {
+    min-height: 60vh;
+    padding: 60px 20px;
+  }
+
   .invite-headline {
-    font-size: clamp(40px, 12vw, 60px);
+    font-size: clamp(36px, 10vw, 56px);
+    margin-bottom: 24px;
   }
   
   .invite-sub {
     font-size: 1rem;
-    padding: 0 20px;
+    padding: 0;
+    margin-bottom: 40px;
+  }
+
+  .magnetic-btn-wrap button {
+    padding: 16px 40px !important;
+    font-size: 1.1rem !important;
+    width: 100%;
   }
 
   /* Footer */
+  .startup-footer {
+    padding: 60px 20px 30px;
+  }
+
   .footer-grid {
     grid-template-columns: 1fr;
     gap: 40px;
-    text-align: center;
+    text-align: left;
   }
   
   .footer-col {
-    align-items: center;
+    align-items: flex-start;
   }
   
   .footer-brand {
-    align-items: center;
+    align-items: flex-start;
+    text-align: left;
   }
   
   .footer-desc {
     margin: 0 auto;
+    max-width: 100%;
   }
   
   .footer-bottom {
-    flex-direction: column;
-    gap: 20px;
+    flex-direction: column-reverse;
+    gap: 24px;
     text-align: center;
+    padding-top: 30px;
   }
 }
