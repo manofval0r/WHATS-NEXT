@@ -667,7 +667,7 @@ export default function Landing() {
             GET HIRED.
          </h2>
          <p className="invite-sub">
-            The only platform that cares about your GitHub graph more than your GPA.
+            The only platform you'll need to get on your dream tech path and land that job. 
          </p>
          
          <div className="magnetic-btn-wrap">
@@ -690,7 +690,7 @@ export default function Landing() {
                 <div className="footer-brand">
                     <h4> <Terminal size={24}/> WHATS-NEXT</h4>
                     <p className="footer-desc">
-                        The AI-powered career accelerator for modern developers. Stop consuming tutorials. Start verifying skills.
+                        We gather the resources so you dont have to. Stop searching and start learning.
                     </p>
                 </div>
                 

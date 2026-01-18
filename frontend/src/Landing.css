@@ -1432,6 +1432,10 @@
     text-align: center;
     padding-top: 30px;
   }
+
+  .newsletter-input{
+    max-width: 90% !important;
+  }
 }
 
 
