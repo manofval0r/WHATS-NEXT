@@ -383,13 +383,68 @@ def check_roadmap_status(request, task_id):
     
     return Response({"status": "pending"})
 
+# ==========================================
+# PROJECT VERIFICATION SYSTEM (Phase 3)
+# ==========================================
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def preview_project_score(request):
+    """
+    Preview the score of a GitHub project before final submission.
+    Allows users to see what checks pass/fail without committing.
+    """
+    from .project_scoring import score_github_project, MINIMUM_SCORE_THRESHOLD
+    
+    submission_link = request.data.get('link', '').strip()
+    module_id = request.data.get('module_id')
+    
+    if not submission_link:
+        return Response({"error": "GitHub URL is required"}, status=400)
+    
+    if not submission_link.startswith(('http://', 'https://')):
+        return Response({"error": "Link must be a valid URL"}, status=400)
+    
+    # Get module label for tech matching (optional)
+    module_label = ""
+    if module_id:
+        try:
+            module = UserRoadmapItem.objects.get(id=module_id, user=request.user)
+            module_label = module.label
+        except UserRoadmapItem.DoesNotExist:
+            pass
+    
+    # Score the project
+    score_result = score_github_project(submission_link, module_label)
+    
+    return Response({
+        "score": score_result.get("score", 0),
+        "passed": score_result.get("passed", False),
+        "valid": score_result.get("valid", False),
+        "checks": score_result.get("checks", {}),
+        "suggestions": score_result.get("suggestions", []),
+        "metadata": score_result.get("metadata", {}),
+        "threshold": MINIMUM_SCORE_THRESHOLD
+    })
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def submit_project(request, node_id):
+    """
+    Submit a project for verification.
+    - Scores GitHub projects automatically
+    - Blocks completion if score < threshold
+    - Persists score and breakdown to database
+    - Only marks module complete if verification passes
+    """
+    from .project_scoring import score_github_project, MINIMUM_SCORE_THRESHOLD
+    
     user = request.user
-    submission_link = request.data.get('link')
+    submission_link = request.data.get('link', '').strip()
+    
     if not submission_link:
-        return Response({"error": "Link required"}, status=400)
+        return Response({"error": "Project link is required"}, status=400)
     
     # Basic URL validation
     if not submission_link.startswith(('http://', 'https://')):
@@ -399,33 +454,197 @@ def submit_project(request, node_id):
         return Response({"error": "Link exceeds maximum length"}, status=400)
 
     try:
-        node = get_object_or_404(UserRoadmapItem, id=node_id, user=user)
-    except:
+        node = UserRoadmapItem.objects.get(id=node_id, user=user)
+    except UserRoadmapItem.DoesNotExist:
         return Response({"error": "Module not found"}, status=404)
     
-    # Auto-score GitHub submissions
-    score_info = None
+    # Check if already completed
+    if node.status == 'completed' and node.verification_status == 'passed':
+        return Response({
+            "error": "This module has already been verified",
+            "status": node.status,
+            "verification_status": node.verification_status
+        }, status=400)
+    
+    # Score GitHub submissions
+    score_result = None
     if 'github.com' in submission_link.lower():
-        from .project_scoring import score_github_project
-        score_info = score_github_project(submission_link)
+        score_result = score_github_project(submission_link, node.label)
+        
+        # Persist score data to the module
+        node.github_score = score_result.get("score", 0)
+        node.score_breakdown = score_result
+        node.project_submission_link = submission_link
+        
+        # Check if passed threshold
+        if not score_result.get("passed", False):
+            # FAILED - Don't mark as complete
+            node.verification_status = 'failed'
+            node.save()
+            
+            return Response({
+                "success": False,
+                "message": f"Project score ({score_result['score']}) is below the minimum threshold ({MINIMUM_SCORE_THRESHOLD}). Please improve your project and try again.",
+                "node_id": str(node.id),
+                "status": node.status,
+                "verification_status": "failed",
+                "score": score_result.get("score", 0),
+                "threshold": MINIMUM_SCORE_THRESHOLD,
+                "checks": score_result.get("checks", {}),
+                "suggestions": score_result.get("suggestions", []),
+                "metadata": score_result.get("metadata", {})
+            }, status=400)
+        
+        # PASSED - Mark as completed
+        node.verification_status = 'passed'
+        node.status = 'completed'
+        node.save()
+        
+        # Unlock next node
+        next_node = UserRoadmapItem.objects.filter(
+            user=user, 
+            step_order=node.step_order + 1
+        ).first()
+        
+        next_data = None
+        if next_node and next_node.status == 'locked':
+            next_node.status = 'active'
+            next_node.save()
+            next_data = {"id": str(next_node.id), "status": "active"}
+        
+        # Log activity for streak
+        today = datetime.now().date()
+        activity, _ = UserActivity.objects.get_or_create(user=user, date=today)
+        activity.count += 1
+        activity.save()
+        
+        return Response({
+            "success": True,
+            "message": "Project verified successfully! Module completed.",
+            "node_id": str(node.id),
+            "status": "completed",
+            "verification_status": "passed",
+            "score": score_result.get("score", 0),
+            "checks": score_result.get("checks", {}),
+            "suggestions": score_result.get("suggestions", []),
+            "metadata": score_result.get("metadata", {}),
+            "next_node": next_data
+        })
     
-    node.project_submission_link = submission_link
-    node.status = 'completed'
-    node.save()
+    else:
+        # Non-GitHub URL - store but mark as pending (Phase 7: manual review)
+        node.project_submission_link = submission_link
+        node.verification_status = 'pending'
+        node.save()
+        
+        return Response({
+            "success": False,
+            "message": "Only GitHub repositories are supported for automatic verification. Please submit a GitHub repository URL.",
+            "node_id": str(node.id),
+            "status": node.status,
+            "verification_status": "pending"
+        }, status=400)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_certificate(request, item_id):
+    """
+    Get certificate data for a verified module.
+    Returns certificate info if exists, or generates one if module is verified.
+    """
+    from .models import Certificate
     
-    next_node = UserRoadmapItem.objects.filter(user=user, step_order=node.step_order + 1).first()
-    next_data = None
-    if next_node:
-        next_node.status = 'active'
-        next_node.save()
-        next_data = {"id": str(next_node.id), "status": "active"}
+    user = request.user
+    
+    try:
+        item = UserRoadmapItem.objects.get(id=item_id, user=user)
+    except UserRoadmapItem.DoesNotExist:
+        return Response({"error": "Module not found"}, status=404)
+    
+    # Check if module is verified
+    if item.verification_status != 'passed':
+        return Response({
+            "error": "Certificate not available. Module must be verified first.",
+            "verification_status": item.verification_status
+        }, status=400)
+    
+    # Get or create certificate
+    try:
+        certificate = Certificate.objects.get(roadmap_item=item)
+    except Certificate.DoesNotExist:
+        # Generate new certificate
+        certificate_id = Certificate.generate_certificate_id(item.label)
+        certificate = Certificate.objects.create(
+            certificate_id=certificate_id,
+            user=user,
+            roadmap_item=item,
+            github_score=item.github_score,
+            peer_verifications=item.verification_count,
+            score_breakdown=item.score_breakdown,
+            github_repo_url=item.project_submission_link or ""
+        )
+    
+    return Response({
+        "certificate_id": certificate.certificate_id,
+        "module_label": item.label,
+        "module_description": item.description,
+        "issued_at": certificate.issued_at.isoformat(),
+        "github_score": certificate.github_score,
+        "peer_verifications": certificate.peer_verifications,
+        "github_repo_url": certificate.github_repo_url,
+        "user": {
+            "username": user.username,
+            "target_career": user.target_career
+        }
+    })
 
-    today = datetime.now().date()
-    activity, _ = UserActivity.objects.get_or_create(user=user, date=today)
-    activity.count += 1
-    activity.save()
 
-    return Response({"message": "Submitted", "node_id": str(node.id), "status": "completed", "next_node": next_data, "score_info": score_info})
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def generate_certificate_pdf(request, item_id):
+    """
+    Generate an HTML certificate on-demand.
+    Returns the HTML content that can be converted to PDF client-side.
+    """
+    from .certificate_generator import generate_certificate_html
+    from .models import Certificate
+    from django.http import HttpResponse
+    
+    user = request.user
+    
+    try:
+        item = UserRoadmapItem.objects.get(id=item_id, user=user)
+    except UserRoadmapItem.DoesNotExist:
+        return Response({"error": "Module not found"}, status=404)
+    
+    if item.verification_status != 'passed':
+        return Response({
+            "error": "Certificate not available. Module must be verified first."
+        }, status=400)
+    
+    # Get or create certificate
+    try:
+        certificate = Certificate.objects.get(roadmap_item=item)
+    except Certificate.DoesNotExist:
+        certificate_id = Certificate.generate_certificate_id(item.label)
+        certificate = Certificate.objects.create(
+            certificate_id=certificate_id,
+            user=user,
+            roadmap_item=item,
+            github_score=item.github_score,
+            peer_verifications=item.verification_count,
+            score_breakdown=item.score_breakdown,
+            github_repo_url=item.project_submission_link or ""
+        )
+    
+    # Generate HTML
+    html_content = generate_certificate_html(certificate, user, item)
+    
+    response = HttpResponse(html_content, content_type='text/html')
+    response['Content-Disposition'] = f'attachment; filename="certificate_{certificate.certificate_id}.html"'
+    return response
+
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])

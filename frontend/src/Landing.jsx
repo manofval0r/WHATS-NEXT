@@ -1,202 +1,253 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import * as THREE from 'three';
+import { Terminal, ChevronRight, Github, Zap, Brain, TrendingUp, Users, Award, CheckCircle, ArrowRight, MessageSquare, Sparkles, MousePointer2 } from 'lucide-react';
+import { motion, useInView } from 'framer-motion';
 import Button from './components/common/Button';
 import Jada from './components/common/Jada';
 import './Landing.css';
 
+// Typewriter Hook
+const useTypewriter = (texts, typingSpeed = 80, deletingSpeed = 50, pauseDuration = 3000) => {
+  const [displayText, setDisplayText] = useState('');
+  const [textIndex, setTextIndex] = useState(0);
+  const [isDeleting, setIsDeleting] = useState(false);
+  
+  useEffect(() => {
+    const currentText = texts[textIndex];
+    
+    const timeout = setTimeout(() => {
+      if (!isDeleting) {
+        if (displayText.length < currentText.length) {
+          setDisplayText(currentText.slice(0, displayText.length + 1));
+        } else {
+          setTimeout(() => setIsDeleting(true), pauseDuration);
+        }
+      } else {
+        if (displayText.length > 0) {
+          setDisplayText(displayText.slice(0, -1));
+        } else {
+          setIsDeleting(false);
+          setTextIndex((prev) => (prev + 1) % texts.length);
+        }
+      }
+    }, isDeleting ? deletingSpeed : typingSpeed);
+    
+    return () => clearTimeout(timeout);
+  }, [displayText, isDeleting, textIndex, texts, typingSpeed, deletingSpeed, pauseDuration]);
+  
+  return displayText;
+};
+
+// Counter Animation Hook
+const useCountUp = (end, duration = 2000, startOnView = true) => {
+  const [count, setCount] = useState(0);
+  const [hasStarted, setHasStarted] = useState(false);
+  const ref = useRef(null);
+  const isInView = useInView(ref, { once: true, margin: "-100px" });
+  
+  useEffect(() => {
+    if (startOnView && !isInView) return;
+    if (hasStarted) return;
+    
+    setHasStarted(true);
+    const startTime = Date.now();
+    const timer = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      // Easing function
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setCount(Math.floor(eased * end));
+      
+      if (progress >= 1) clearInterval(timer);
+    }, 16);
+    
+    return () => clearInterval(timer);
+  }, [end, duration, isInView, startOnView, hasStarted]);
+  
+  return { count, ref };
+};
+
+// 3D Tilt Card Component
+const TiltCard = ({ children, className, style }) => {
+  const cardRef = useRef(null);
+  const [rotateX, setRotateX] = useState(0);
+  const [rotateY, setRotateY] = useState(0);
+  
+  const handleMouseMove = (e) => {
+    if (!cardRef.current) return;
+    const rect = cardRef.current.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const mouseX = e.clientX - centerX;
+    const mouseY = e.clientY - centerY;
+    
+    setRotateX(-mouseY / 20);
+    setRotateY(mouseX / 20);
+  };
+  
+  const handleMouseLeave = () => {
+    setRotateX(0);
+    setRotateY(0);
+  };
+  
+  return (
+    <div
+      ref={cardRef}
+      className={className}
+      style={{
+        ...style,
+        transform: `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`,
+        transition: 'transform 0.1s ease-out'
+      }}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+    >
+      {children}
+    </div>
+  );
+};
+
+// Magnetic Button Component
+const MagneticButton = ({ children, onClick, className, style }) => {
+  const buttonRef = useRef(null);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  
+  const handleMouseMove = (e) => {
+    if (!buttonRef.current) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const distanceX = (e.clientX - centerX) * 0.3;
+    const distanceY = (e.clientY - centerY) * 0.3;
+    
+    setPosition({ x: distanceX, y: distanceY });
+  };
+  
+  const handleMouseLeave = () => {
+    setPosition({ x: 0, y: 0 });
+  };
+  
+  return (
+    <motion.div
+      ref={buttonRef}
+      className={className}
+      style={style}
+      animate={{ x: position.x, y: position.y }}
+      transition={{ type: "spring", stiffness: 150, damping: 15 }}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      onClick={onClick}
+    >
+      {children}
+    </motion.div>
+  );
+};
+
+// Stagger Text Animation
+const StaggerText = ({ text, className, delay = 0 }) => {
+  const words = text.split(' ');
+  
+  return (
+    <motion.span className={className}>
+      {words.map((word, i) => (
+        <motion.span
+          key={i}
+          initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
+          animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+          transition={{ 
+            duration: 0.5, 
+            delay: delay + i * 0.1,
+            ease: [0.25, 0.46, 0.45, 0.94]
+          }}
+          style={{ display: 'inline-block', marginRight: '0.3em' }}
+        >
+          {word}
+        </motion.span>
+      ))}
+    </motion.span>
+  );
+};
+
+// Glitch Text Component
+const GlitchText = ({ children, className }) => {
+  return (
+    <span className={`glitch-text ${className || ''}`} data-text={children}>
+      {children}
+    </span>
+  );
+};
+
+// CountUp Stat Component for animated numbers
+const CountUpStat = ({ end, prefix = '', suffix = '', label }) => {
+  const { count, ref } = useCountUp(end, 1500);
+  
+  return (
+    <div className="result-stat" ref={ref}>
+      <span className="stat-val">{prefix}{count}{suffix}</span>
+      <span className="stat-label">{label}</span>
+    </div>
+  );
+};
+
+// Simple count-up display for stats section
+const CountUpDisplay = ({ end, decimals = 0 }) => {
+  const [count, setCount] = useState(0);
+  
+  useEffect(() => {
+    const duration = 2000;
+    const steps = 60;
+    const increment = end / steps;
+    let current = 0;
+    
+    const timer = setInterval(() => {
+      current += increment;
+      if (current >= end) {
+        setCount(end);
+        clearInterval(timer);
+      } else {
+        setCount(current);
+      }
+    }, duration / steps);
+    
+    return () => clearInterval(timer);
+  }, [end]);
+  
+  return decimals > 0 ? count.toFixed(decimals) : Math.floor(count);
+};
+
 export default function Landing() {
   const navigate = useNavigate();
+
+  // Smooth scroll to section
+  const scrollToSection = (e, sectionId) => {
+    e.preventDefault();
+    document.querySelector(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   // --- STATE ---
   const [scrolled, setScrolled] = useState(false);
   const [demoState, setDemoState] = useState({ studying: '', wantToBe: '', loading: false, result: null });
-  const [pathLabel, setPathLabel] = useState("CS → Web Dev");
 
   // --- REFS ---
-  const roadmapRef = useRef(null);
-  const observerRef = useRef(null);
+  const heroRef = useRef(null);
+  
+  // Section refs for scroll animations
+  const pipelineRef = useRef(null);
+  const proofRef = useRef(null);
+  const statsRef = useRef(null);
+  const testimonialsRef = useRef(null);
+  
+  // InView hooks for scroll-triggered animations
+  const isPipelineInView = useInView(pipelineRef, { once: true, margin: "-100px" });
+  const isProofInView = useInView(proofRef, { once: true, margin: "-100px" });
+  const isStatsInView = useInView(statsRef, { once: true, margin: "-50px" });
+  const isTestimonialsInView = useInView(testimonialsRef, { once: true, margin: "-100px" });
 
   // --- SCROLL LISTENER ---
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 50);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  // --- THREE.JS SCENE (The Shrine) ---
-  useEffect(() => {
-    if (!roadmapRef.current) return;
-
-    // SCENE SETUP
-    const scene = new THREE.Scene();
-    const container = roadmapRef.current;
-    
-    let width = container.clientWidth;
-    let height = container.clientHeight;
-
-    // Perspective camera from spec
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
-    camera.position.set(0, 0, 8);
-
-    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-    renderer.setSize(width, height);
-    renderer.setPixelRatio(window.devicePixelRatio);
-    container.appendChild(renderer.domElement);
-
-    // LIGHTING
-    const ambientLight = new THREE.AmbientLight(0xa78bfa, 0.4); 
-    scene.add(ambientLight);
-
-    const pointLight = new THREE.PointLight(0x5ff5ff, 1.5);
-    pointLight.position.set(0, 2, 4);
-    scene.add(pointLight);
-
-    const rimLight = new THREE.PointLight(0xff2e88, 0.8);
-    rimLight.position.set(-3, -2, 2);
-    scene.add(rimLight);
-
-    // NODES (Torus) - ARC LAYOUT
-    const geometry = new THREE.TorusGeometry(0.8, 0.15, 16, 32); 
-    const material = new THREE.MeshStandardMaterial({
-      color: 0x5ff5ff,
-      emissive: 0x5ff5ff,
-      emissiveIntensity: 0.5,
-      metalness: 0.8,
-      roughness: 0.2,
-      transparent: true,
-      opacity: 0.9
-    });
-
-    const nodes = [];
-    const arcRadius = 3; 
-    const arcAngle = Math.PI / 3; 
-
-    for (let i = 0; i < 3; i++) {
-        const node = new THREE.Mesh(geometry, material.clone());
-        const angle = -arcAngle/2 + (arcAngle/3) * i;
-        node.position.x = Math.sin(angle) * arcRadius;
-        node.position.y = Math.cos(angle) * arcRadius - 2; 
-        node.position.z = 0;
-        
-        node.rotation.x = Math.random() * Math.PI;
-        node.rotation.y = Math.random() * Math.PI;
-
-        nodes.push(node);
-        scene.add(node);
-    }
-
-    // CONNECTING CURVED LINES
-    for (let i = 0; i < nodes.length - 1; i++) {
-        const start = nodes[i].position;
-        const end = nodes[i + 1].position;
-        
-        const curve = new THREE.QuadraticBezierCurve3(
-            start,
-            new THREE.Vector3((start.x + end.x) / 2, (start.y + end.y) / 2 + 0.5, 0),
-            end
-        );
-        
-        const points = curve.getPoints(50);
-        const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
-        const lineMaterial = new THREE.LineBasicMaterial({ color: 0x5ff5ff, opacity: 0.6, transparent: true, linewidth: 2 });
-        const line = new THREE.Line(lineGeometry, lineMaterial);
-        scene.add(line);
-        
-        // PARTICLES ALONG PATH
-        const pGeo = new THREE.BufferGeometry();
-        const pCount = 20;
-        const pPos = new Float32Array(pCount * 3);
-        
-        // Initial positions
-        for(let j=0; j<pCount; j++) {
-            const t = j / pCount;
-            const pt = curve.getPoint(t);
-            pPos[j*3] = pt.x;
-            pPos[j*3+1] = pt.y;
-            pPos[j*3+2] = pt.z;
-        }
-        pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
-        const pMat = new THREE.PointsMaterial({ color: 0xffbe0b, size: 0.08, transparent: true, opacity: 0.8 });
-        const particles = new THREE.Points(pGeo, pMat);
-        // Store curve reference for animation
-        particles.userData = { curve: curve, count: pCount };
-        scene.add(particles);
-    }
-
-    // ANIMATION LOOP
-    const animate = (time) => {
-        requestAnimationFrame(animate);
-        const t = time * 0.001; 
-
-        // Rotate Global Scene
-        scene.rotation.y = t * 0.15;
-
-        // Animate Nodes
-        nodes.forEach((node, idx) => {
-            const offset = idx * 0.5;
-            const scale = 1 + Math.sin(t * 2 + offset) * 0.1;
-            node.scale.set(scale, scale, scale);
-            node.material.emissiveIntensity = 0.3 + Math.sin(t * 2 + offset) * 0.2;
-            node.rotation.x += 0.001;
-            node.rotation.y += 0.002;
-        });
-
-        // Animate Particles
-        scene.children.forEach(child => {
-            if (child.type === 'Points' && child.userData.curve) {
-                const curve = child.userData.curve;
-                const count = child.userData.count;
-                const positions = child.geometry.attributes.position.array;
-                
-                for(let i=0; i<count; i++) {
-                    const progress = ((i / count) + t * 0.5) % 1; // Speed control
-                    const pt = curve.getPoint(progress);
-                    positions[i*3] = pt.x;
-                    positions[i*3+1] = pt.y;
-                    positions[i*3+2] = pt.z;
-                }
-                child.geometry.attributes.position.needsUpdate = true;
-            }
-        });
-
-        renderer.render(scene, camera);
-    };
-    animate(0);
-
-    const handleResize = () => {
-        if (!container) return;
-        width = container.clientWidth;
-        height = container.clientHeight;
-        camera.aspect = width / height;
-        camera.updateProjectionMatrix();
-        renderer.setSize(width, height);
-    };
-    window.addEventListener('resize', handleResize);
-
-    return () => {
-        window.removeEventListener('resize', handleResize);
-        if (container && renderer.domElement) container.removeChild(renderer.domElement);
-    };
-
-  }, []);
-
-  // --- PATH ROTATOR ---
-  useEffect(() => {
-    const paths = [
-        { from: "CS", to: "Web Dev" },
-        { from: "Biology", to: "AI Research" },
-        { from: "Finance", to: "FinTech" },
-        { from: "Physics", to: "Game Dev" },
-        { from: "Self-Taught", to: "Full-Stack" },
-        { from: "Design", to: "UI Engineer" }
-    ];
-    let idx = 0;
-    const interval = setInterval(() => {
-        idx = (idx + 1) % paths.length;
-        setPathLabel(`${paths[idx].from} → ${paths[idx].to}`);
-    }, 8000);
-    return () => clearInterval(interval);
   }, []);
 
   // Handler
@@ -217,214 +268,398 @@ export default function Landing() {
 
   return (
     <div className="landing-page">
+      {/* Noise Overlay */}
+      <div className="noise-overlay"></div>
+      
+      {/* Gradient Orbs */}
+      <div className="gradient-orb orb-1"></div>
+      <div className="gradient-orb orb-2"></div>
+      <div className="gradient-orb orb-3"></div>
       
       {/* NAVBAR */}
       <nav className={`navbar ${scrolled ? 'scrolled' : ''}`}>
         <div className="nav-container">
-          <a href="#" className="nav-logo"> _ WHATS-NEXT</a>
+          <a href="#" className="nav-logo"><Terminal size={20}/> WHATS-NEXT</a>
           <div className="nav-links">
-            <a href="#how-it-works">How It Works</a>
-            <a href="#features">Proof</a>
-            <a href="#pricing">Pricing</a>
+            <a href="#how-it-works" onClick={(e) => scrollToSection(e, '#how-it-works')}>How It Works</a>
+            <a href="#features" onClick={(e) => scrollToSection(e, '#features')}>Features</a>
+            <a href="#feedback" onClick={(e) => scrollToSection(e, '#feedback')}>Feedback</a>
           </div>
           <div className="nav-actions">
-            <a href="/login" style={{ textDecoration: 'none', color: 'var(--text-secondary)', fontWeight: 500 }}>Log In</a>
+            <a href="/login" className="nav-login">Log In</a>
             <Button variant="primary" onClick={() => navigate('/signup')} size="sm">Get Started</Button>
           </div>
         </div>
       </nav>
 
-      {/* 🏛️ SECTION 1: THE SHRINE (HERO TUNED) */}
-      <section className="hero-section">
+      {/* ═══════════════════════════════════════════════════════════════════════════
+          SECTION 1: HERO - Clean Startup Welcome
+      ═══════════════════════════════════════════════════════════════════════════ */}
+      <section className="hero-section" ref={heroRef}>
         <div className="hero-bg-grid"></div>
-        <div className="hero-fog"></div>
-
-        {/* Floating Particles (Layer 3) */}
-        {['<>', '{}', '[]', '//', '()', ';;'].map((sym, i) => (
-            <div key={i} className="particle" style={{
-                top: `${Math.random() * 80 + 10}%`,
-                left: `${Math.random() * 90 + 5}%`,
-                animationDelay: `${Math.random() * 5}s`,
-                fontSize: `${Math.random() * 1.5 + 1}rem`
-            }}>
-                {sym}
-            </div>
-        ))}
         
-        {/* Accents */}
-        <div className="corner-star star-1"></div>
-        <div className="corner-star star-2"></div>
-        <div className="corner-star star-3"></div>
-        <div className="corner-star star-4"></div>
-        <div className="corner-star star-5"></div>
-        
-        {/* Header Ornaments */}
-        <div className="header-ornaments">
-            <div className="ornament-star"></div>
-            <div className="ornament-star"></div>
-            <div className="ornament-star"></div>
-        </div>
-
-        {/* Headline */}
-        <h1 className="hero-headline">
-          <span className="headline-line1">ESCAPE TUTORIAL HELL</span>
-          <span className="headline-underline"></span>
-          <span className="headline-line2">Build Real Skills</span>
-        </h1>
-
-        {/* 3D Roadmap Preview */}
-        <div className="roadmap-preview-container" ref={roadmapRef}>
-            <div className="path-label">{pathLabel}</div>
-        </div>
-
-        {/* Subtext */}
-        <p className="hero-subtext">
-          Stop searching. Start learning.<br/>
-          Tomorrow, you start building.
-        </p>
-
-        {/* CTAs */}
-        <div className="cta-container">
+        {/* Centered Content Stack */}
+        <div className="hero-centered">
+          {/* Badge */}
+          <motion.div 
+            className="hero-badge"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <Sparkles size={14} />
+            <span>Your personalized dev career starts here</span>
+          </motion.div>
+          
+          {/* Main Headline */}
+          <motion.h1 
+            className="hero-headline"
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.15 }}
+          >
+            <GlitchText>Escape Tutorial Hell</GlitchText>
+          </motion.h1>
+          
+          {/* Subheadline */}
+          <motion.p 
+            className="hero-subtext"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.3 }}
+          >
+            AI-generated roadmaps. Real projects. <span className="text-highlight">GitHub-verified skills.</span>
+          </motion.p>
+          
+          {/* CTA - Single Strong Action */}
+          <motion.div 
+            className="hero-cta-group"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.45 }}
+          >
+            {/* Animated Pointing Hand */}
+            <motion.div 
+              className="pointing-hand"
+              animate={{ 
+                x: [0, 8, 0],
+                rotate: [-30, -38, -30]
+              }}
+              transition={{ 
+                duration: 1.2, 
+                repeat: Infinity, 
+                ease: "easeInOut" 
+              }}
+            >
+              <MousePointer2 size={48} strokeWidth={1.5} />
+            </motion.div>
+            
             <a href="/signup" className="btn-primary-cta">
-                Start Learning Now
+              Let's Go !!!
+              <ArrowRight size={20} className="cta-arrow" />
             </a>
-            <span className="cta-subtext">It's free to begin</span>
-            <br />
-            <a href="#how-it-works" className="btn-secondary-cta">
-                See How It Works
-            </a>
+          </motion.div>
         </div>
-
-      </section>
-
-
-      {/* 📊 SECTION 2: THE PIPELINE (PROMISE) */}
-      <section id="how-it-works" className="section-promise">
-         <h2 className="section-header">The Spec-to-Job Pipeline</h2>
-         <p className="section-subtext">
-           A streamlined infrastructure designed to upgrade your human hardware.
-         </p>
-         
-         <div className="pipeline-container">
-            {/* Connecting Line */}
-            <div className="pipeline-track">
-                <div className="pipeline-track-fill"></div>
-            </div>
-
-            {/* Nodes */}
-            {[ 
-                { icon: "🎯", step: "01", title: "Targeting", desc: "Select your background and dream role." },
-                { icon: "🧠", step: "02", title: "Generation", desc: "AI builds your custom curriculum." },
-                { icon: "🔨", step: "03", title: "Execution", desc: "Build projects. Verify code." },
-                { icon: "🚀", step: "04", title: "Deployment", desc: "Export CV. Get Hired." }
-            ].map((node, i) => (
-                <div className="pipeline-node" key={i}>
-                    <div className="pipeline-icon-wrapper">{node.icon}</div>
-                    <span className="pipeline-step-num">STEP {node.step}</span>
-                    <h3 className="pipeline-title">{node.title}</h3>
-                    <p className="pipeline-desc">{node.desc}</p>
-                </div>
-            ))}
-         </div>
-      </section>
-
-
-      {/* 🎯 SECTION 3: PROOF (HOLOGRAPHIC SHOWCASE) */}
-      <section id="features" className="section-proof">
-        <h2 className="section-header">Proof of Work</h2>
-        <p className="section-subtext">Interact with the system. See what you'll build.</p>
         
-        <div className="proof-grid">
-            {/* LARGE INTERACTIVE HOLO CARD */}
-            <div className="holo-card">
-                <div className="holo-header">
-                    <span className="holo-tag">LIVE DEMO // V2.4</span>
-                    <div style={{ display:'flex', gap:'8px' }}>
-                        <div style={{ width:8, height:8, borderRadius:'50%', background:'#ff5f56' }}></div>
-                        <div style={{ width:8, height:8, borderRadius:'50%', background:'#ffbd2e' }}></div>
-                        <div style={{ width:8, height:8, borderRadius:'50%', background:'#27c93f' }}></div>
-                    </div>
+        {/* Scroll Indicator - Desktop Only */}
+        <motion.div 
+          className="scroll-indicator desktop-only"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1 }}
+        >
+          <span>Scroll</span>
+          <div className="scroll-line"></div>
+        </motion.div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════════════════════════════
+          SECTION 2: RESOURCES BAR - Honest about where content comes from
+      ═══════════════════════════════════════════════════════════════════════════ */}
+      <section className="section-resources">
+        <p className="resources-label">Curating the best free resources from</p>
+        <div className="resources-track">
+          <div className="resources-slide">
+            {['freeCodeCamp', 'MDN Web Docs', 'The Odin Project', 'Programming with Mosh', 'Traversy Media', 'Fireship', 'CS50', 'Full Stack Open'].map((resource, i) => (
+              <div key={i} className="resource-item">{resource}</div>
+            ))}
+            {['freeCodeCamp', 'MDN Web Docs', 'The Odin Project', 'Programming with Mosh', 'Traversy Media', 'Fireship', 'CS50', 'Full Stack Open'].map((resource, i) => (
+              <div key={`dup-${i}`} className="resource-item">{resource}</div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════════════════════════════
+          SECTION 3: HOW IT WORKS - Visual Timeline
+      ═══════════════════════════════════════════════════════════════════════════ */}
+      <section id="how-it-works" className="section-how-it-works" ref={pipelineRef}>
+        <div className="section-container">
+          <motion.div 
+            className="section-header-group"
+            initial={{ opacity: 0, y: 30 }}
+            animate={isPipelineInView ? { opacity: 1, y: 0 } : {}}
+            transition={{ duration: 0.6 }}
+          >
+            <span className="section-eyebrow">HOW IT WORKS</span>
+            <h2 className="section-title">From Zero to Hired in 4 Steps</h2>
+            <p className="section-subtitle">
+              Our AI-powered system creates a personalized path from where you are to where you want to be.
+            </p>
+          </motion.div>
+          
+          <div className="steps-grid">
+            {[ 
+              { 
+                icon: <Brain size={28} />, 
+                step: "01", 
+                title: "Tell Us Your Goal", 
+                desc: "Select your current background and dream role. Our AI analyzes thousands of career paths to find the optimal route.",
+                highlight: "2 minutes to start"
+              },
+              { 
+                icon: <Zap size={28} />, 
+                step: "02", 
+                title: "Get Your Roadmap", 
+                desc: "JADA generates a custom curriculum with modules, lessons, and projects tailored to your specific learning style.",
+                highlight: "Personalized content"
+              },
+              { 
+                icon: <Github size={28} />, 
+                step: "03", 
+                title: "Build & Verify", 
+                desc: "Complete real projects that push to your GitHub. Our verification system ensures code quality and validates your skills.",
+                highlight: "Proof that matters"
+              },
+              { 
+                icon: <TrendingUp size={28} />, 
+                step: "04", 
+                title: "Land Your Job", 
+                desc: "Export your verified portfolio and certificates. Employers see green squares and real code, not just certificates.",
+                highlight: "Average 3 months"
+              }
+            ].map((step, i) => (
+              <motion.div 
+                className="step-card" 
+                key={i}
+                initial={{ opacity: 0, y: 40 }}
+                animate={isPipelineInView ? { opacity: 1, y: 0 } : {}}
+                transition={{ duration: 0.5, delay: 0.2 + i * 0.15 }}
+              >
+                <div className="step-number">{step.step}</div>
+                <div className="step-icon">{step.icon}</div>
+                <h3 className="step-title">{step.title}</h3>
+                <p className="step-desc">{step.desc}</p>
+                <span className="step-highlight">{step.highlight}</span>
+                {i < 3 && <div className="step-connector" />}
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════════════════════════════
+          SECTION 4: FEATURES BENTO GRID
+      ═══════════════════════════════════════════════════════════════════════════ */}
+      <section id="features" className="section-features" ref={proofRef}>
+        <div className="section-container">
+          <motion.div 
+            className="section-header-group"
+            initial={{ opacity: 0, y: 30 }}
+            animate={isProofInView ? { opacity: 1, y: 0 } : {}}
+            transition={{ duration: 0.6 }}
+          >
+            <span className="section-eyebrow">FEATURES</span>
+            <h2 className="section-title">Everything You Need to Succeed</h2>
+            <p className="section-subtitle">
+              Powerful tools designed to accelerate your learning and prove your skills.
+            </p>
+          </motion.div>
+          
+          <div className="bento-grid">
+            {/* Large Feature Card - Interactive Demo */}
+            <motion.div 
+              className="bento-card bento-large"
+              initial={{ opacity: 0, y: 30 }}
+              animate={isProofInView ? { opacity: 1, y: 0 } : {}}
+              transition={{ duration: 0.5, delay: 0.2 }}
+            >
+              <div className="bento-card-header">
+                <span className="bento-tag">INTERACTIVE</span>
+                <div className="window-dots">
+                  <span></span><span></span><span></span>
                 </div>
-
-                <form className="holo-form" onSubmit={handleDemoSubmit}>
-                    <div>
-                        <label className="holo-label">CURRENT_STATE</label>
-                        <select className="holo-select" value={demoState.studying} onChange={e => setDemoState({...demoState, studying: e.target.value})}>
-                            <option value="">[ SELECT ORIGIN ]</option>
-                            <option value="cs">CS Student</option>
-                            <option value="bio">Non-Tech Degree</option>
-                            <option value="self">Self-Taught</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label className="holo-label">TARGET_OBJECTIVE</label>
-                        <select className="holo-select" value={demoState.wantToBe} onChange={e => setDemoState({...demoState, wantToBe: e.target.value})}>
-                            <option value="">[ SELECT DESTINATION ]</option>
-                            <option value="web">Full-Stack Engineer</option>
-                            <option value="ai">AI Research Scientist</option>
-                            <option value="data">Data Analyst</option>
-                        </select>
-                    </div>
-
-                    <button className="holo-btn" type="submit" disabled={demoState.loading || !demoState.studying}>
-                        {demoState.loading ? 'COMPUTING PATH...' : 'INITIALIZE ROADMAP'}
-                    </button>
+              </div>
+              
+              <div className="demo-interface">
+                <form className="demo-form" onSubmit={handleDemoSubmit}>
+                  <div className="demo-field">
+                    <label>I am currently a...</label>
+                    <select value={demoState.studying} onChange={e => setDemoState({...demoState, studying: e.target.value, result: null})}>
+                      <option value="">Select your background</option>
+                      <option value="cs">CS Student</option>
+                      <option value="bio">Non-Tech Background</option>
+                      <option value="self">Self-Taught Developer</option>
+                    </select>
+                  </div>
+                  
+                  <div className="demo-field">
+                    <label>I want to become a...</label>
+                    <select value={demoState.wantToBe} onChange={e => setDemoState({...demoState, wantToBe: e.target.value, result: null})}>
+                      <option value="">Select your goal</option>
+                      <option value="web">Full-Stack Engineer</option>
+                      <option value="ai">AI/ML Engineer</option>
+                      <option value="data">Data Scientist</option>
+                    </select>
+                  </div>
+                  
+                  <button type="submit" className="demo-btn" disabled={!demoState.studying || !demoState.wantToBe || demoState.loading}>
+                    {demoState.loading ? (
+                      <><span className="spinner"></span> Generating...</>
+                    ) : (
+                      <>Generate My Roadmap <ArrowRight size={16} /></>
+                    )}
+                  </button>
                 </form>
-
+                
                 {demoState.result && (
-                    <div className="holo-result">
-                        <div style={{ display:'flex', alignItems:'center', gap:'12px', marginBottom:'16px' }}>
-                            <Jada size="sm" />
-                            <span style={{ fontSize:'0.9rem', color:'#2ea043', fontWeight:'bold' }}>PATH_OPTIMIZED_SUCCESSFULLY</span>
-                        </div>
-                        
-                        <div className="result-row">
-                            <div className="result-stat">
-                                <span className="stat-val">142h</span>
-                                <span className="stat-label">EST. TIME</span>
-                            </div>
-                            <div className="result-stat">
-                                <span className="stat-val">8</span>
-                                <span className="stat-label">PROJECTS</span>
-                            </div>
-                            <div className="result-stat">
-                                <span className="stat-val">+2400</span>
-                                <span className="stat-label">EXP GAIN</span>
-                            </div>
-                        </div>
-
-                        <div style={{ marginTop:'20px', padding:'16px', borderTop:'1px solid rgba(255,255,255,0.1)' }}>
-                            <div style={{ fontSize:'0.9rem', color:'white', marginBottom:'4px' }}>Recommended Entry:</div>
-                            <div style={{ color:'var(--neon-cyan)', fontFamily:'var(--font-mono)', fontSize:'0.85rem' }}>
-                                &gt; Module 101: Foundations of {demoState.wantToBe === 'ai' ? 'Neural Networks' : 'Modern Web Systems'}
-                            </div>
-                        </div>
+                  <motion.div 
+                    className="demo-result"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                  >
+                    <div className="result-header">
+                      <CheckCircle size={20} color="#2ea043" />
+                      <span>Your path is ready!</span>
                     </div>
+                    <div className="result-stats">
+                      <div className="result-stat-item">
+                        <span className="stat-value">~4 months</span>
+                        <span className="stat-label">Est. Duration</span>
+                      </div>
+                      <div className="result-stat-item">
+                        <span className="stat-value">8 Projects</span>
+                        <span className="stat-label">To Build</span>
+                      </div>
+                      <div className="result-stat-item">
+                        <span className="stat-value">142 Hours</span>
+                        <span className="stat-label">Of Learning</span>
+                      </div>
+                    </div>
+                    <a href="/signup" className="result-cta">Start This Journey →</a>
+                  </motion.div>
                 )}
-            </div>
+              </div>
+            </motion.div>
+            
+            {/* Medium Cards */}
+            <motion.div 
+              className="bento-card bento-medium"
+              initial={{ opacity: 0, y: 30 }}
+              animate={isProofInView ? { opacity: 1, y: 0 } : {}}
+              transition={{ duration: 0.5, delay: 0.3 }}
+            >
+              <div className="bento-icon"><Github size={32} /></div>
+              <h3>GitHub Verified</h3>
+              <p>Every project pushes real code to your GitHub. Build a contribution graph that speaks louder than any certificate.</p>
+              <div className="github-preview">
+                <div className="commit-graph">
+                  {Array(35).fill(0).map((_, i) => (
+                    <div key={i} className="commit-cell" style={{ opacity: Math.random() * 0.8 + 0.2 }} />
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+            
+            <motion.div 
+              className="bento-card bento-medium"
+              initial={{ opacity: 0, y: 30 }}
+              animate={isProofInView ? { opacity: 1, y: 0 } : {}}
+              transition={{ duration: 0.5, delay: 0.4 }}
+            >
+              <div className="bento-icon"><Brain size={32} /></div>
+              <h3>Adaptive AI</h3>
+              <p>JADA learns how you learn. Struggling with a concept? Get extra resources automatically. Flying through? Skip ahead.</p>
+              <div className="ai-visual">
+                <Jada size="md" />
+              </div>
+            </motion.div>
+            
+            {/* Small Cards */}
+            <motion.div 
+              className="bento-card bento-small"
+              initial={{ opacity: 0, y: 30 }}
+              animate={isProofInView ? { opacity: 1, y: 0 } : {}}
+              transition={{ duration: 0.5, delay: 0.5 }}
+            >
+              <TrendingUp size={24} />
+              <h4>Market-Aligned</h4>
+              <p>Curriculum updates weekly based on real job postings.</p>
+            </motion.div>
+            
+            <motion.div 
+              className="bento-card bento-small"
+              initial={{ opacity: 0, y: 30 }}
+              animate={isProofInView ? { opacity: 1, y: 0 } : {}}
+              transition={{ duration: 0.5, delay: 0.55 }}
+            >
+              <Users size={24} />
+              <h4>Peer Reviews</h4>
+              <p>Get code reviewed by other developers in the community.</p>
+            </motion.div>
+            
+            <motion.div 
+              className="bento-card bento-small"
+              initial={{ opacity: 0, y: 30 }}
+              animate={isProofInView ? { opacity: 1, y: 0 } : {}}
+              transition={{ duration: 0.5, delay: 0.6 }}
+            >
+              <Award size={24} />
+              <h4>Certificates</h4>
+              <p>Earn verifiable certificates for completed modules.</p>
+            </motion.div>
+          </div>
+        </div>
+      </section>
 
-            {/* FEATURE CARDS (SMALLER) */}
-             <div style={{ flex: 1, minWidth: '300px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                {[
-                    { title: "GitHub Verified", desc: "Every project you complete pushes code to your GitHub. Employers see green squares, not certificates." },
-                    { title: "Neural Adaptation", desc: "JADA adapts the curriculum as you learn. Struggle with React? Get extra resources automatically." },
-                    { title: "Market Aligned", desc: "Curriculum updates weekly based on real job postings from FAANG and startups." }
-                ].map((item, i) => (
-                    <div key={i} style={{ 
-                        padding: '32px', background: 'rgba(255,255,255,0.03)', 
-                        border: '1px solid rgba(255,255,255,0.05)', borderRadius: '20px' 
-                    }}>
-                        <h4 style={{ color: 'white', fontSize: '1.2rem', marginBottom: '8px', fontFamily: 'var(--font-display)' }}>{item.title}</h4>
-                        <p style={{ color: '#8b949e', lineHeight: 1.5 }}>{item.desc}</p>
-                    </div>
-                ))}
-             </div>
+      {/* Stats section removed - we're honest about being a new startup */}
+
+      {/* ═══════════════════════════════════════════════════════════════════════════
+          SECTION 6: FEEDBACK PROMPT - We're a startup, invite real feedback
+      ═══════════════════════════════════════════════════════════════════════════ */}
+      <section id="feedback" className="section-feedback" ref={testimonialsRef}>
+        <div className="section-container">
+          <motion.div 
+            className="feedback-card"
+            initial={{ opacity: 0, y: 30 }}
+            animate={isTestimonialsInView ? { opacity: 1, y: 0 } : {}}
+            transition={{ duration: 0.6 }}
+          >
+            <div className="feedback-icon">
+              <MessageSquare size={32} />
+            </div>
+            <h2 className="feedback-title">We're Building This For You</h2>
+            <p className="feedback-desc">
+              We're a young startup on a mission to fix developer education. 
+              Your feedback shapes what we build next.
+            </p>
+            <div className="feedback-cta-group">
+              <a href="/signup" className="feedback-btn-primary">
+                Try It Free & Tell Us What You Think
+              </a>
+              <a href="mailto:feedback@whatsnext.dev" className="feedback-btn-secondary">
+                Or just email us directly
+              </a>
+            </div>
+            <p className="feedback-note">
+              Already using WHATS-NEXT? We'd love to hear your story.
+            </p>
+          </motion.div>
         </div>
       </section>
 
 
-      {/* 🚀 SECTION 4: INVITATION (STARTUP VIBE) */}
+      {/* 🚀 SECTION 7: FINAL CTA (UNTOUCHED AS REQUESTED) */}
       <section className="section-invitation">
          <h2 className="invite-headline">
             BUILD.<br/>
@@ -449,13 +684,11 @@ export default function Landing() {
          </div>
       </section>
 
-      {/* FOOTER (Using new class) */}
+      {/* FOOTER */}
       <footer className="startup-footer">
-          {/* ... footer content (keep grid from previous step, just ensure wrapper class matches) ... */}
            <div className="footer-grid">
-               {/* Same footer content as before */}
                 <div className="footer-brand">
-                    <h4>⚡ WHATS-NEXT</h4>
+                    <h4> <Terminal size={24}/> WHATS-NEXT</h4>
                     <p className="footer-desc">
                         The AI-powered career accelerator for modern developers. Stop consuming tutorials. Start verifying skills.
                     </p>
@@ -464,9 +697,9 @@ export default function Landing() {
                 <div className="footer-col">
                     <h5>Platform</h5>
                     <div className="footer-links">
-                        <a href="#how">How it Works</a>
-                        <a href="#pricing">Pricing</a>
-                        <a href="#stories">Success Stories</a>
+                        <a href="#how-it-works" onClick={(e) => scrollToSection(e, '#how-it-works')}>How it Works</a>
+                        <a href="#features" onClick={(e) => scrollToSection(e, '#features')}>Features</a>
+                        <a href="#feedback" onClick={(e) => scrollToSection(e, '#feedback')}>Feedback</a>
                         <a href="/login">Login</a>
                     </div>
                 </div>

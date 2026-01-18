@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.conf import settings
+import uuid
 
 # ==========================================
 # 1. USER & PROFILE
@@ -55,200 +56,11 @@ class UserRoadmapItem(models.Model):
         ('active', 'Active (Learning)'),
         ('completed', 'Completed'),
     ]
-
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='roadmap_items')
-    label = models.CharField(max_length=200)
-    description = models.TextField(blank=True)
-    step_order = models.IntegerField(default=0)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='locked')
-    market_value = models.CharField(max_length=20, default="Med")
-    project_submission_link = models.URLField(blank=True, null=True)
-    submitted_at = models.DateTimeField(auto_now=True)
-    resources = models.JSONField(default=dict, blank=True)
-    project_prompt = models.TextField(blank=True)
-    verification_count = models.IntegerField(default=0)
-    custom_cv_text = models.TextField(blank=True, null=True, help_text="User edited achievement text")
     
-    def __str__(self):
-        return f"{self.user.username} -> {self.label} ({self.status})"
-
-# ==========================================
-# 3. COMMUNITY MODELS
-# ==========================================
-
-class Skill(models.Model):
-    name = models.CharField(max_length=100, unique=True)
-    def __str__(self): 
-        return self.name
-
-class ProjectReview(models.Model):
-    """
-    Tracks which users verified which projects (for reputation).
-    """
-    VOTE_CHOICES = [
-        ('up', 'Upvote'),
-        ('down', 'Downvote'),
-    ]
-    submission = models.ForeignKey(UserRoadmapItem, on_delete=models.CASCADE, related_name='reviews')
-    reviewer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    vote_type = models.CharField(max_length=10, choices=VOTE_CHOICES, default='up')
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        unique_together = ('submission', 'reviewer')
-
-    def __str__(self):
-        return f"{self.reviewer.username} verified {self.submission.label}"
-
-class ProjectComment(models.Model):
-    project = models.ForeignKey(UserRoadmapItem, on_delete=models.CASCADE, related_name='comments')
-    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    text = models.TextField(max_length=2000)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        ordering = ['-created_at']
-
-    def __str__(self):
-        return f"Comment by {self.author.username} on {self.project.label}"
-
-# ==========================================
-# 4. STREAK SYSTEM
-# ==========================================
-
-class UserActivity(models.Model):
-    """
-    Tracks daily contribution counts for the streak graph.
-    """
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='activities')
-    date = models.DateField()
-    count = models.IntegerField(default=0)
-
-    class Meta:
-        unique_together = ('user', 'date')
-
-# ==========================================
-# 5. QUIZ SYSTEM
-# ==========================================
-
-class Quiz(models.Model):
-    """
-    AI-generated quiz for each roadmap module.
-    """
-    roadmap_item = models.OneToOneField(UserRoadmapItem, on_delete=models.CASCADE, related_name='quiz')
-    questions = models.JSONField(help_text="List of question objects with answers")
-    user_answers = models.JSONField(default=list, blank=True, help_text="User's submitted answers")
-    score = models.IntegerField(default=0, help_text="Score out of 100")
-    passed = models.BooleanField(default=False, help_text="True if score >= 70%")
-    attempts = models.IntegerField(default=0, help_text="Number of times user took the quiz")
-    completed_at = models.DateTimeField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    
-    def __str__(self):
-        return f"Quiz for {self.roadmap_item.label} - Score: {self.score}%"
-
-# ==========================================
-# 6. EMPLOYER PROFILES & JOB POSTINGS
-# ==========================================
-
-class EmployerProfile(models.Model):
-    """
-    Profile for employers/recruiters using the platform.
-    """
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='employer_profile')
-    company_name = models.CharField(max_length=255)
-    company_logo_url = models.URLField(blank=True)
-    company_website = models.URLField(blank=True)
-    industry = models.CharField(max_length=100, blank=True)
-    is_verified = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
-    
-    def __str__(self):
-        return f"{self.company_name}"
-
-class JobPosting(models.Model):
-    """
-    Job postings created by employers.
-    """
-    LEVEL_CHOICES = [
-        ('intern', 'Internship'),
-        ('entry', 'Entry-Level'),
-        ('junior', 'Junior'),
-    ]
-    
-    employer = models.ForeignKey(EmployerProfile, on_delete=models.CASCADE, related_name='job_postings')
-    title = models.CharField(max_length=255)
-    description = models.TextField()
-    required_skills = models.JSONField(default=list, help_text="List of required skill keywords")
-    level = models.CharField(max_length=10, choices=LEVEL_CHOICES, default='entry')
-    location = models.CharField(max_length=255, default='Remote')
-    salary_range = models.CharField(max_length=100, blank=True)
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
-    def __str__(self):
-        return f"{self.title} at {self.employer.company_name}"
-
-class CandidateApplication(models.Model):
-    """
-    Tracks applications of learners to job postings.
-    """
-    STATUS_CHOICES = [
-        ('applied', 'Applied'),
-        ('reviewed', 'Reviewed'),
-        ('shortlisted', 'Shortlisted'),
-        ('interview', 'Interview'),
-        ('offer', 'Offer'),
-        ('rejected', 'Rejected'),
-    ]
-    
-    job_posting = models.ForeignKey(JobPosting, on_delete=models.CASCADE, related_name='applications')
-    candidate = models.ForeignKey(User, on_delete=models.CASCADE, related_name='job_applications')
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='applied')
-    match_score = models.IntegerField(default=0, help_text="Skill match percentage 0-100")
-    applied_at = models.DateTimeField(auto_now_add=True)
-    target_career = models.CharField(max_length=255, blank=True)
-    budget_preference = models.CharField(max_length=10, choices=[('FREE', 'Free Only'), ('PAID', 'Can Pay')], default='FREE')
-    current_level = models.CharField(max_length=50, default='Beginner')
-    reputation_score = models.IntegerField(default=0)
-
-    github_link = models.URLField(blank=True, null=True)
-    linkedin_link = models.URLField(blank=True, null=True)
-
-    groups = models.ManyToManyField(
-        'auth.Group',
-        verbose_name='groups',
-        blank=True,
-        help_text='The groups this user belongs to. A user will get all permissions granted to each of their groups.',
-        related_name="core_user_set",
-        related_query_name="core_user",
-    )
-    user_permissions = models.ManyToManyField(
-        'auth.Permission',
-        verbose_name='user permissions',
-        blank=True,
-        help_text='Specific permissions for this user.',
-        related_name="core_user_set",
-        related_query_name="core_user",
-    )
-
-    def __str__(self):
-        return self.username
-
-# ==========================================
-# 2. THE PERSONALIZED ROADMAP
-# ==========================================
-
-class UserRoadmapItem(models.Model):
-    """
-    Stores a specific node generated by AI for a specific user.
-    """
-    STATUS_CHOICES = [
-        ('locked', 'Locked'),
-        ('active', 'Active (Learning)'),
-        ('completed', 'Completed'),
+    VERIFICATION_STATUS_CHOICES = [
+        ('pending', 'Pending Review'),
+        ('passed', 'Passed'),
+        ('failed', 'Failed'),
     ]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='roadmap_items')
@@ -263,6 +75,16 @@ class UserRoadmapItem(models.Model):
     project_prompt = models.TextField(blank=True)
     verification_count = models.IntegerField(default=0)
     custom_cv_text = models.TextField(blank=True, null=True, help_text="User edited achievement text")
+    
+    # Project Verification Fields (Phase 3)
+    github_score = models.IntegerField(default=0, help_text="Automated GitHub project score (0-100)")
+    score_breakdown = models.JSONField(default=dict, blank=True, help_text="Detailed scoring breakdown")
+    verification_status = models.CharField(
+        max_length=20, 
+        choices=VERIFICATION_STATUS_CHOICES, 
+        default='pending',
+        help_text="Project verification status"
+    )
     
     def __str__(self):
         return f"{self.user.username} -> {self.label} ({self.status})"
@@ -509,3 +331,65 @@ class PostTag(models.Model):
     
     def __str__(self):
         return self.name
+
+# ==========================================
+# 8. CERTIFICATE SYSTEM (Phase 3)
+# ==========================================
+
+class Certificate(models.Model):
+    """
+    Verified project completion certificate.
+    Generated on-demand when a project passes verification.
+    """
+    certificate_id = models.CharField(
+        max_length=50, 
+        unique=True, 
+        help_text="Unique certificate ID (e.g., WN-REACT-2026-a3f2)"
+    )
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='certificates')
+    roadmap_item = models.OneToOneField(
+        UserRoadmapItem, 
+        on_delete=models.CASCADE, 
+        related_name='certificate'
+    )
+    
+    # Verification data at time of issuance
+    github_score = models.IntegerField(help_text="Score at time of certificate issuance")
+    peer_verifications = models.IntegerField(default=0, help_text="Peer verification count at issuance")
+    score_breakdown = models.JSONField(default=dict, help_text="Detailed breakdown at issuance")
+    
+    # Metadata
+    issued_at = models.DateTimeField(auto_now_add=True)
+    github_repo_url = models.URLField(blank=True)
+    
+    class Meta:
+        ordering = ['-issued_at']
+        indexes = [
+            models.Index(fields=['certificate_id']),
+            models.Index(fields=['user', '-issued_at']),
+        ]
+    
+    def __str__(self):
+        return f"{self.certificate_id} - {self.user.username}"
+    
+    @staticmethod
+    def generate_certificate_id(module_label):
+        """
+        Generate a unique certificate ID.
+        Format: WN-{MODULE_KEYWORD}-{YEAR}-{SHORT_UUID}
+        Example: WN-REACT-2026-a3f2
+        """
+        from datetime import datetime
+        
+        # Extract first significant keyword from module label
+        keywords = module_label.upper().split()
+        keyword = 'MOD'
+        for word in keywords:
+            if len(word) >= 3 and word.isalpha():
+                keyword = word[:6]  # Max 6 chars
+                break
+        
+        year = datetime.now().year
+        short_uuid = uuid.uuid4().hex[:4]
+        
+        return f"WN-{keyword}-{year}-{short_uuid}"

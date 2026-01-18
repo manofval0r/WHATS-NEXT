@@ -24,6 +24,12 @@ urlpatterns = [
     path('api/roadmap-status/<str:task_id>/', views.check_roadmap_status),
     path('api/modules/<int:module_id>/generate-lessons/',generate_module_lessons),
     path('api/submit-project/<int:node_id>/', views.submit_project),
+    
+    # Project Verification (Phase 3)
+    path('api/preview-score/', views.preview_project_score),
+    path('api/certificate/<int:item_id>/', views.get_certificate),
+    path('api/certificate/<int:item_id>/generate/', views.generate_certificate_pdf),
+    
     path('api/profile/', views.get_user_profile),
     path('api/profile/me/', views.get_my_profile),
     path('api/profile/streak/', views.get_user_streak),
