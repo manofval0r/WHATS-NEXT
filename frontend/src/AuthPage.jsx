@@ -16,6 +16,7 @@ export default function AuthPage() {
     target_career: '',
     university_course_raw: '',
     budget_preference: 'FREE',
+        gender: 'unspecified',
     rememberMe: false
   });
 
@@ -236,6 +237,27 @@ export default function AuthPage() {
                                 onChange={handleChange}
                                 required 
                             />
+                        </div>
+                    </div>
+                )}
+
+                {!isLogin && (
+                    <div className="auth-form-group">
+                        <label className="auth-label">Gender (optional)</label>
+                        <div className="auth-input-wrapper">
+                            <User className="auth-input-icon" size={18} />
+                            <select
+                                className="auth-input"
+                                name="gender"
+                                value={formData.gender}
+                                onChange={handleChange}
+                                style={{ paddingRight: '12px' }}
+                            >
+                                <option value="unspecified">Prefer not to say</option>
+                                <option value="female">Female</option>
+                                <option value="male">Male</option>
+                                <option value="nonbinary">Non-binary</option>
+                            </select>
                         </div>
                     </div>
                 )}

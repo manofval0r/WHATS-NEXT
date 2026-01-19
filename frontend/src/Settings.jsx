@@ -7,6 +7,13 @@ import { useIsMobile } from './hooks/useMediaQuery';
 import { usePremium } from './premium/PremiumContext';
 
 export default function Settings() {
+    const [username, setUsername] = useState('');
+    const [newUsername, setNewUsername] = useState('');
+    const [usernameSaving, setUsernameSaving] = useState(false);
+    const [lastUsernameChangeAt, setLastUsernameChangeAt] = useState(null);
+    const [avatarSeed, setAvatarSeed] = useState(null);
+    const [gender, setGender] = useState('unspecified');
+
     const [budget, setBudget] = useState('FREE');
     const [loading, setLoading] = useState(false);
     const [selectedTheme, setSelectedTheme] = useState('neon-dojo');
@@ -36,6 +43,11 @@ export default function Settings() {
     const fetchSettings = async () => {
         try {
             const res = await api.get('/api/settings/');
+            setUsername(res.data.username || localStorage.getItem('username') || '');
+            setNewUsername('');
+            setLastUsernameChangeAt(res.data.last_username_change_at || null);
+            setAvatarSeed(res.data.avatar_seed || null);
+            setGender(res.data.gender || 'unspecified');
             setBudget(res.data.budget_preference || 'FREE');
             setProfileVisibility(res.data.profile_visibility || 'public');
             setAllowIndexing(res.data.allow_indexing !== undefined ? res.data.allow_indexing : true);
@@ -52,11 +64,48 @@ export default function Settings() {
         }
     };
 
+    const computeUsernameCooldown = () => {
+        if (!lastUsernameChangeAt) return { allowed: true, daysRemaining: 0, nextAllowedAt: null };
+        const last = new Date(lastUsernameChangeAt);
+        const next = new Date(last.getTime() + 20 * 24 * 60 * 60 * 1000);
+        const now = new Date();
+        const diffMs = next.getTime() - now.getTime();
+        if (diffMs <= 0) return { allowed: true, daysRemaining: 0, nextAllowedAt: next };
+        const daysRemaining = Math.ceil(diffMs / (24 * 60 * 60 * 1000));
+        return { allowed: false, daysRemaining, nextAllowedAt: next };
+    };
+
+    const handleUpdateUsername = async () => {
+        const desired = (newUsername || '').trim();
+        if (!desired) {
+            alert('Enter a new username');
+            return;
+        }
+        setUsernameSaving(true);
+        try {
+            const res = await api.post('/api/account/username/', { username: desired });
+            const updated = res.data?.username || desired;
+            setUsername(updated);
+            setNewUsername('');
+            localStorage.setItem('username', updated);
+            setLastUsernameChangeAt(res.data?.last_username_change_at || new Date().toISOString());
+            alert('Username updated');
+        } catch (e) {
+            const msg = e?.response?.data?.error || 'Failed to update username';
+            const next = e?.response?.data?.next_allowed_at;
+            if (next) setLastUsernameChangeAt(lastUsernameChangeAt || new Date().toISOString());
+            alert(msg);
+        } finally {
+            setUsernameSaving(false);
+        }
+    };
+
     const handleUpdateSettings = async () => {
         setLoading(true);
         try {
             await api.post('/api/settings/update/', {
                 budget,
+                gender,
                 profile_visibility: profileVisibility,
                 allow_indexing: allowIndexing,
                 activity_visibility: activityVisibility,
@@ -132,6 +181,84 @@ export default function Settings() {
                 </button>
 
                 <h1 style={headerStyle}>Settings</h1>
+
+                {/* ACCOUNT CARD */}
+                <div style={cardStyle}>
+                    <h2 style={sectionTitle}><Shield size={20} /> Account</h2>
+
+                    <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginBottom: '16px' }}>
+                        <div style={{ width: 56, height: 56, borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border-subtle)', background: 'var(--bg-dark)' }}>
+                            <img
+                                src={`https://api.dicebear.com/7.x/identicon/svg?seed=${avatarSeed || username || 'User'}`}
+                                alt="Avatar"
+                                style={{ width: '100%', height: '100%' }}
+                            />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                            <div style={{ color: 'var(--text-main)', fontSize: 14, fontWeight: 600 }}>@{username || 'user'}</div>
+                            <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>Stable, gender-neutral avatar (no uploads needed).</div>
+                        </div>
+                    </div>
+
+                    {/* Username change */}
+                    {(() => {
+                        const cd = computeUsernameCooldown();
+                        return (
+                            <div style={{ marginBottom: '18px' }}>
+                                <label style={labelStyle}>Change Username (once every 20 days)</label>
+                                <input
+                                    value={newUsername}
+                                    onChange={(e) => setNewUsername(e.target.value)}
+                                    placeholder="new_username"
+                                    style={{
+                                        width: '100%',
+                                        background: 'var(--bg-dark)',
+                                        border: '1px solid var(--border-subtle)',
+                                        color: 'var(--text-main)',
+                                        padding: '14px 16px',
+                                        borderRadius: '6px',
+                                        outline: 'none',
+                                        fontSize: '16px',
+                                        minHeight: '48px',
+                                        marginBottom: 10
+                                    }}
+                                />
+                                {!cd.allowed && (
+                                    <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 10 }}>
+                                        Next change available in ~{cd.daysRemaining} day(s).
+                                    </div>
+                                )}
+                                <button
+                                    onClick={handleUpdateUsername}
+                                    disabled={usernameSaving || !computeUsernameCooldown().allowed}
+                                    style={{
+                                        ...secondaryBtnStyle,
+                                        width: '100%',
+                                        justifyContent: 'center',
+                                        opacity: (usernameSaving || !computeUsernameCooldown().allowed) ? 0.6 : 1
+                                    }}
+                                >
+                                    {usernameSaving ? 'Updating…' : 'Update Username'}
+                                </button>
+                            </div>
+                        );
+                    })()}
+
+                    {/* Gender */}
+                    <div style={{ marginBottom: '0px' }}>
+                        <label style={labelStyle}>Gender (optional)</label>
+                        <select
+                            value={gender}
+                            onChange={(e) => setGender(e.target.value)}
+                            style={selectStyle}
+                        >
+                            <option value="unspecified">Prefer not to say</option>
+                            <option value="female">Female</option>
+                            <option value="male">Male</option>
+                            <option value="nonbinary">Non-binary</option>
+                        </select>
+                    </div>
+                </div>
 
                 {/* PREMIUM STATUS CARD */}
                 <div style={cardStyle}>

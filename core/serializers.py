@@ -12,7 +12,7 @@ class RegisterSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         # These fields must match what is inside core/models.py
-        fields = ['username', 'password', 'email', 'target_career', 'university_course_raw', 'budget_preference']
+        fields = ['username', 'password', 'email', 'target_career', 'university_course_raw', 'budget_preference', 'gender']
 
     def create(self, validated_data):
         # Create the user using the secure helper
@@ -22,7 +22,8 @@ class RegisterSerializer(serializers.ModelSerializer):
             password=validated_data['password'],
             target_career=validated_data.get('target_career', ''),
             university_course_raw=validated_data.get('university_course_raw', ''),
-            budget_preference=validated_data.get('budget_preference', 'FREE')
+            budget_preference=validated_data.get('budget_preference', 'FREE'),
+            gender=validated_data.get('gender', 'unspecified'),
         )
         return user
 
@@ -55,6 +56,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'username', 'target_career', 'current_level',
+            'gender', 'avatar_seed', 'last_username_change_at',
             'github_link', 'linkedin_link', 'twitter_link', 'website_link',
             'profile_visibility', 'allow_indexing', 'activity_visibility',
             'reputation_score',

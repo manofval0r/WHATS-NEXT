@@ -62,6 +62,9 @@ export default function App() {
           <Route path="/auth-callback" element={<AuthCallback />} />
           <Route path="/onboarding" element={<Onboarding />} />
 
+          {/* Public Profile Route */}
+          <Route path="/u/:username" element={<UserProfile />} />
+
           {/* Private Routes */}
           <Route path="/roadmap" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><ProfilePageV2 /></ProtectedRoute>} />
@@ -93,12 +96,6 @@ export default function App() {
           <Route path="/resources" element={
             <ProtectedRoute>
               <Resources />
-            </ProtectedRoute>
-          } />
-
-          <Route path="/u/:username" element={
-            <ProtectedRoute>
-              <UserProfile />
             </ProtectedRoute>
           } />
 

@@ -1,6 +1,7 @@
 import os
 import json
 import requests
+import time
 from jsonschema import validate, ValidationError
 from dotenv import load_dotenv
 
@@ -60,6 +61,15 @@ def generate_detailed_roadmap(niche, uni_course, budget):
 
     prompt = f"""
     Act as a Senior Technical Career Coach.
+
+    TARGET CAREER PATH: {niche}
+    BUDGET: {budget}
+    {budget_context}
+    {uni_context}
+
+    You must generate a roadmap ONLY for the target career path above.
+    The modules must be specific to {niche} (do not return generic JavaScript/web modules unless they are truly required for {niche}).
+
     You must generate modules AND a lesson outline for each module.
        {{
          "primary": [
@@ -112,13 +122,13 @@ def generate_detailed_roadmap(niche, uni_course, budget):
             }},
                         "project_prompt": "Specific project idea",
                         "lessons": [
-                                {
+                                {{
                                     "title": "Lesson title",
                                     "description": "Short description",
                                     "phase": 1,
                                     "order": 1,
                                     "estimated_minutes": 30
-                                }
+                                }}
                         ]
         }}
     ]
@@ -129,13 +139,35 @@ def generate_detailed_roadmap(niche, uni_course, budget):
             "contents": [{ "parts": [{"text": prompt}] }],
             "generationConfig": { "temperature": 0.7 }
         }
-        print(f"[AI] Calling Gemini API at {GEMINI_URL}")
-        print(f"[AI] Payload: {json.dumps(payload, indent=2)[:200]}...")
-        response = requests.post(GEMINI_URL, json=payload, timeout=60)
+        if not GEMINI_API_KEY:
+            raise RuntimeError("GEMINI_API_KEY is missing")
+
+        # Avoid logging secrets: never print the full URL containing the API key.
+        print("[AI] Calling Gemini API (gemini-2.5-flash)")
+
+        # Retry a couple times on transient timeouts.
+        response = None
+        last_error = None
+        for attempt in range(3):
+            try:
+                # timeout=(connect, read)
+                response = requests.post(GEMINI_URL, json=payload, timeout=(10, 90))
+                last_error = None
+                break
+            except (requests.exceptions.ReadTimeout, requests.exceptions.ConnectTimeout) as e:
+                last_error = e
+                backoff = 1.5 ** attempt
+                print(f"[AI] Timeout calling Gemini (attempt {attempt + 1}/3). Retrying in {backoff:.1f}s...")
+                time.sleep(backoff)
+
+        if last_error is not None:
+            raise last_error
+
         print(f"[AI] Response status: {response.status_code}")
         
         if response.status_code != 200:
-            print(f"[AI] API Error: {response.text}")
+            # Don't dump full body; can contain large content.
+            print(f"[AI] API Error: {response.text[:500]}")
             return get_fallback_roadmap(niche, uni_course)
 
         result = response.json()

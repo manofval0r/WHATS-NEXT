@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import api from './api';
+import axios from 'axios';
 import {
     User,
     MapPin,
@@ -29,14 +29,21 @@ export default function UserProfile() {
 
     const fetchProfile = async () => {
         try {
-            const response = await api.get(`/api/profile/${username}/`);
+            const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+            const token = localStorage.getItem('access_token');
+            const response = await axios.get(`${API_BASE_URL}/api/profile/${encodeURIComponent(username)}/`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+            });
             setProfile(response.data);
         } catch (err) {
             console.error("Error fetching profile:", err);
             if (err.response?.data) {
                 console.error("BACKEND ERROR DETAILS:", err.response.data);
             }
-            setError("User not found");
+            if (err.response?.status === 401) setError('This profile is community-only. Sign in to view it.');
+            else if (err.response?.status === 403) setError('This profile is private.');
+            else if (err.response?.status === 404) setError('User not found');
+            else setError('Failed to load profile');
         } finally {
             setLoading(false);
         }
@@ -91,11 +98,14 @@ export default function UserProfile() {
                             background: 'linear-gradient(135deg, #21262d 0%, #161b22 100%)',
                             border: '2px solid var(--border-subtle)',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: '40px', fontWeight: 'bold', color: '#fff',
-                            fontFamily: 'JetBrains Mono',
-                            boxShadow: '0 10px 30px rgba(0,0,0,0.3)'
+                            boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
+                            overflow: 'hidden'
                         }}>
-                            {profile.username.charAt(0).toUpperCase()}
+                            <img
+                                src={`https://api.dicebear.com/7.x/identicon/svg?seed=${profile.avatar_seed || profile.username}`}
+                                alt={`@${profile.username} avatar`}
+                                style={{ width: '100%', height: '100%' }}
+                            />
                         </div>
 
                         {/* Info */}

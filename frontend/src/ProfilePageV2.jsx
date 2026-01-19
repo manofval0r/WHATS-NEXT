@@ -273,7 +273,7 @@ export default function ProfilePageV2() {
         <div className="profile-header-card">
           <div className="profile-avatar-wrapper">
             <img
-              src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${profile?.username || 'User'}`}
+              src={`https://api.dicebear.com/7.x/identicon/svg?seed=${profile?.avatar_seed || profile?.username || 'User'}`}
               alt="Avatar"
               className="profile-avatar"
             />

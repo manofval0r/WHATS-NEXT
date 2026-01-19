@@ -273,6 +273,7 @@ def complete_onboarding(request):
     niche = request.data.get('niche', '').strip()
     university_course = request.data.get('university_course', '').strip()
     budget = request.data.get('budget', 'FREE').upper()
+    gender = request.data.get('gender', '').strip().lower()
     
     # Validate required field
     if not niche:
@@ -285,16 +286,23 @@ def complete_onboarding(request):
     if len(university_course) > 200:
         return Response({"error": "Course name must be less than 200 characters"}, status=400)
     
-    # Whitelist budget options
-    allowed_budgets = ['FREE', 'MEDIUM', 'HIGH']
+    # Whitelist budget options (match User.budget_preference)
+    allowed_budgets = ['FREE', 'PAID']
     if budget not in allowed_budgets:
         return Response({"error": f"Budget must be one of {allowed_budgets}"}, status=400)
+
+    # Whitelist gender options (match User.gender choices)
+    allowed_genders = {'unspecified', 'female', 'male', 'nonbinary'}
+    if gender and gender not in allowed_genders:
+        return Response({"error": f"Gender must be one of {sorted(allowed_genders)}"}, status=400)
     
     try:
         # Update user profile
         user.target_career = niche
         user.university_course_raw = university_course
         user.budget_preference = budget
+        if gender:
+            user.gender = gender
         user.save()
         
         # Generate roadmap
@@ -360,6 +368,41 @@ def complete_onboarding(request):
 @permission_classes([IsAuthenticated])
 def get_my_roadmap(request):
     user = request.user
+
+    def _format_items(items_qs):
+        formatted_nodes = []
+        formatted_edges = []
+        items_list = list(items_qs)
+        for i, item in enumerate(items_list):
+            node_id = str(item.id)
+            formatted_nodes.append({
+                "id": node_id,
+                "type": "customNode",
+                "position": {"x": 250, "y": 500 + (i * 150)},
+                "data": {
+                    "label": item.label,
+                    "status": item.status,
+                    "description": item.description,
+                    "market_value": item.market_value,
+                    "resources": item.resources,
+                    "project_prompt": item.project_prompt,
+                },
+            })
+            if i > 0:
+                prev_id = str(items_list[i - 1].id)
+                formatted_edges.append({
+                    "id": f"e{prev_id}-{node_id}",
+                    "source": prev_id,
+                    "target": node_id,
+                    "animated": True,
+                    "style": {"stroke": "#00f2ff"},
+                })
+
+        is_fallback = False
+        if items_list:
+            is_fallback = (items_list[0].resources or {}).get('is_fallback', False)
+
+        return formatted_nodes, formatted_edges, is_fallback
     
     # Handle DELETE request (clear roadmap for regeneration)
     if request.method == 'DELETE':
@@ -387,43 +430,8 @@ def get_my_roadmap(request):
     
     if existing_items.exists() and not force_regenerate:
         print(f"Found existing roadmap with {existing_items.count()} items in database")
-        formatted_nodes = []
-        formatted_edges = []
-        items_list = list(existing_items)
-        
-        for i, item in enumerate(items_list):
-            node_id = str(item.id)
-            formatted_nodes.append({
-                "id": node_id,
-                "type": "customNode",
-                "position": { "x": 250, "y": 500 + (i * 150) },
-                "data": {
-                    "label": item.label,
-                    "status": item.status,
-                    "description": item.description,
-                    "market_value": item.market_value,
-                    "resources": item.resources,
-                    "project_prompt": item.project_prompt
-                }
-            })
-            if i > 0:
-                prev_id = str(items_list[i-1].id)
-                formatted_edges.append({
-                    "id": f"e{prev_id}-{node_id}",
-                    "source": prev_id,
-                    "target": node_id,
-                    "animated": True,
-                    "style": { "stroke": "#00f2ff" }
-                })
-        
+        formatted_nodes, formatted_edges, is_fallback = _format_items(existing_items)
         print(f"Returning {len(formatted_nodes)} nodes from database")
-        
-        # Check if fallback
-        is_fallback = False
-        if items_list:
-            # Check the first item
-            is_fallback = items_list[0].resources.get('is_fallback', False)
-            
         return Response({ 
             "nodes": formatted_nodes, 
             "edges": formatted_edges, 
@@ -432,16 +440,36 @@ def get_my_roadmap(request):
 
     # Generate roadmap synchronously (new or force_regenerate)
     if force_regenerate:
-        print("Force regenerate requested, deleting existing roadmap...")
-        UserRoadmapItem.objects.filter(user=user).delete()
+        print("Force regenerate requested")
     else:
         print("No existing roadmap, generating new one...")
+
+    # De-dupe rapid regen requests and prevent overwriting a good roadmap with fallback.
+    from django.core.cache import cache
+    lock_key = f"roadmap_gen_lock:{user.id}"
+    if cache.get(lock_key):
+        if existing_items.exists():
+            formatted_nodes, formatted_edges, is_fallback = _format_items(existing_items)
+            return Response({
+                "error": "AI is busy generating your roadmap. Please try again in a moment.",
+                "nodes": formatted_nodes,
+                "edges": formatted_edges,
+                "is_fallback": is_fallback,
+                "generation_in_progress": True
+            }, status=200)
+
+        return Response({
+            "error": "AI is busy generating your roadmap. Please try again in a moment.",
+            "nodes": [],
+            "edges": []
+        }, status=429)
+    cache.set(lock_key, True, timeout=120)
     
     from .ai_logic import generate_detailed_roadmap
     
     niche = user.target_career or 'Software Development'
     uni_course = user.normalized_course or user.university_course_raw or 'Self-taught'
-    budget = user.budget_preference or 'free'
+    budget = user.budget_preference or 'FREE'
     
     try:
         print(f"Calling generate_detailed_roadmap({niche}, {uni_course}, {budget})")
@@ -449,59 +477,49 @@ def get_my_roadmap(request):
         if not modules:
             raise ValueError("AI returned no modules; using offline fallback")
         print(f"Generated {len(modules)} modules")
-        
-        created_items = []
-        for i, module in enumerate(modules):
-            resources = module.get('resources', {}) or {}
-            if module.get('lessons'):
-                resources['lesson_outline'] = module.get('lessons')
 
-            item = UserRoadmapItem.objects.create(
-                user=user,
-                step_order=i,
-                label=module.get('label', 'Module'),
-                description=module.get('description', ''),
-                status='active' if i == 0 else 'locked',
-                market_value=module.get('market_value', 'Med'),
-                resources=resources,
-                project_prompt=module.get('project_prompt', '')
-            )
-            created_items.append(item)
-        
-        formatted_nodes = []
-        formatted_edges = []
-        for i, item in enumerate(created_items):
-            node_id = str(item.id)
-            formatted_nodes.append({
-                "id": node_id,
-                "type": "customNode",
-                "position": { "x": 250, "y": 500 + (i * 150) },
-                "data": {
-                    "label": item.label,
-                    "status": item.status,
-                    "description": item.description,
-                    "market_value": item.market_value,
-                    "resources": item.resources,
-                    "project_prompt": item.project_prompt
-                }
-            })
-            if i > 0:
-                prev_id = str(created_items[i-1].id)
-                formatted_edges.append({
-                    "id": f"e{prev_id}-{node_id}",
-                    "source": prev_id,
-                    "target": node_id,
-                    "animated": True,
-                    "style": { "stroke": "#00f2ff" }
-                })
-        
+        from django.db import transaction
+        with transaction.atomic():
+            # Only replace roadmap after we have a valid response.
+            UserRoadmapItem.objects.filter(user=user).delete()
+
+            created_items = []
+            for i, module in enumerate(modules):
+                resources = module.get('resources', {}) or {}
+                if module.get('lessons'):
+                    resources['lesson_outline'] = module.get('lessons')
+
+                item = UserRoadmapItem.objects.create(
+                    user=user,
+                    step_order=i,
+                    label=module.get('label', 'Module'),
+                    description=module.get('description', ''),
+                    status='active' if i == 0 else 'locked',
+                    market_value=module.get('market_value', 'Med'),
+                    resources=resources,
+                    project_prompt=module.get('project_prompt', '')
+                )
+                created_items.append(item)
+
+        formatted_nodes, formatted_edges, _ = _format_items(created_items)
         print(f"Returning {len(formatted_nodes)} nodes after generation")
-        return Response({ "nodes": formatted_nodes, "edges": formatted_edges })
+        return Response({"nodes": formatted_nodes, "edges": formatted_edges})
+
     except Exception as e:
         import traceback
         print(f"\n!!! ERROR GENERATING ROADMAP !!!")
         print(f"Exception: {type(e).__name__}: {str(e)}")
         traceback.print_exc()
+
+        # If we already have a roadmap, keep it rather than overwriting with fallback.
+        if existing_items.exists():
+            kept_nodes, kept_edges, is_fallback = _format_items(existing_items)
+            return Response({
+                "nodes": kept_nodes,
+                "edges": kept_edges,
+                "is_fallback": is_fallback,
+                "regen_failed": True
+            })
 
         fallback_modules = build_fallback_modules(niche)
         if fallback_modules:
@@ -560,6 +578,9 @@ def get_my_roadmap(request):
             "nodes": [],
             "edges": []
         }, status=500)
+
+    finally:
+        cache.delete(lock_key)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -1751,6 +1772,10 @@ def update_settings(request):
     
     if request.method == 'GET':
         return Response({
+            "username": user.username,
+            "gender": getattr(user, 'gender', 'unspecified'),
+            "avatar_seed": str(getattr(user, 'avatar_seed', '')) if getattr(user, 'avatar_seed', None) else None,
+            "last_username_change_at": user.last_username_change_at.isoformat() if getattr(user, 'last_username_change_at', None) else None,
             "budget_preference": user.budget_preference,
             "profile_visibility": getattr(user, 'profile_visibility', 'public'),
             "allow_indexing": getattr(user, 'allow_indexing', True),
@@ -1760,6 +1785,13 @@ def update_settings(request):
     
     # POST - Update settings
     user.budget_preference = request.data.get('budget', user.budget_preference)
+
+    if 'gender' in request.data:
+        gender = str(request.data.get('gender') or '').strip().lower() or 'unspecified'
+        allowed_genders = {'unspecified', 'female', 'male', 'nonbinary'}
+        if gender not in allowed_genders:
+            return Response({"error": f"Gender must be one of {sorted(allowed_genders)}"}, status=400)
+        user.gender = gender
 
     if 'profile_visibility' in request.data:
         user.profile_visibility = request.data['profile_visibility']
@@ -2067,18 +2099,21 @@ def delete_comment(request, comment_id):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def get_public_user_profile(request, username):
     """Get a user's profile with projects and stats (subject to privacy settings)."""
     user = get_object_or_404(User, username=username)
 
     visibility = getattr(user, 'profile_visibility', 'public')
-    if user != request.user:
-        if visibility == 'private':
+
+    # If requesting someone else's profile, enforce privacy rules.
+    if not request.user.is_authenticated:
+        if visibility != 'public':
+            return Response({"error": "Authentication required"}, status=401)
+    else:
+        if user != request.user and visibility == 'private':
             return Response({"error": "Profile is private"}, status=403)
-        # 'community' and 'public' are both viewable by authenticated users.
+        # 'community' and 'public' are viewable by authenticated users.
     
     # User basic info
     profile_data = UserProfileSerializer(user).data
@@ -2115,6 +2150,49 @@ def get_my_profile(request):
 # ==========================================
 # 8. ACCOUNT MANAGEMENT
 # ==========================================
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def update_username(request):
+    """Update username with a 20-day cooldown."""
+    from django.utils import timezone
+    from datetime import timedelta
+
+    user = request.user
+    new_username = (request.data.get('username') or '').strip()
+
+    if not new_username:
+        return Response({"error": "Username is required"}, status=400)
+
+    if new_username == user.username:
+        return Response({"message": "Username unchanged", "username": user.username})
+
+    # Basic sanity bounds (Django also enforces max length at DB level)
+    if len(new_username) > 150:
+        return Response({"error": "Username is too long"}, status=400)
+
+    cooldown = timedelta(days=20)
+    last_changed = getattr(user, 'last_username_change_at', None)
+    if last_changed:
+        next_allowed = last_changed + cooldown
+        if timezone.now() < next_allowed:
+            return Response({
+                "error": "Username can only be changed once every 20 days",
+                "next_allowed_at": next_allowed.isoformat(),
+            }, status=400)
+
+    if User.objects.filter(username=new_username).exclude(id=user.id).exists():
+        return Response({"error": "That username is already taken"}, status=400)
+
+    user.username = new_username
+    user.last_username_change_at = timezone.now()
+    user.save(update_fields=['username', 'last_username_change_at'])
+
+    return Response({
+        "message": "Username updated",
+        "username": user.username,
+        "last_username_change_at": user.last_username_change_at.isoformat() if user.last_username_change_at else None,
+    })
 
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])

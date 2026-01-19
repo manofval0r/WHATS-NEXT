@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Cpu, Code, Globe, Database, Zap, Sparkles, Brain, Layout } from 'lucide-react';
+import { Cpu, Code, Globe, Database, Zap, Sparkles, Brain, Layout, Server, Smartphone, BarChart3, PencilLine } from 'lucide-react';
+import api from './api';
 import './Onboarding.css';
 
 const STEPS = [
   "Role Selection",
   "Experience Level",
-  "Learning Focus",
+  "Profile Setup",
   "Calibration"
 ];
 
@@ -14,12 +15,16 @@ export default function Onboarding() {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
   const [isCalibrating, setIsCalibrating] = useState(false);
+  const [error, setError] = useState(null);
   
   // Form State
   const [formData, setFormData] = useState({
     role: null,
     level: null,
-    focus: null
+    gender: 'unspecified',
+    budget: 'FREE',
+    university_course: '',
+    other_career_path: ''
   });
 
   const handleSelect = (key, value) => {
@@ -27,25 +32,57 @@ export default function Onboarding() {
   };
 
   const handleNext = () => {
+    setError(null);
     if (currentStep < STEPS.length - 2) {
       setCurrentStep(prev => prev + 1);
-    } else {
-      // Final Step -> Calibration
-      setCurrentStep(prev => prev + 1);
-      startCalibration();
+      return;
     }
+    // Final Step -> Calibration
+    setCurrentStep(prev => prev + 1);
+    startCalibration();
   };
 
   const handleBack = () => {
     if (currentStep > 0) setCurrentStep(prev => prev - 1);
   };
 
-  const startCalibration = () => {
+  const startCalibration = async () => {
     setIsCalibrating(true);
-    // Fake async process
-    setTimeout(() => {
-        navigate('/roadmap'); // Redirect to Dashboard after "calibration"
-    }, 3000);
+    setError(null);
+
+    const roleToNiche = {
+      fullstack: 'Full Stack Developer',
+      frontend: 'Frontend Developer',
+      backend: 'Backend Developer',
+      data: 'Data Scientist',
+      devops: 'DevOps Engineer',
+      mobile: 'Mobile Developer',
+    };
+
+    const custom = (formData.other_career_path || '').trim();
+    const niche = formData.role === 'other' ? custom : (roleToNiche[formData.role] || 'Software Development');
+
+    try {
+      await api.post('/api/complete-onboarding/', {
+        niche,
+        university_course: formData.university_course || 'Self-taught',
+        budget: formData.budget,
+        gender: formData.gender,
+      });
+
+      // Keep UI consistent
+      const profileRes = await api.get('/api/profile/');
+      const profile = profileRes.data?.profile || profileRes.data;
+      if (profile?.username) localStorage.setItem('username', profile.username);
+
+      navigate('/dashboard');
+    } catch (e) {
+      console.error('Onboarding failed', e);
+      const msg = e?.response?.data?.error || 'Onboarding failed. Please try again.';
+      setError(msg);
+      setIsCalibrating(false);
+      setCurrentStep(2);
+    }
   };
 
   // Content for each step
@@ -55,7 +92,7 @@ export default function Onboarding() {
         return (
           <>
             <h2 className="neural-title">Select Your Path</h2>
-            <p className="neural-subtitle">Which archetype aligns with your goals?</p>
+            <p className="neural-subtitle">Pick a target career path (or enter your own).</p>
             <div className="options-grid">
               <OptionCard 
                 icon={<Globe />} 
@@ -65,23 +102,58 @@ export default function Onboarding() {
               />
               <OptionCard 
                 icon={<Layout />} 
-                label="Frontend Engineer" 
+                label="Frontend Developer" 
                 selected={formData.role === 'frontend'} 
                 onClick={() => handleSelect('role', 'frontend')}
               />
               <OptionCard 
                 icon={<Database />} 
-                label="Backend Architect" 
+                label="Backend Developer" 
                 selected={formData.role === 'backend'} 
                 onClick={() => handleSelect('role', 'backend')}
               />
               <OptionCard 
-                icon={<Brain />} 
-                label="AI Engineer" 
-                selected={formData.role === 'ai'} 
-                onClick={() => handleSelect('role', 'ai')}
+                icon={<BarChart3 />} 
+                label="Data Scientist" 
+                selected={formData.role === 'data'} 
+                onClick={() => handleSelect('role', 'data')}
+              />
+              <OptionCard 
+                icon={<Server />} 
+                label="DevOps Engineer" 
+                selected={formData.role === 'devops'} 
+                onClick={() => handleSelect('role', 'devops')}
+              />
+              <OptionCard 
+                icon={<Smartphone />} 
+                label="Mobile Developer" 
+                selected={formData.role === 'mobile'} 
+                onClick={() => handleSelect('role', 'mobile')}
+              />
+              <OptionCard 
+                icon={<PencilLine />} 
+                label="Other" 
+                selected={formData.role === 'other'} 
+                onClick={() => handleSelect('role', 'other')}
               />
             </div>
+
+            {formData.role === 'other' && (
+              <div style={{ marginTop: 16 }}>
+                <label style={{ display: 'block', marginBottom: 8, color: 'rgba(255,255,255,0.75)' }}>
+                  Enter your career path
+                </label>
+                <input
+                  value={formData.other_career_path}
+                  onChange={(e) => handleSelect('other_career_path', e.target.value)}
+                  placeholder="e.g. Cybersecurity Analyst"
+                  style={{ width: '100%', padding: '14px 16px', borderRadius: 10, background: 'rgba(0,0,0,0.25)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)', outline: 'none' }}
+                />
+                <div style={{ marginTop: 8, color: 'rgba(255,255,255,0.55)', fontSize: 12 }}>
+                  Keep it under 100 characters.
+                </div>
+              </div>
+            )}
           </>
         );
       case 1: // Level
@@ -120,27 +192,45 @@ export default function Onboarding() {
       case 2: // Focus
         return (
           <>
-             <h2 className="neural-title">Learning Directive</h2>
-             <p className="neural-subtitle">What is your primary optimization target?</p>
+             <h2 className="neural-title">Profile Setup</h2>
+             <p className="neural-subtitle">Just enough info to personalize your roadmap.</p>
+
              <div className="options-grid single-col">
-              <OptionCard 
-                icon={<Cpu />} 
-                label="Build Real-World Projects" 
-                selected={formData.focus === 'projects'} 
-                onClick={() => handleSelect('focus', 'projects')}
-              />
-              <OptionCard 
-                icon={<Database />} 
-                label="Master Computer Science Fundamentals" 
-                selected={formData.focus === 'foundations'} 
-                onClick={() => handleSelect('focus', 'foundations')}
-              />
-               <OptionCard 
-                icon={<Zap />} 
-                label="Fast-Track Career Switch" 
-                selected={formData.focus === 'career'} 
-                onClick={() => handleSelect('focus', 'career')}
-              />
+              <div style={{ width: '100%' }}>
+                <label style={{ display: 'block', marginBottom: 8, color: 'rgba(255,255,255,0.75)' }}>Gender (optional)</label>
+                <select
+                  value={formData.gender}
+                  onChange={(e) => handleSelect('gender', e.target.value)}
+                  style={{ width: '100%', padding: '14px 16px', borderRadius: 10, background: 'rgba(0,0,0,0.25)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)', outline: 'none' }}
+                >
+                  <option value="unspecified">Prefer not to say</option>
+                  <option value="female">Female</option>
+                  <option value="male">Male</option>
+                  <option value="nonbinary">Non-binary</option>
+                </select>
+              </div>
+
+              <div style={{ width: '100%' }}>
+                <label style={{ display: 'block', marginBottom: 8, color: 'rgba(255,255,255,0.75)' }}>Budget</label>
+                <select
+                  value={formData.budget}
+                  onChange={(e) => handleSelect('budget', e.target.value)}
+                  style={{ width: '100%', padding: '14px 16px', borderRadius: 10, background: 'rgba(0,0,0,0.25)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)', outline: 'none' }}
+                >
+                  <option value="FREE">Free resources only</option>
+                  <option value="PAID">I can purchase courses</option>
+                </select>
+              </div>
+
+              <div style={{ width: '100%' }}>
+                <label style={{ display: 'block', marginBottom: 8, color: 'rgba(255,255,255,0.75)' }}>University course (optional)</label>
+                <input
+                  value={formData.university_course}
+                  onChange={(e) => handleSelect('university_course', e.target.value)}
+                  placeholder="e.g. Computer Science"
+                  style={{ width: '100%', padding: '14px 16px', borderRadius: 10, background: 'rgba(0,0,0,0.25)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)', outline: 'none' }}
+                />
+              </div>
              </div>
           </>
         );
@@ -159,8 +249,8 @@ export default function Onboarding() {
   // disable next button if current step selection is empty
   const isNextDisabled = () => {
     if (currentStep === 0 && !formData.role) return true;
+    if (currentStep === 0 && formData.role === 'other' && !String(formData.other_career_path || '').trim()) return true;
     if (currentStep === 1 && !formData.level) return true;
-    if (currentStep === 2 && !formData.focus) return true;
     return false;
   };
 
@@ -169,6 +259,20 @@ export default function Onboarding() {
         <div className="neural-overlay"></div>
         
         <div className="onboarding-card">
+            {error && (
+              <div style={{
+                marginBottom: 16,
+                padding: '12px 14px',
+                borderRadius: 10,
+                border: '1px solid rgba(239, 68, 68, 0.5)',
+                background: 'rgba(239, 68, 68, 0.12)',
+                color: '#fecaca',
+                fontSize: 14
+              }}>
+                {error}
+              </div>
+            )}
+
             {currentStep < 3 && (
                 <div className="step-indicator">
                     {STEPS.slice(0,3).map((_, idx) => (

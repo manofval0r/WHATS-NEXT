@@ -49,6 +49,7 @@ urlpatterns = [
     path('api/premium/cv-export/', views.track_cv_export),
     path('api/account/delete/', views.delete_account),
     path('api/account/export/', views.export_account_data),
+    path('api/account/username/', views.update_username),
     path('api/community/feed/', views.get_community_feed),
     path('api/community/leaderboard/', views.community_leaderboard),
     path('api/community/verify/<int:item_id>/', views.verify_project),

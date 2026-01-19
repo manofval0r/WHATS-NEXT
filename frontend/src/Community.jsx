@@ -358,6 +358,34 @@ function PostCard({ post, onClick, onUpvote, navigate }) {
     const authorName = typeof post.author === 'object' ? post.author.username : post.author;
     const isAchievement = post.post_type === 'achievement';
 
+    const getAuthorProfileUrl = () => {
+        const origin = window.location?.origin || '';
+        return `${origin}/u/${encodeURIComponent(authorName)}`;
+    };
+
+    const handleShare = async (e) => {
+        e.stopPropagation();
+        const url = getAuthorProfileUrl();
+        const text = `Check out @${authorName} on WHATS-NEXT`;
+
+        try {
+            if (navigator.share) {
+                await navigator.share({ title: `@${authorName}`, text, url });
+                return;
+            }
+        } catch (err) {
+            // user cancelled share or platform rejected; fallback to clipboard
+        }
+
+        try {
+            await navigator.clipboard.writeText(url);
+            alert('Profile link copied to clipboard');
+        } catch (err) {
+            // Last-resort fallback
+            window.prompt('Copy this link:', url);
+        }
+    };
+
     return (
         <div onClick={onClick} style={{
             ...styles.card,
@@ -367,13 +395,13 @@ function PostCard({ post, onClick, onUpvote, navigate }) {
             <div style={styles.cardHeader}>
                 <div
                     style={styles.userAvatar}
-                    onClick={(e) => { e.stopPropagation(); navigate(`/profile/${authorName}`); }}
+                    onClick={(e) => { e.stopPropagation(); navigate(`/u/${authorName}`); }}
                 >
                     <User size={14} />
                 </div>
                 <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <p style={styles.username} onClick={(e) => { e.stopPropagation(); navigate(`/profile/${authorName}`); }}>
+                        <p style={styles.username} onClick={(e) => { e.stopPropagation(); navigate(`/u/${authorName}`); }}>
                             {authorName}
                         </p>
                         <span style={{ fontSize: '10px', color: '#8b949e' }}>•</span>
@@ -422,10 +450,21 @@ function PostCard({ post, onClick, onUpvote, navigate }) {
                         <span>{post.reply_count || 0}</span>
                     </div>
 
-                    <div style={styles.statItem} onClick={(e) => e.stopPropagation()}>
+                    <button
+                        type="button"
+                        onClick={handleShare}
+                        aria-label={`Share ${authorName} profile`}
+                        style={{
+                            ...styles.statItem,
+                            background: 'none',
+                            border: 'none',
+                            padding: 0,
+                            color: 'inherit'
+                        }}
+                    >
                         <Share2 size={16} />
                         <span style={{ fontSize: '12px' }}>Share</span>
-                    </div>
+                    </button>
                 </div>
                 {post.tags && post.tags.length > 0 && (
                     <div style={styles.tags}>
@@ -483,7 +522,7 @@ function PostDetailView({ post, onBack, onUpvote, currentUser, navigate }) {
                         <h1 style={{ fontSize: '28px', color: '#fff', margin: 0 }}>{post.title}</h1>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', fontSize: '14px', color: '#8b949e' }}>
-                        <span style={{ color: 'var(--neon-cyan)', cursor: 'pointer' }} onClick={() => navigate(`/profile/${postAuthorName}`)}>@{postAuthorName}</span>
+                        <span style={{ color: 'var(--neon-cyan)', cursor: 'pointer' }} onClick={() => navigate(`/u/${postAuthorName}`)}>@{postAuthorName}</span>
                         <span>•</span>
                         <span>{getTimeAgo(post.created_at)}</span>
                     </div>

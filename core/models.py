@@ -12,6 +12,27 @@ class User(AbstractUser):
     Custom user model to store University data and Career Goals.
     """
     email = models.EmailField(unique=True)
+
+    GENDER_CHOICES = [
+        ('unspecified', 'Prefer not to say'),
+        ('female', 'Female'),
+        ('male', 'Male'),
+        ('nonbinary', 'Non-binary'),
+    ]
+
+    gender = models.CharField(
+        max_length=20,
+        choices=GENDER_CHOICES,
+        default='unspecified',
+        help_text='Self-reported gender (used for personalization; not required).'
+    )
+
+    # Stable seed for deterministic, gender-neutral avatar generation.
+    # Using a seed avoids avatars changing when the username changes.
+    avatar_seed = models.UUIDField(default=uuid.uuid4, editable=False)
+
+    # Username change cooldown tracking.
+    last_username_change_at = models.DateTimeField(null=True, blank=True)
     university_course_raw = models.CharField(max_length=255, blank=True, help_text="User's input (e.g. 'Bsc Acctng')")
     normalized_course = models.CharField(max_length=255, blank=True, help_text="AI cleaned version (e.g. 'Accounting')")
     
