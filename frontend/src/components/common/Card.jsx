@@ -17,19 +17,19 @@ const Card = ({
 
   const variants = {
     standard: {
-      background: 'var(--void-mid)',
-      border: '1px solid var(--void-glow)',
+      background: 'var(--bg-surface)',
+      border: '1px solid var(--border-subtle)',
     },
     glass: {
-      background: 'rgba(26, 19, 53, 0.6)',
-      backdropFilter: 'blur(12px)',
-      WebkitBackdropFilter: 'blur(12px)',
-      border: '1px solid rgba(95, 245, 255, 0.1)',
+      background: 'color-mix(in srgb, var(--bg-panel), transparent 40%)',
+      backdropFilter: 'blur(var(--glass-blur))',
+      WebkitBackdropFilter: 'blur(var(--glass-blur))',
+      border: '1px solid var(--border-subtle)',
     },
     elevated: {
-      background: 'var(--void-light)',
+      background: 'var(--bg-surface)',
       boxShadow: 'var(--shadow-lg)',
-      border: '1px solid var(--void-glow)',
+      border: '1px solid var(--border-subtle)',
     }
   };
 

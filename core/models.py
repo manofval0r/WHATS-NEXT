@@ -23,6 +23,67 @@ class User(AbstractUser):
     github_link = models.URLField(blank=True, null=True)
     linkedin_link = models.URLField(blank=True, null=True)
 
+    twitter_link = models.URLField(blank=True, null=True)
+    website_link = models.URLField(blank=True, null=True)
+
+    PROFILE_VISIBILITY_CHOICES = [
+        ('public', 'Public'),
+        ('community', 'Community-only'),
+        ('private', 'Private'),
+    ]
+    profile_visibility = models.CharField(
+        max_length=20,
+        choices=PROFILE_VISIBILITY_CHOICES,
+        default='public',
+        help_text='Who can view this profile inside the app.'
+    )
+
+    allow_indexing = models.BooleanField(
+        default=True,
+        help_text='Allow search engines to index this profile when public.'
+    )
+
+    activity_visibility = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='Per-section visibility toggles for profile activity.'
+    )
+
+    email_notifications = models.BooleanField(default=True)
+
+    # Premium & Waitlist (Phase 5 - Test Mode)
+    PLAN_CHOICES = [
+        ('FREE', 'Free'),
+        ('PREMIUM', 'Premium')
+    ]
+    WAITLIST_STATUS_CHOICES = [
+        ('none', 'None'),
+        ('pending', 'Pending'),
+        ('approved', 'Approved')
+    ]
+
+    plan_tier = models.CharField(max_length=10, choices=PLAN_CHOICES, default='FREE')
+    premium_waitlist_status = models.CharField(max_length=20, choices=WAITLIST_STATUS_CHOICES, default='none')
+    premium_waitlist_joined_at = models.DateTimeField(null=True, blank=True)
+    premium_waitlist_source = models.CharField(max_length=100, blank=True)
+    premium_waitlist_feature = models.CharField(max_length=50, blank=True)
+
+    # CV export limits (Free: 3/month)
+    cv_exports_count = models.IntegerField(default=0)
+    cv_exports_reset_at = models.DateField(null=True, blank=True)
+
+    # Phase 7: Retention & Analytics Fields
+    last_active_module_id = models.ForeignKey(
+        'UserRoadmapItem',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='last_active_for_user',
+        help_text='Last module user was working on'
+    )
+    last_active_at = models.DateTimeField(null=True, blank=True, help_text='Last time user accessed any module')
+    community_xp = models.IntegerField(default=0, help_text='Community engagement points (+10 per post, +5 per reply)')
+
     groups = models.ManyToManyField(
         'auth.Group',
         verbose_name='groups',
@@ -75,6 +136,19 @@ class UserRoadmapItem(models.Model):
     project_prompt = models.TextField(blank=True)
     verification_count = models.IntegerField(default=0)
     custom_cv_text = models.TextField(blank=True, null=True, help_text="User edited achievement text")
+    
+    # Phase 7: Lesson Caching (TTL Strategy)
+    lesson_data = models.JSONField(
+        default=dict,
+        blank=True,
+        null=True,
+        help_text='Cached lesson data to avoid regenerating on every module view'
+    )
+    lesson_cached_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='Timestamp when lesson was last cached (use for TTL expiration)'
+    )
     
     # Project Verification Fields (Phase 3)
     github_score = models.IntegerField(default=0, help_text="Automated GitHub project score (0-100)")
@@ -184,55 +258,10 @@ class EmployerProfile(models.Model):
     def __str__(self):
         return f"{self.company_name}"
 
-class JobPosting(models.Model):
-    """
-    Job postings created by employers.
-    """
-    LEVEL_CHOICES = [
-        ('intern', 'Internship'),
-        ('entry', 'Entry-Level'),
-        ('junior', 'Junior'),
-    ]
-    
-    employer = models.ForeignKey(EmployerProfile, on_delete=models.CASCADE, related_name='job_postings')
-    title = models.CharField(max_length=255)
-    description = models.TextField()
-    required_skills = models.JSONField(default=list, help_text="List of required skill keywords")
-    level = models.CharField(max_length=10, choices=LEVEL_CHOICES, default='entry')
-    location = models.CharField(max_length=255, default='Remote')
-    salary_range = models.CharField(max_length=100, blank=True)
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
-    def __str__(self):
-        return f"{self.title} at {self.employer.company_name}"
-
-class CandidateApplication(models.Model):
-    """
-    Tracks applications of learners to job postings.
-    """
-    STATUS_CHOICES = [
-        ('applied', 'Applied'),
-        ('reviewed', 'Reviewed'),
-        ('shortlisted', 'Shortlisted'),
-        ('interview', 'Interview'),
-        ('offer', 'Offer'),
-        ('rejected', 'Rejected'),
-    ]
-    
-    job_posting = models.ForeignKey(JobPosting, on_delete=models.CASCADE, related_name='applications')
-    candidate = models.ForeignKey(User, on_delete=models.CASCADE, related_name='job_applications')
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='applied')
-    match_score = models.IntegerField(default=0, help_text="Skill match percentage 0-100")
-    applied_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
-    class Meta:
-        unique_together = ('job_posting', 'candidate')
-    
-    def __str__(self):
-        return f"{self.candidate.username} -> {self.job_posting.title}"
+# ==========================================
+# EMPLOYER MODELS: JobPosting and CandidateApplication
+# These models are defined in employer_models.py and imported there
+# ==========================================
 
 # ==========================================
 # 7. COMMUNITY Q&A MODELS
@@ -270,6 +299,13 @@ class CommunityPost(models.Model):
     # Status
     is_solved = models.BooleanField(default=False)  # For questions
     is_pinned = models.BooleanField(default=False)  # Admin feature
+    
+    # Phase 7: Full-text search (Postgres)
+    search_vector = models.GeneratedField(
+        expression=models.F('title') + ' ' + models.F('content'),
+        output_field=models.TextField(),
+        db_persist=False
+    )
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -393,3 +429,88 @@ class Certificate(models.Model):
         short_uuid = uuid.uuid4().hex[:4]
         
         return f"WN-{keyword}-{year}-{short_uuid}"
+
+# ==========================================
+# 9. SAVED RESOURCES (Phase 7)
+# ==========================================
+
+class SavedResource(models.Model):
+    """
+    Bookmarked resources (news, videos, jobs) saved by users.
+    Module-independent - users can bookmark from the Resources Hub.
+    """
+    RESOURCE_TYPES = [
+        ('news', 'Tech News'),
+        ('video', 'Video'),
+        ('job', 'Job Posting'),
+        ('article', 'Article'),
+        ('documentation', 'Documentation'),
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='saved_resources')
+    resource_type = models.CharField(max_length=20, choices=RESOURCE_TYPES)
+    title = models.CharField(max_length=500)
+    url = models.URLField()
+    source = models.CharField(max_length=100, help_text="e.g., 'Tech Crunch', 'YouTube', 'WeWorkRemotely'")
+    description = models.TextField(blank=True)
+    thumbnail_url = models.URLField(blank=True, null=True)
+    tags = models.JSONField(default=list, blank=True, help_text="List of tags for filtering")
+    
+    # Metadata
+    published_at = models.DateTimeField(null=True, blank=True)
+    saved_at = models.DateTimeField(auto_now_add=True)
+    
+    # Optional module association
+    associated_module = models.ForeignKey(
+        'UserRoadmapItem',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='saved_resources'
+    )
+    
+    class Meta:
+        ordering = ['-saved_at']
+        unique_together = ('user', 'url')
+        indexes = [
+            models.Index(fields=['user', '-saved_at']),
+            models.Index(fields=['resource_type', '-saved_at']),
+        ]
+    
+    def __str__(self):
+        return f"{self.title} (saved by {self.user.username})"
+
+# ==========================================
+# 10. BADGE SYSTEM (Phase 7)
+# ==========================================
+
+class Badge(models.Model):
+    """
+    Achievements awarded to users for reaching milestones.
+    E.g., "First Module", "30-Day Streak", "5 Projects Verified"
+    """
+    BADGE_TYPES = [
+        ('first_module', 'First Module'),
+        ('streak_7', '7-Day Streak'),
+        ('streak_30', '30-Day Streak'),
+        ('modules_5', 'Five Modules'),
+        ('modules_10', 'Ten Modules'),
+        ('verified_project', 'Verified Project'),
+        ('verified_5', 'Five Verified Projects'),
+        ('community_contributor', 'Community Contributor'),
+        ('top_contributor', 'Top Contributor This Week'),
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='badges')
+    badge_type = models.CharField(max_length=50, choices=BADGE_TYPES)
+    icon_url = models.URLField(blank=True, help_text='SVG icon or image URL for the badge')
+    title = models.CharField(max_length=100)
+    description = models.TextField()
+    awarded_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-awarded_at']
+        unique_together = ('user', 'badge_type')
+    
+    def __str__(self):
+        return f"{self.title} - {self.user.username}"

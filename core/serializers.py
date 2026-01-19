@@ -54,9 +54,12 @@ class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            'id', 'username', 'email', 'target_career', 'current_level', 
-            'github_link', 'linkedin_link', 'reputation_score', 
-            'completed_projects_count', 'total_verifications'
+            'id', 'username', 'target_career', 'current_level',
+            'github_link', 'linkedin_link', 'twitter_link', 'website_link',
+            'profile_visibility', 'allow_indexing', 'activity_visibility',
+            'reputation_score',
+            'completed_projects_count', 'total_verifications',
+            'plan_tier', 'premium_waitlist_status'
         ]
     
     def get_completed_projects_count(self, obj):

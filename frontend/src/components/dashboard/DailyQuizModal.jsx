@@ -1,11 +1,19 @@
-import React, { useState } from 'react';
-import { X, CheckCircle, AlertTriangle, Terminal } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { X, CheckCircle, AlertTriangle, Terminal, Award } from 'lucide-react';
 import Button from '../common/Button';
 import Card from '../common/Card';
 import Badge from '../common/Badge';
+import { useJada } from '../../jada/JadaContext';
 
 const DailyQuizModal = ({ quizData, onClose, onSubmit, quizLoading, quizResult, quizCompleted }) => {
   const [answers, setAnswers] = useState({});
+  const jada = useJada();
+
+  useEffect(() => {
+    if (quizCompleted) return;
+    const release = jada.acquireFullscreenOverlay();
+    return () => release();
+  }, [jada, quizCompleted]);
 
   const handleOptionSelect = (qIndex, optIndex) => {
     setAnswers(prev => ({
@@ -25,7 +33,14 @@ const DailyQuizModal = ({ quizData, onClose, onSubmit, quizLoading, quizResult, 
       position: 'absolute', inset: 0, zIndex: 100,
       background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center'
-    }}>
+    }}
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="daily-quiz-heading"
+    onKeyDown={(e) => {
+      if (e.key === 'Escape') onClose();
+    }}
+    >
       <Card variant="elevated" style={{ width: '800px', maxWidth: '95vw', height: 'auto', maxHeight: '90vh', display: 'flex', flexDirection: 'column', p: 0, overflow: 'hidden' }}>
         
         {/* HEADER */}
@@ -36,9 +51,9 @@ const DailyQuizModal = ({ quizData, onClose, onSubmit, quizLoading, quizResult, 
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
              <Terminal size={20} color="var(--neon-gold)" />
-             <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--neon-gold)' }}>DAILY_ASSESSMENT_PROTOCOL</span>
+             <span id="daily-quiz-heading" style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--neon-gold)' }}>DAILY_ASSESSMENT_PROTOCOL</span>
           </div>
-          <Button variant="ghost" size="sm" onClick={onClose}><X size={20} /></Button>
+          <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close daily quiz dialog"><X size={20} /></Button>
         </div>
 
         {/* BODY */}
@@ -49,7 +64,9 @@ const DailyQuizModal = ({ quizData, onClose, onSubmit, quizLoading, quizResult, 
                 </div>
             ) : quizResult ? (
                 <div style={{ textAlign: 'center', padding: '40px' }}>
-                    <div style={{ fontSize: '48px', marginBottom: '16px' }}>🏆</div>
+                <div style={{ marginBottom: '16px' }}>
+                  <Award size={48} color="var(--neon-gold)" />
+                </div>
                     <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--neon-gold)' }}>STREAK EXTENDED</h2>
                     <p style={{ color: 'var(--text-secondary)' }}>Knowledge integration successful.</p>
                 </div>
@@ -64,20 +81,25 @@ const DailyQuizModal = ({ quizData, onClose, onSubmit, quizLoading, quizResult, 
                                     <span style={{ color: 'var(--neon-cyan)', marginRight: '8px' }}>{qIdx + 1}.</span>
                                     {q.question}
                                 </h3>
-                                <div style={{ display: 'grid', gap: '12px' }}>
+                                <div style={{ display: 'grid', gap: '12px' }} role="radiogroup" aria-label={`Question ${qIdx + 1}`}>
                                     {q.options.map((opt, optIdx) => (
-                                        <div 
+                                    <button 
+                                      type="button"
                                             key={optIdx}
-                                            onClick={() => handleOptionSelect(qIdx, optIdx)}
-                                            style={{
-                                                padding: '16px',
-                                                border: answers[qIdx] === optIdx ? '1px solid var(--neon-cyan)' : '1px solid var(--void-glow)',
-                                                borderRadius: 'var(--radius-md)',
-                                                background: answers[qIdx] === optIdx ? 'rgba(95, 245, 255, 0.1)' : 'var(--void-mid)',
-                                                cursor: 'pointer',
-                                                transition: 'all 0.2s',
-                                                display: 'flex', alignItems: 'center', gap: '12px'
-                                            }}
+                                      onClick={() => handleOptionSelect(qIdx, optIdx)}
+                                      style={{
+                                        padding: '16px',
+                                        border: answers[qIdx] === optIdx ? '1px solid var(--neon-cyan)' : '1px solid var(--void-glow)',
+                                        borderRadius: 'var(--radius-md)',
+                                        background: answers[qIdx] === optIdx ? 'rgba(95, 245, 255, 0.1)' : 'var(--void-mid)',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s',
+                                        display: 'flex', alignItems: 'center', gap: '12px',
+                                        textAlign: 'left'
+                                      }}
+                                      role="radio"
+                                      aria-checked={answers[qIdx] === optIdx}
+                                      tabIndex={0}
                                         >
                                             <div style={{
                                                 width: '16px', height: '16px', borderRadius: '50%',
@@ -85,7 +107,7 @@ const DailyQuizModal = ({ quizData, onClose, onSubmit, quizLoading, quizResult, 
                                                 flexShrink: 0
                                             }} />
                                             <span style={{ color: answers[qIdx] === optIdx ? 'var(--text-primary)' : 'var(--text-secondary)' }}>{opt}</span>
-                                        </div>
+                                    </button>
                                     ))}
                                 </div>
                             </div>

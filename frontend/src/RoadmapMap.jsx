@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Clock, Lock } from 'lucide-react';
 
 const RoadmapMap = ({ nodes, onNodeClick, isMobile }) => {
   const svgRef = useRef(null);
@@ -97,7 +98,7 @@ const RoadmapMap = ({ nodes, onNodeClick, isMobile }) => {
       .datum(pathPoints)
       .attr("d", lineGenerator)
       .attr("fill", "none")
-      .attr("stroke", "#30363d") // Darker, more technical path
+      .attr("stroke", "var(--border-subtle)") // Theme adaptable
       .attr("stroke-width", 2)   // Thinner precision line
       .attr("stroke-dasharray", "4,4") // Schematic dashed look
       .attr("fill", "none");
@@ -117,7 +118,7 @@ const RoadmapMap = ({ nodes, onNodeClick, isMobile }) => {
         .attr("fill", "none")
         .attr("d", lineGenerator)
         .attr("fill", "none")
-        .attr("stroke", "#58a6ff") // Cyan/Blue active path
+        .attr("stroke", "var(--neon-cyan)") // Theme adaptable
         .attr("stroke-width", 2)
         .attr("stroke-linecap", "round");
       // Removed heavy drop-shadow
@@ -133,6 +134,7 @@ const RoadmapMap = ({ nodes, onNodeClick, isMobile }) => {
       .style("cursor", "pointer")
       .on("click", (event, d) => {
         setHoveredNode(null); // Clear tooltip immediately to prevent persistence
+        if (d.data?.data?.status === 'locked') return;
         onNodeClick(event, d.data);
       })
       .on("mouseenter", (event, d) => {
@@ -162,15 +164,11 @@ const RoadmapMap = ({ nodes, onNodeClick, isMobile }) => {
     // 3A. Base Circle (Dark Fill)
     nodeGroups.append("circle")
       .attr("r", radius)
-      .attr("fill", d => {
-        if (d.data.data.status === 'completed') return "#0d1117";
-        if (d.data.data.status === 'active') return "#0d1117";
-        return "#0d1117"; // All same base
-      })
+      .attr("fill", "var(--bg-card)")
       .attr("stroke", d => {
-        if (d.data.data.status === 'completed') return "#238636"; // Green
-        if (d.data.data.status === 'active') return "#58a6ff";    // Cyan
-        return "#30363d"; // Gray for locked
+        if (d.data.data.status === 'completed') return "var(--neon-green)";
+        if (d.data.data.status === 'active') return "var(--neon-cyan)";
+        return "var(--border-subtle)";
       })
       .attr("stroke-width", d => d.data.data.status === 'active' ? 3 : 2);
 
@@ -179,7 +177,8 @@ const RoadmapMap = ({ nodes, onNodeClick, isMobile }) => {
       .append("circle")
       .attr("r", radius + 8)
       .attr("fill", "none")
-      .attr("stroke", "rgba(88, 166, 255, 0.3)")
+      .attr("stroke", "var(--neon-cyan)")
+      .attr("stroke-opacity", 0.3)
       .attr("stroke-width", 2)
       .style("animation", "pulse-ring 2s ease-in-out infinite");
 
@@ -206,7 +205,7 @@ const RoadmapMap = ({ nodes, onNodeClick, isMobile }) => {
         group.append("text")
           .attr("dy", 6)
           .attr("text-anchor", "middle")
-          .attr("fill", "#238636")
+          .attr("fill", "var(--neon-green)")
           .style("font-size", mobileView ? "20px" : "24px")
           .style("pointer-events", "none")
           .text("✓");
@@ -215,7 +214,7 @@ const RoadmapMap = ({ nodes, onNodeClick, isMobile }) => {
         group.append("text")
           .attr("dy", 6)
           .attr("text-anchor", "middle")
-          .attr("fill", status === 'active' ? "#58a6ff" : "#484f58")
+          .attr("fill", status === 'active' ? "var(--neon-cyan)" : "var(--text-secondary)")
           .style("font-family", "JetBrains Mono, monospace")
           .style("font-size", "14px")
           .style("font-weight", "600")
@@ -240,7 +239,7 @@ const RoadmapMap = ({ nodes, onNodeClick, isMobile }) => {
         height: '100%',
         overflowY: 'auto',
         position: 'relative',
-        background: '#0d1117'
+        background: 'transparent'
       }}
     >
       <svg ref={svgRef} width="100%" style={{ minHeight: '100%' }}></svg>
@@ -258,8 +257,9 @@ const RoadmapMap = ({ nodes, onNodeClick, isMobile }) => {
               left: hoveredNode.x, // Centered logic handled in mouseenter
               top: hoveredNode.y - 90,
               transform: 'translateX(-50%)',
-              background: '#0d1117', // Solid dark
-              border: '1px solid #30363d', // Clean border
+              background: 'var(--panel-bg)',
+              backdropFilter: 'blur(var(--glass-blur))',
+              border: '1px solid var(--border-subtle)',
               boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
               borderRadius: '6px',
               padding: '12px',
@@ -273,33 +273,33 @@ const RoadmapMap = ({ nodes, onNodeClick, isMobile }) => {
             <div style={{
               position: 'absolute', bottom: '-8px', left: '50%', transform: 'translateX(-50%) rotate(45deg)',
               width: '16px', height: '16px',
-              background: '#0d1117',
-              borderBottom: '1px solid #30363d',
-              borderRight: '1px solid #30363d',
+              background: 'var(--panel-bg)',
+              borderBottom: '1px solid var(--border-subtle)',
+              borderRight: '1px solid var(--border-subtle)',
               zIndex: 2
             }}></div>
 
             <div style={{
               display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px',
-              borderBottom: '1px solid #21262d', paddingBottom: '8px'
+              borderBottom: '1px solid var(--border-subtle)', paddingBottom: '8px'
             }}>
-              <span style={{ fontSize: '11px', fontFamily: 'JetBrains Mono', color: '#8b949e', textTransform: 'uppercase' }}>
+              <span style={{ fontSize: '11px', fontFamily: 'JetBrains Mono', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
                     MODULE_INFO
               </span>
               <span style={{
                 fontSize: '10px', fontWeight: 'bold',
-                color: hoveredNode.data.status === 'completed' ? '#238636' : hoveredNode.data.status === 'active' ? '#58a6ff' : '#484f58',
+                color: hoveredNode.data.status === 'completed' ? 'var(--neon-green)' : hoveredNode.data.status === 'active' ? 'var(--neon-cyan)' : 'var(--text-secondary)',
                 fontFamily: 'JetBrains Mono'
               }}>
                 [{hoveredNode.data.status.toUpperCase()}]
               </span>
             </div>
 
-            <h4 style={{ margin: '0 0 8px 0', color: '#e6edf3', fontSize: '14px', fontFamily: 'Inter', fontWeight: '600' }}>
+            <h4 style={{ margin: '0 0 8px 0', color: 'var(--text-primary)', fontSize: '14px', fontFamily: 'Inter', fontWeight: '600' }}>
               {hoveredNode.data.label}
             </h4>
 
-            <p style={{ margin: '0 0 12px 0', color: '#8b949e', fontSize: '12px', fontFamily: 'Inter', lineHeight: '1.4' }}>
+            <p style={{ margin: '0 0 12px 0', color: 'var(--text-secondary)', fontSize: '12px', fontFamily: 'Inter', lineHeight: '1.4' }}>
               {hoveredNode.data.description?.slice(0, 100)}...
             </p>
 
@@ -307,16 +307,16 @@ const RoadmapMap = ({ nodes, onNodeClick, isMobile }) => {
             {(hoveredNode.data.status === 'active' || hoveredNode.data.status === 'completed') && (
               <div style={{ marginBottom: '8px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                  <span style={{ fontSize: '10px', color: '#8b949e' }}>Progress</span>
-                  <span style={{ fontSize: '10px', color: '#58a6ff', fontFamily: 'JetBrains Mono' }}>
+                  <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Progress</span>
+                  <span style={{ fontSize: '10px', color: 'var(--neon-cyan)', fontFamily: 'JetBrains Mono' }}>
                     {hoveredNode.data.status === 'completed' ? '100%' : '45%'}
                   </span>
                 </div>
-                <div style={{ width: '100%', height: '4px', background: '#21262d', borderRadius: '2px', overflow: 'hidden' }}>
+                <div style={{ width: '100%', height: '4px', background: 'var(--border-subtle)', borderRadius: '2px', overflow: 'hidden' }}>
                   <div style={{
                     width: hoveredNode.data.status === 'completed' ? '100%' : '45%',
                     height: '100%',
-                    background: hoveredNode.data.status === 'completed' ? '#238636' : '#58a6ff',
+                    background: hoveredNode.data.status === 'completed' ? 'var(--neon-green)' : 'var(--neon-cyan)',
                     transition: 'width 0.3s ease'
                   }}></div>
                 </div>
@@ -324,8 +324,9 @@ const RoadmapMap = ({ nodes, onNodeClick, isMobile }) => {
             )}
 
             {/* Estimated Time */}
-            <div style={{ fontSize: '11px', color: '#8b949e', marginTop: '8px' }}>
-              ⏱️ Est. Time: <span style={{ color: '#e6edf3' }}>2-3 hours</span>
+            <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Clock size={12} />
+              <span>Est. Time: <span style={{ color: 'var(--text-primary)' }}>2-3 hours</span></span>
             </div>
 
             {/* Prerequisites (if locked) */}
@@ -337,9 +338,12 @@ const RoadmapMap = ({ nodes, onNodeClick, isMobile }) => {
                 border: '1px solid rgba(255, 190, 11, 0.3)',
                 borderRadius: '4px',
                 fontSize: '11px',
-                color: '#ffbe0b'
+                color: '#ffbe0b',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
               }}>
-                🔒 Complete previous modules to unlock
+                <Lock size={12} /> Complete previous modules to unlock
               </div>
             )}
 

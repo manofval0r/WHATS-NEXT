@@ -12,8 +12,18 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-change-me-in-production')
+# SECRET_KEY: Use env var for production, dev key for local testing
 DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
+
+if DEBUG:
+    # Local development: allow without SECRET_KEY env var
+    SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'dev-insecure-key-for-local-testing-only-do-not-use-in-production')
+else:
+    # Production: REQUIRED environment variable
+    if 'DJANGO_SECRET_KEY' not in os.environ:
+        raise ValueError('DJANGO_SECRET_KEY environment variable is not set. This is required for security in production.')
+    SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
+
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,whats-next-oxdf.onrender.com').split(',')
 
 # Automatically add Render URL to ALLOWED_HOSTS
@@ -66,6 +76,15 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/hour',
+        'user': '1000/hour',
+        'ai_endpoints': '10/hour',  # Special rate for expensive AI calls
+    }
 }
 
 SIMPLE_JWT = {

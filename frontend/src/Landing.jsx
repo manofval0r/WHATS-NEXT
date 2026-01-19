@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { Terminal, ChevronRight, Github, Zap, Brain, TrendingUp, Users, Award, CheckCircle, ArrowRight, MessageSquare, Sparkles, MousePointer2 } from 'lucide-react';
 import { motion, useInView } from 'framer-motion';
 import Button from './components/common/Button';
-import Jada from './components/common/Jada';
 import './Landing.css';
 
 // Typewriter Hook
@@ -581,7 +580,38 @@ export default function Landing() {
               <h3>Adaptive AI</h3>
               <p>JADA learns how you learn. Struggling with a concept? Get extra resources automatically. Flying through? Skip ahead.</p>
               <div className="ai-visual">
-                <Jada size="md" />
+                <motion.div
+                  aria-hidden="true"
+                  animate={{
+                    backgroundPosition: ['0% 50%', '100% 50%', '0% 50%'],
+                    rotate: [0, 2, 0],
+                  }}
+                  transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
+                  style={{
+                    width: 120,
+                    height: 120,
+                    borderRadius: 28,
+                    background: 'linear-gradient(135deg, rgba(95,245,255,0.22), rgba(168,85,247,0.18), rgba(95,245,255,0.22))',
+                    backgroundSize: '200% 200%',
+                    border: '1px solid var(--border-subtle)',
+                    boxShadow: '0 16px 40px rgba(0,0,0,0.35)',
+                    backdropFilter: 'blur(var(--glass-blur))',
+                    position: 'relative',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <motion.div
+                    animate={{ opacity: [0.25, 0.6, 0.25], scale: [1, 1.12, 1] }}
+                    transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+                    style={{
+                      position: 'absolute',
+                      inset: 14,
+                      borderRadius: 22,
+                      background: 'radial-gradient(circle at 30% 30%, rgba(95,245,255,0.55), transparent 60%)',
+                      filter: 'blur(6px)',
+                    }}
+                  />
+                </motion.div>
               </div>
             </motion.div>
             

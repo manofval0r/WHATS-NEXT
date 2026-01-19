@@ -1,16 +1,25 @@
-import React, { useState } from 'react';
-import { X, Lock, ExternalLink, PlayCircle, BookOpen, Code, CheckCircle } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { X, Lock, ExternalLink } from 'lucide-react';
 import Button from './common/Button';
-import Badge from './common/Badge';
 import Card from './common/Card';
 import LessonCard from './dashboard/LessonCard';
+import { usePremium } from '../premium/PremiumContext';
+import { useJada } from '../jada/JadaContext';
 
 export default function MobileModuleModal({ node, onClose, onSubmitProject, onMarkComplete }) {
   const [submissionLink, setSubmissionLink] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showMore, setShowMore] = useState(false);
+  const { status, checkPremiumAccess } = usePremium();
+  const isPremium = status?.is_premium;
+  const jada = useJada();
 
   if (!node) return null;
+
+  useEffect(() => {
+    const release = jada.acquireFullscreenOverlay();
+    return () => release();
+  }, [jada]);
 
   const { data } = node;
   const isLocked = data.status === 'locked';
@@ -122,15 +131,54 @@ export default function MobileModuleModal({ node, onClose, onSubmitProject, onMa
                 // CLASSIFIED_RESOURCES
                 </h3>
                 
-                {data.resources?.primary?.map((res, i) => (
-                    <Card key={i} variant="glass" style={{ padding: '12px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <ExternalLink size={16} color="var(--neon-cyan)" />
-                        <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: '14px', color: '#fff', fontWeight: '500' }}>{res.title}</div>
-                            <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{res.type.toUpperCase()}</div>
+                {data.resources?.primary?.map((res, i) => {
+                  const isPremiumVideo = res.type === 'video';
+                  if (isPremiumVideo && !isPremium) {
+                    return (
+                      <Card
+                        key={i}
+                        variant="glass"
+                        className="premium-locked-card"
+                        style={{ padding: '12px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px' }}
+                      >
+                        <div className="premium-locked-content" style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%' }}>
+                          <ExternalLink size={16} color="var(--neon-cyan)" />
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: '14px', color: '#fff', fontWeight: '500' }}>
+                              {res.title}
+                            </div>
+                            <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>VIDEO • PREMIUM</div>
+                          </div>
                         </div>
+                        <div
+                          className="premium-locked-overlay"
+                          onClick={() => checkPremiumAccess('youtube_module', 'module_detail_mobile')}
+                          role="button"
+                          aria-label="Premium resource locked"
+                        >
+                          <Lock size={14} /> Premium resource
+                        </div>
+                      </Card>
+                    );
+                  }
+
+                  return (
+                    <Card
+                      key={i}
+                      variant="glass"
+                      style={{ padding: '12px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
+                      onClick={() => {
+                        if (res.url) window.open(res.url, '_blank');
+                      }}
+                    >
+                      <ExternalLink size={16} color="var(--neon-cyan)" />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: '14px', color: '#fff', fontWeight: '500' }}>{res.title}</div>
+                        <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{res.type.toUpperCase()}</div>
+                      </div>
                     </Card>
-                ))}
+                  );
+                })}
 
                 <div style={{ marginTop: '24px' }}>
                     <h3 style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '12px', fontFamily: 'var(--font-mono)' }}>

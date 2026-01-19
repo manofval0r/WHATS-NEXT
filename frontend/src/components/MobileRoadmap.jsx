@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useIsMobile } from '../hooks/useMediaQuery';
+import { Check, Play, Lock } from 'lucide-react';
 
 export default function MobileRoadmap({ nodes, onNodeClick }) {
     const [selectedNode, setSelectedNode] = useState(null);
@@ -102,9 +103,9 @@ export default function MobileRoadmap({ nodes, onNodeClick }) {
                                 onClick={() => handleNodeClick(node)}
                                 disabled={statusClass === 'locked'}
                             >
-                                <span style={{ fontSize: '32px', marginBottom: '4px' }}>
-                                    {statusClass === 'completed' ? '✓' :
-                                        statusClass === 'active' ? '▶' : '🔒'}
+                                <span style={{ marginBottom: '4px', display: 'inline-flex' }}>
+                                    {statusClass === 'completed' ? <Check size={26} /> :
+                                        statusClass === 'active' ? <Play size={24} /> : <Lock size={24} />}
                                 </span>
                                 <span style={{
                                     fontSize: '11px',

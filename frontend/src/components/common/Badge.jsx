@@ -21,29 +21,39 @@ const Badge = ({
 
   const variants = {
     cyan: {
-      background: 'rgba(95, 245, 255, 0.1)',
+      background: 'color-mix(in srgb, var(--neon-cyan), transparent 90%)',
       borderColor: 'var(--neon-cyan)',
       color: 'var(--neon-cyan)',
     },
     gold: {
-      background: 'rgba(255, 190, 11, 0.1)',
+      background: 'color-mix(in srgb, var(--neon-gold), transparent 90%)',
       borderColor: 'var(--neon-gold)',
       color: 'var(--neon-gold)',
     },
     violet: {
-      background: 'rgba(167, 139, 250, 0.1)',
+      background: 'color-mix(in srgb, var(--neon-violet), transparent 90%)',
       borderColor: 'var(--neon-violet)',
       color: 'var(--neon-violet)',
     },
     magenta: {
-      background: 'rgba(255, 46, 136, 0.1)',
+      background: 'color-mix(in srgb, var(--neon-magenta), transparent 90%)',
       borderColor: 'var(--neon-magenta)',
       color: 'var(--neon-magenta)',
     },
     red: {
-      background: 'rgba(255, 0, 85, 0.1)',
+      background: 'color-mix(in srgb, var(--neon-red), transparent 90%)',
       borderColor: 'var(--neon-red)',
       color: 'var(--neon-red)',
+    },
+    green: {
+      background: 'color-mix(in srgb, var(--neon-green), transparent 90%)',
+      borderColor: 'var(--neon-green)',
+      color: 'var(--neon-green)',
+    },
+    mint: {
+      background: 'color-mix(in srgb, var(--neon-mint), transparent 90%)',
+      borderColor: 'var(--neon-mint)',
+      color: 'var(--neon-mint)',
     }
   };
 

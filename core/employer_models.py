@@ -39,6 +39,8 @@ class JobPosting(models.Model):
     location = models.CharField(max_length=255, default='Remote')
     salary_range = models.CharField(max_length=100, blank=True)
     is_active = models.BooleanField(default=True)
+    is_approved = models.BooleanField(default=False)
+    expires_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     

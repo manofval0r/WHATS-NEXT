@@ -8,6 +8,7 @@ import {
 import html2pdf from 'html2pdf.js';
 import ContributionGraph from './ContributionGraph';
 import { useIsMobile } from './hooks/useMediaQuery';
+import { usePremium } from './premium/PremiumContext';
 
 
 export default function Profile() {
@@ -25,8 +26,12 @@ export default function Profile() {
     const navigate = useNavigate();
     const cvRef = useRef();
     const isMobile = useIsMobile();
+    const { requestCvExport, status } = usePremium();
 
-    const handleExportPDF = () => {
+    const handleExportPDF = async () => {
+        const gate = await requestCvExport('profile_cv_export');
+        if (!gate.allowed) return;
+
         const element = cvRef.current;
         const opt = {
             margin: 10,
@@ -164,6 +169,19 @@ export default function Profile() {
                         >
                             <Download size={16} /> {isMobile ? 'CV' : 'EXPORT_CV'}
                         </button>
+                        {!status.is_premium && status.cv_exports_remaining !== null && (
+                            <div style={{
+                                display: 'flex', alignItems: 'center',
+                                gap: '6px', padding: '6px 10px',
+                                border: '1px solid rgba(255, 190, 11, 0.3)',
+                                borderRadius: '6px',
+                                background: 'rgba(255, 190, 11, 0.08)',
+                                fontSize: '11px', fontFamily: 'JetBrains Mono',
+                                color: 'var(--neon-gold)'
+                            }}>
+                                {status.cv_exports_remaining} free exports left
+                            </div>
+                        )}
                     </div>
                 </div>
 

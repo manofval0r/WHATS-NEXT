@@ -29,41 +29,57 @@ export default function Resources() {
     { id: 'jobs', label: 'Opportunities', icon: <Building2 size={18} />, count: data.internships?.length || 0 }
   ];
 
+  const handleTabKeyDown = (e, idx) => {
+    if (e.key === 'ArrowRight') {
+      const next = (idx + 1) % tabs.length;
+      setActiveTab(tabs[next].id);
+    }
+    if (e.key === 'ArrowLeft') {
+      const prev = (idx - 1 + tabs.length) % tabs.length;
+      setActiveTab(tabs[prev].id);
+    }
+  };
+
   return (
     <div style={{
-      padding: isMobile ? '16px' : '40px',
+      padding: isMobile ? '16px' : '10px',
       height: '100%',
       overflowY: 'auto',
-      background: '#0d1117', // Solid dark uniformity
+      background: 'var(--bg-dark)', // Theme adaptable
       paddingBottom: isMobile ? '100px' : '40px'
     }}>
       {/* HEADER (Community Standard) */}
       <div style={{
-        position: 'sticky', top: 0, zIndex: 10,
-        background: 'rgba(13, 17, 23, 0.85)',
-        backdropFilter: 'blur(12px)',
-        borderBottom: '1px solid rgba(0, 242, 255, 0.1)',
+        position: 'sticky', top: '-2%', zIndex: 10,
+        background: 'var(--panel-bg)',
+        backdropFilter: 'blur(var(--glass-blur))',
+        borderBottom: '1px solid var(--border-subtle)',
         marginBottom: '30px',
-        margin: isMobile ? '-16px -16px 30px -16px' : '-40px -40px 40px -40px', // Negative margin to stretch
-        padding: isMobile ? '16px' : '24px 40px'
+        margin: isMobile ? '-16px -16px 30px -16px' : '-30px 10px 40px -40px', 
+        padding: isMobile ? '16px' : '30px 40px'
       }}>
         <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
             <div style={{ width: '4px', height: '24px', background: 'var(--neon-cyan)', boxShadow: '0 0 10px var(--neon-cyan)' }}></div>
-            <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 'bold', color: '#fff', fontFamily: 'JetBrains Mono', letterSpacing: '-0.5px' }}>
+            <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 'bold', color: 'var(--text-primary)', fontFamily: 'JetBrains Mono', letterSpacing: '-0.5px' }}>
               INTEL_HUB
             </h1>
           </div>
 
           {/* TABS (Community Style) */}
-          <div style={{ display: 'flex', gap: '10px', overflowX: isMobile ? 'auto' : 'visible', scrollbarWidth: 'none' }}>
-            {tabs.map(tab => (
+          <div
+            style={{ display: 'flex', gap: '10px', overflowX: isMobile ? 'auto' : 'visible', scrollbarWidth: 'none' }}
+            role="tablist"
+            aria-label="Resource categories"
+          >
+            {tabs.map((tab, idx) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
+                onKeyDown={(e) => handleTabKeyDown(e, idx)}
                 style={{
-                  background: activeTab === tab.id ? 'rgba(0, 242, 255, 0.15)' : 'rgba(255, 255, 255, 0.03)',
-                  color: activeTab === tab.id ? 'var(--neon-cyan)' : '#8b949e',
+                  background: activeTab === tab.id ? 'rgba(0, 242, 255, 0.15)' : 'var(--bg-surface)',
+                  color: activeTab === tab.id ? 'var(--neon-cyan)' : 'var(--text-secondary)',
                   border: activeTab === tab.id ? '1px solid var(--neon-cyan)' : '1px solid transparent',
                   padding: '8px 16px',
                   borderRadius: '2px', // Tech square
@@ -74,12 +90,17 @@ export default function Resources() {
                   whiteSpace: 'nowrap',
                   transition: 'all 0.2s'
                 }}
+                role="tab"
+                aria-selected={activeTab === tab.id}
+                aria-controls={`${tab.id}-panel`}
+                id={`${tab.id}-tab`}
+                tabIndex={activeTab === tab.id ? 0 : -1}
               >
                 {tab.icon}
                 {tab.label}
                 <span style={{
-                  background: activeTab === tab.id ? 'var(--neon-cyan)' : '#21262d',
-                  color: activeTab === tab.id ? '#000' : '#8b949e',
+                  background: activeTab === tab.id ? 'var(--neon-cyan)' : 'var(--border-subtle)',
+                  color: activeTab === tab.id ? '#000' : 'var(--text-secondary)',
                   padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold'
                 }}>{tab.count}</span>
               </button>
@@ -99,11 +120,16 @@ export default function Resources() {
           <div>
             {/* NEWS TAB */}
             {activeTab === 'news' && (
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(350px, 1fr))',
-                gap: '20px'
-              }}>
+              <div
+                role="tabpanel"
+                id="news-panel"
+                aria-labelledby="news-tab"
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(350px, 1fr))',
+                  gap: '20px'
+                }}
+              >
                 {data.news && data.news.length > 0 ? data.news.map((item, idx) => (
                   <a
                     key={idx}
@@ -112,8 +138,8 @@ export default function Resources() {
                     rel="noreferrer"
                     style={{
                       textDecoration: 'none',
-                      background: '#161b22', // Solid tech dark
-                      border: '1px solid #30363d', // Tech border
+                      background: 'var(--bg-card)', // Theme adaptable
+                      border: '1px solid var(--border-subtle)', // Tech border
                       borderRadius: '12px',
                       padding: '20px',
                       transition: 'all 0.3s',
@@ -127,9 +153,9 @@ export default function Resources() {
                       if (title) title.style.color = 'var(--neon-cyan)';
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = '#30363d';
+                      e.currentTarget.style.borderColor = 'var(--border-subtle)';
                       const title = e.currentTarget.querySelector('.card-title');
-                      if (title) title.style.color = '#fff';
+                      if (title) title.style.color = 'var(--text-primary)';
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -142,7 +168,7 @@ export default function Resources() {
                       margin: 0,
                       fontSize: '16px',
                       fontWeight: '600',
-                      color: '#fff',
+                      color: 'var(--text-primary)',
                       lineHeight: '1.4',
                       display: '-webkit-box',
                       WebkitLineClamp: 3,
@@ -170,11 +196,16 @@ export default function Resources() {
 
             {/* YOUTUBE TAB */}
             {activeTab === 'videos' && (
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(350px, 1fr))',
-                gap: '20px'
-              }}>
+              <div
+                role="tabpanel"
+                id="videos-panel"
+                aria-labelledby="videos-tab"
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(350px, 1fr))',
+                  gap: '20px'
+                }}
+              >
                 {data.videos && data.videos.length > 0 ? data.videos.map((video, idx) => (
                   <a
                     key={idx}
@@ -183,8 +214,8 @@ export default function Resources() {
                     rel="noreferrer"
                     style={{
                       textDecoration: 'none',
-                      background: '#161b22',
-                      border: '1px solid #30363d',
+                      background: 'var(--bg-card)',
+                      border: '1px solid var(--border-subtle)',
                       borderRadius: '16px',
                       overflow: 'hidden',
                       transition: 'all 0.3s'
@@ -192,12 +223,12 @@ export default function Resources() {
                     onMouseEnter={(e) => {
                       e.currentTarget.style.borderColor = '#FF0000';
                       const title = e.currentTarget.querySelector('.card-title');
-                      if (title) title.style.color = '#ffffffff';
+                      if (title) title.style.color = 'var(--text-primary)';
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = '#30363d';
+                      e.currentTarget.style.borderColor = 'var(--border-subtle)';
                       const title = e.currentTarget.querySelector('.card-title');
-                      if (title) title.style.color = '#fff';
+                      if (title) title.style.color = 'var(--text-primary)';
                     }}
                   >
                     {/* Thumbnail */}
@@ -237,7 +268,7 @@ export default function Resources() {
                         margin: '0 0 8px 0',
                         fontSize: '15px',
                         fontWeight: '600',
-                        color: '#fff',
+                        color: 'var(--text-primary)',
                         lineHeight: '1.4',
                         display: '-webkit-box',
                         WebkitLineClamp: 2,
@@ -264,11 +295,16 @@ export default function Resources() {
 
             {/* JOBS TAB */}
             {activeTab === 'jobs' && (
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(350px, 1fr))',
-                gap: '20px'
-              }}>
+              <div
+                role="tabpanel"
+                id="jobs-panel"
+                aria-labelledby="jobs-tab"
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(350px, 1fr))',
+                  gap: '20px'
+                }}
+              >
                 {data.internships && data.internships.length > 0 ? data.internships.map((job, idx) => (
                   <a
                     key={idx}
@@ -277,8 +313,8 @@ export default function Resources() {
                     rel="noreferrer"
                     style={{
                       textDecoration: 'none',
-                      background: '#161b22',
-                      border: '1px solid #30363d',
+                      background: 'var(--bg-card)',
+                      border: '1px solid var(--border-subtle)',
                       borderRadius: '16px',
                       padding: '20px',
                       transition: 'all 0.3s',
@@ -293,9 +329,9 @@ export default function Resources() {
                       if (title) title.style.color = 'var(--success-green)';
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = '#30363d';
+                      e.currentTarget.style.borderColor = 'var(--border-subtle)';
                       const title = e.currentTarget.querySelector('.card-title');
-                      if (title) title.style.color = '#fff';
+                      if (title) title.style.color = 'var(--text-primary)';
                     }}
                   >
                     {job.is_hot && (
@@ -327,7 +363,7 @@ export default function Resources() {
                       margin: 0,
                       fontSize: '16px',
                       fontWeight: '600',
-                      color: '#fff',
+                      color: 'var(--text-primary)',
                       lineHeight: '1.4',
                       paddingRight: job.is_hot ? '100px' : '0',
                       transition: 'color 0.2s'

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './TerminalHero.css';
-import { CheckCircle, ExternalLink, Terminal } from 'lucide-react';
+import { CheckCircle, ExternalLink, Terminal, Lock, RotateCcw } from 'lucide-react';
 
 const SCRIPTS = [
     {
@@ -194,9 +194,9 @@ export default function TerminalHero() {
                     <div className="preview-card">
                         <div className="preview-header">
                             <div className="preview-url">
-                                <div className="lock-icon">🔒</div>
+                                <div className="lock-icon"><Lock size={12} /></div>
                                 <span>localhost:5173</span>
-                                <div className="refresh-icon">↻</div>
+                                <div className="refresh-icon"><RotateCcw size={12} /></div>
                             </div>
                         </div>
                         <div className="preview-body">

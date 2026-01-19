@@ -11,7 +11,7 @@ import ModuleDetailPanel from './components/dashboard/ModuleDetailPanel';
 import DailyQuizModal from './components/dashboard/DailyQuizModal';
 import Card from './components/common/Card';
 import Badge from './components/common/Badge';
-import Jada from './components/common/Jada';
+import { useJada } from './jada/JadaContext';
 
 // --- HELPER: TYPEWRITER TEXT ---
 const TypewriterText = ({ texts }) => {
@@ -50,6 +50,7 @@ export default function Dashboard() {
   const [selectedNode, setSelectedNode] = useState(null);
   const [loading, setLoading] = useState(true);
   const [regenerating, setRegenerating] = useState(false);
+  const [hasAttemptedRegen, setHasAttemptedRegen] = useState(false); // Prevent infinite regen loops
   const [userData, setUserData] = useState({ level: 'Beginner' });
   const [submissionLink, setSubmissionLink] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -63,6 +64,7 @@ export default function Dashboard() {
 
   const navigate = useNavigate();
   const isMobile = useIsMobile(); // Detect mobile viewport
+  const jada = useJada();
 
   // --- FETCH ROADMAP ---
   const fetchRoadmap = async () => {
@@ -90,6 +92,30 @@ export default function Dashboard() {
       // Fetch lessons dynamically for each module
       const enrichedNodes = await Promise.all(
         uniqueNodes.map(async (node) => {
+          const outline = node?.data?.resources?.lesson_outline;
+          if (outline && outline.length > 0) {
+            const lessons = outline.map((lesson, index) => ({
+              id: `${node.id}-lesson-${index}`,
+              title: lesson.title,
+              description: lesson.description,
+              phase: lesson.phase || 1,
+              order: lesson.order || index + 1,
+              xp_reward: 20,
+              estimated_minutes: lesson.estimated_minutes || 30,
+              is_completed: false,
+              confidence_rating: null,
+              completed_at: null
+            }));
+
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                lessons
+              }
+            };
+          }
+
           try {
             // Try to fetch AI-generated lessons
             const lessonRes = await api.post(`/api/modules/${node.id}/generate-lessons/`, {
@@ -119,9 +145,10 @@ export default function Dashboard() {
       
       setNodes(enrichedNodes);
 
-      // AUTO-REGENERATE if fallback detected
-      if (res.data.is_fallback && !regenerating) {
+      // AUTO-REGENERATE if fallback detected (only once per session)
+      if (res.data.is_fallback && !regenerating && !hasAttemptedRegen) {
         console.log("Fallback roadmap detected. Initiating auto-regeneration...");
+        setHasAttemptedRegen(true);
         handleRegenerateRoadmap();
       }
     } catch (err) {
@@ -132,6 +159,9 @@ export default function Dashboard() {
         setNodes([]);
         alert("Failed to load roadmap. Please check console for details.");
       }
+    } finally {
+      // Always ensure loading state is cleared
+      setLoading(false);
     }
   };
 
@@ -172,6 +202,16 @@ export default function Dashboard() {
     };
     loadRoadmap();
   }, [navigate]);
+
+  useEffect(() => {
+    if (loading || regenerating) {
+      jada.setMode('thinking');
+      jada.setSpeech(regenerating ? 'Regenerating your roadmap…' : 'Initializing your roadmap…', 'neutral');
+    } else {
+      jada.setMode('idle');
+      jada.setSpeech(null);
+    }
+  }, [jada, loading, regenerating]);
 
   // --- REGENERATE ROADMAP ---
   const handleRegenerateRoadmap = async () => {
@@ -243,7 +283,8 @@ export default function Dashboard() {
       await api.post('/api/daily-quiz/submit/',
         { score: 100 } // We just claim completion for the streak
       );
-      setQuizResult("STREAK EXTENDED! 🔥");
+      setQuizResult("STREAK EXTENDED");
+      jada.celebrate('Streak extended. Keep going.');
       setTimeout(() => {
         setShowQuiz(false);
         setQuizResult(null);
@@ -255,15 +296,16 @@ export default function Dashboard() {
   };
 
   // SUBMIT PROJECT 
-  const handleSubmitProject = async () => {
-    if (!submissionLink) return alert("Please paste a link!");
+  const handleSubmitProject = async (linkOverride) => {
+    const linkToUse = linkOverride || submissionLink;
+    if (!linkToUse) return alert("Please paste a link!");
     setSubmitting(true);
 
     try {
       // Call Backend
       const res = await api.post(
         `/api/submit-project/${selectedNode.id}/`,
-        { link: submissionLink }
+        { link: linkToUse }
       );
 
       // UPDATE LOCAL STATE
@@ -279,7 +321,8 @@ export default function Dashboard() {
         return node;
       }));
 
-      alert("Project Verified! Next Module Unlocked! 🚀");
+      alert("Project Verified! Next Module Unlocked.");
+      jada.celebrate('Project verified. Next module unlocked.');
       setSelectedNode(null);
       setSubmissionLink('');
 
@@ -298,20 +341,17 @@ export default function Dashboard() {
       height: '100%',
       position: 'relative',
       overflow: isMobile ? 'auto' : 'hidden', // Allow scrolling on mobile
-      background: 'var(--void-deep)'
+      background: 'var(--bg-dark)'
     }}>
 
       {/* UNIFIED LOADING & REGENERATION OVERLAY */}
       {(loading || regenerating) && (
         <div style={{
           position: 'absolute', inset: 0, zIndex: 50,
-          background: 'rgba(10, 0, 21, 0.95)', backdropFilter: 'blur(20px)',
+          background: 'var(--overlay-bg)', backdropFilter: 'blur(10px)',
           display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center', gap: '30px'
         }}>
-          {/* NEON LOADER */}
-          <Jada size="xl" state="working" />
-          
           <div style={{ textAlign: 'center' }}>
             <div style={{
               fontSize: '24px',
@@ -429,8 +469,8 @@ export default function Dashboard() {
           <div style={{
             position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
             padding: '12px 16px',
-            background: 'rgba(13, 10, 31, 0.85)', backdropFilter: 'blur(12px)',
-            borderBottom: '1px solid rgba(255,255,255,0.1)',
+            background: 'var(--panel-bg)', backdropFilter: 'blur(var(--glass-blur))',
+            borderBottom: '1px solid var(--border-subtle)',
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -475,7 +515,7 @@ export default function Dashboard() {
           onSubmitProject={handleSubmitProject}
           onMarkComplete={async (nodeId) => {
             try {
-              await api.post(`/api/submit-project/${nodeId}/`, { project_link: 'completed' });
+              await api.post(`/api/submit-project/${nodeId}/`, { link: 'completed' });
               await fetchRoadmap();
               setSelectedNode(null);
             } catch (error) {

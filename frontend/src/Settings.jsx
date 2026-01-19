@@ -1,18 +1,30 @@
 import { useState, useEffect } from 'react';
 import api from './api';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, Wallet, LogOut, Trash2, Download, Activity, Palette, Shield, Bell } from 'lucide-react';
+import { ArrowLeft, Save, Wallet, LogOut, Trash2, Download, Activity, Palette, Shield, Bell, Crown, Lock } from 'lucide-react';
 import { initTheme, applyTheme } from './theme';
 import { useIsMobile } from './hooks/useMediaQuery';
+import { usePremium } from './premium/PremiumContext';
 
 export default function Settings() {
     const [budget, setBudget] = useState('FREE');
     const [loading, setLoading] = useState(false);
     const [selectedTheme, setSelectedTheme] = useState('neon-dojo');
-    const [isPublic, setIsPublic] = useState(true);
+    const [profileVisibility, setProfileVisibility] = useState('public');
+    const [allowIndexing, setAllowIndexing] = useState(true);
+    const [activityVisibility, setActivityVisibility] = useState({
+        show_contribution_graph: true,
+        show_activity_feed: true,
+        show_achievements: true,
+        show_skills: true,
+        show_projects: true,
+    });
     const [emailNotifications, setEmailNotifications] = useState(true);
     const navigate = useNavigate();
     const isMobile = useIsMobile();
+    const { status, openGate } = usePremium();
+
+    const premiumThemes = ['monokai-pro', 'synthwave', 'nord-theme', 'dracula', 'tokyo-night'];
 
     useEffect(() => {
         initTheme();
@@ -25,7 +37,15 @@ export default function Settings() {
         try {
             const res = await api.get('/api/settings/');
             setBudget(res.data.budget_preference || 'FREE');
-            setIsPublic(res.data.is_public !== undefined ? res.data.is_public : true);
+            setProfileVisibility(res.data.profile_visibility || 'public');
+            setAllowIndexing(res.data.allow_indexing !== undefined ? res.data.allow_indexing : true);
+            setActivityVisibility({
+                show_contribution_graph: res.data.activity_visibility?.show_contribution_graph ?? true,
+                show_activity_feed: res.data.activity_visibility?.show_activity_feed ?? true,
+                show_achievements: res.data.activity_visibility?.show_achievements ?? true,
+                show_skills: res.data.activity_visibility?.show_skills ?? true,
+                show_projects: res.data.activity_visibility?.show_projects ?? true,
+            });
             setEmailNotifications(res.data.email_notifications !== undefined ? res.data.email_notifications : true);
         } catch (e) {
             console.error('Failed to fetch settings');
@@ -37,7 +57,9 @@ export default function Settings() {
         try {
             await api.post('/api/settings/update/', {
                 budget,
-                is_public: isPublic,
+                profile_visibility: profileVisibility,
+                allow_indexing: allowIndexing,
+                activity_visibility: activityVisibility,
                 email_notifications: emailNotifications
             });
             alert("Settings saved!");
@@ -50,6 +72,10 @@ export default function Settings() {
 
     const handleThemeChange = (e) => {
         const theme = e.target.value;
+        if (premiumThemes.includes(theme) && !status.is_premium) {
+            openGate('premium_theme', 'settings_theme');
+            return;
+        }
         setSelectedTheme(theme);
         applyTheme(theme);
     };
@@ -107,6 +133,53 @@ export default function Settings() {
 
                 <h1 style={headerStyle}>Settings</h1>
 
+                {/* PREMIUM STATUS CARD */}
+                <div style={cardStyle}>
+                    <h2 style={sectionTitle}><Crown size={20} /> Premium</h2>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ color: 'var(--text-main)', fontSize: '14px' }}>Current Plan</span>
+                            <span style={{
+                                background: status.is_premium ? 'rgba(255, 190, 11, 0.2)' : 'rgba(255, 255, 255, 0.06)',
+                                color: status.is_premium ? 'var(--neon-gold)' : 'var(--text-muted)',
+                                padding: '4px 10px',
+                                borderRadius: '999px',
+                                fontSize: '12px',
+                                fontFamily: 'var(--font-mono)',
+                                border: status.is_premium ? '1px solid rgba(255, 190, 11, 0.4)' : '1px solid var(--border-subtle)'
+                            }}>
+                                {status.is_premium ? 'PREMIUM' : 'FREE'}
+                            </span>
+                        </div>
+                        {!status.is_premium && (
+                            <div style={{ color: 'var(--text-muted)', fontSize: '13px' }}>
+                                Premium is in test mode. Join the waitlist to unlock when access opens.
+                            </div>
+                        )}
+                        {!status.is_premium && (
+                            <button
+                                onClick={() => openGate('general_upgrade', 'settings')}
+                                style={{
+                                    ...primaryBtnStyle,
+                                    background: 'var(--neon-gold)',
+                                    color: '#000'
+                                }}
+                            >
+                                Join Premium Waitlist
+                            </button>
+                        )}
+                        {status.waitlist_status === 'pending' && !status.is_premium && (
+                            <div style={{
+                                display: 'flex', alignItems: 'center', gap: '8px',
+                                color: 'var(--neon-gold)', fontSize: '12px',
+                                fontFamily: 'var(--font-mono)'
+                            }}>
+                                <Lock size={14} /> Waitlist status: Pending
+                            </div>
+                        )}
+                    </div>
+                </div>
+
                 {/* PREFERENCES CARD */}
                 <div style={cardStyle}>
                     <h2 style={sectionTitle}><Wallet size={20} /> Learning Preferences</h2>
@@ -136,8 +209,12 @@ export default function Settings() {
                             <option value="neon-dojo">Neon Dojo (Default)</option>
                             <option value="github-dark">GitHub Dark</option>
                             <option value="github-light">GitHub Light</option>
-                            <option value="monokai-pro">Monokai Pro</option>
                             <option value="dark-not-boring">Dark Not Boring</option>
+                            <option value="monokai-pro">Monokai Pro (Premium)</option>
+                            <option value="synthwave">Synthwave (Premium)</option>
+                            <option value="nord-theme">Nord Theme (Premium)</option>
+                            <option value="dracula">Dracula (Premium)</option>
+                            <option value="tokyo-night">Tokyo Night (Premium)</option>
                         </select>
                     </div>
                 </div>
@@ -147,20 +224,65 @@ export default function Settings() {
                     <h2 style={sectionTitle}><Shield size={20} /> Privacy & Notifications</h2>
 
                     <div style={toggleContainer}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            <div>
+                                <div style={toggleLabel}>Profile Visibility</div>
+                                <div style={toggleDescription}>Control who can view your profile inside the app</div>
+                            </div>
+                            <select
+                                value={profileVisibility}
+                                onChange={(e) => setProfileVisibility(e.target.value)}
+                                style={selectStyle}
+                            >
+                                <option value="public">Public</option>
+                                <option value="community">Community-only</option>
+                                <option value="private">Private</option>
+                            </select>
+                        </div>
+
                         <div style={toggleRow}>
                             <div>
-                                <div style={toggleLabel}>Public Profile</div>
-                                <div style={toggleDescription}>Allow others to view your profile and progress</div>
+                                <div style={toggleLabel}>Search Engine Indexing</div>
+                                <div style={toggleDescription}>Allow indexing when your profile is Public</div>
                             </div>
                             <label style={switchStyle}>
                                 <input
                                     type="checkbox"
-                                    checked={isPublic}
-                                    onChange={(e) => setIsPublic(e.target.checked)}
+                                    checked={allowIndexing}
+                                    onChange={(e) => setAllowIndexing(e.target.checked)}
                                     style={{ display: 'none' }}
                                 />
-                                <span style={isPublic ? switchSliderActive : switchSlider}></span>
+                                <span style={allowIndexing ? switchSliderActive : switchSlider}></span>
                             </label>
+                        </div>
+
+                        <div style={{
+                            paddingTop: '10px',
+                            borderTop: '1px solid var(--border-subtle)'
+                        }}>
+                            <div style={toggleLabel}>Activity Visibility</div>
+                            <div style={{ ...toggleDescription, marginBottom: '12px' }}>Show/hide sections on your profile</div>
+
+                            {[
+                                ['show_contribution_graph', 'Contribution Graph'],
+                                ['show_activity_feed', 'Activity Feed'],
+                                ['show_achievements', 'Achievements'],
+                                ['show_skills', 'Skills'],
+                                ['show_projects', 'Projects'],
+                            ].map(([key, label]) => (
+                                <div key={key} style={{ ...toggleRow, marginBottom: '12px' }}>
+                                    <div style={{ color: 'var(--text-main)', fontSize: '14px' }}>{label}</div>
+                                    <label style={switchStyle}>
+                                        <input
+                                            type="checkbox"
+                                            checked={!!activityVisibility[key]}
+                                            onChange={(e) => setActivityVisibility(prev => ({ ...prev, [key]: e.target.checked }))}
+                                            style={{ display: 'none' }}
+                                        />
+                                        <span style={activityVisibility[key] ? switchSliderActive : switchSlider}></span>
+                                    </label>
+                                </div>
+                            ))}
                         </div>
 
                         <div style={toggleRow}>

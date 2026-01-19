@@ -19,9 +19,24 @@ MODULE_SCHEMA = {
         "status": {"type": "string", "enum": ["locked", "active", "completed"]},
         "market_value": {"type": "string", "enum": ["Low", "Med", "High", "Low-Med", "Med-High"]},
         "resources": {"type": "object"},
-        "project_prompt": {"type": "string", "maxLength": 500}
+        "project_prompt": {"type": "string", "maxLength": 500},
+        "lessons": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string", "maxLength": 200},
+                    "description": {"type": "string", "maxLength": 500},
+                    "phase": {"type": "integer", "minimum": 1, "maximum": 3},
+                    "order": {"type": "integer", "minimum": 1, "maximum": 20},
+                    "estimated_minutes": {"type": "integer", "minimum": 10, "maximum": 90}
+                },
+                "required": ["title", "description", "phase", "order", "estimated_minutes"]
+            },
+            "minItems": 6
+        }
     },
-    "required": ["label", "description", "status", "market_value", "resources", "project_prompt"]
+    "required": ["label", "description", "status", "market_value", "resources", "project_prompt", "lessons"]
 }
 
 ROADMAP_SCHEMA = {
@@ -44,7 +59,8 @@ def generate_detailed_roadmap(niche, uni_course, budget):
         budget_context = "User is willing to pay. Recommend high-quality courses (Udemy, Coursera) but keep free alternatives."
 
     prompt = f"""
-    Act as a Senior Technical Career Coach. 
+    Act as a Senior Technical Career Coach.
+    You must generate modules AND a lesson outline for each module.
        {{
          "primary": [
            {{"title": "Best Resource Name", "url": "https://...", "type": "interactive|docs|video|course"}},
@@ -66,7 +82,12 @@ def generate_detailed_roadmap(niche, uni_course, budget):
        - Each URL must be a REAL, working link (not placeholder)
        - Order by quality: Best resources in "primary", good alternatives in "additional"
     
-    Output Format:
+        Lessons format (include in each module as "lessons"):
+            - 8 to 12 lessons per module
+            - Each lesson must include: title, description (1–2 sentences), phase (1/2/3), order, estimated_minutes
+            - Lessons must directly match the module title and description (no off-topic items)
+
+        Output Format:
     Return ONLY a raw JSON list of objects. 
     IMPORTANT: Do NOT include any conversational text like "Here is your roadmap" or "As a career coach".
     Start the response immediately with `[` and end with `]`.
@@ -89,7 +110,16 @@ def generate_detailed_roadmap(niche, uni_course, budget):
                     {{"title": "Eloquent JavaScript Book", "url": "https://eloquentjavascript.net/", "type": "docs"}}
                 ]
             }},
-            "project_prompt": "Specific project idea"
+                        "project_prompt": "Specific project idea",
+                        "lessons": [
+                                {
+                                    "title": "Lesson title",
+                                    "description": "Short description",
+                                    "phase": 1,
+                                    "order": 1,
+                                    "estimated_minutes": 30
+                                }
+                        ]
         }}
     ]
     """
@@ -185,6 +215,8 @@ def layout_engine(modules_list):
             module['status'] = 'locked'
         if module.get('resources') is None:
             module['resources'] = {}
+        if module.get('lessons') is None:
+            module['lessons'] = []
     
     return modules_list
 
@@ -208,7 +240,16 @@ def get_fallback_roadmap(niche, uni_course):
                     {"title": "FreeCodeCamp", "url": "https://www.freecodecamp.org", "type": "interactive"}
                 ]
             },
-            "project_prompt": "Hello World & Setup"
+            "project_prompt": "Hello World & Setup",
+            "lessons": [
+                {
+                    "title": "Environment Setup",
+                    "description": "Install tools and verify your dev environment.",
+                    "phase": 1,
+                    "order": 1,
+                    "estimated_minutes": 25
+                }
+            ]
         },
         {
             "label": f"{uni_course} Integration",
@@ -221,7 +262,16 @@ def get_fallback_roadmap(niche, uni_course):
                 ],
                 "additional": []
             },
-            "project_prompt": "Build a Calculation Tool"
+            "project_prompt": "Build a Calculation Tool",
+            "lessons": [
+                {
+                    "title": "Bridge Concepts",
+                    "description": "Connect core concepts to your degree and target role.",
+                    "phase": 2,
+                    "order": 2,
+                    "estimated_minutes": 30
+                }
+            ]
         },
         {
             "label": "Advanced Concepts",
@@ -234,7 +284,16 @@ def get_fallback_roadmap(niche, uni_course):
                 ],
                 "additional": []
             },
-            "project_prompt": "Full Capstone Build"
+            "project_prompt": "Full Capstone Build",
+            "lessons": [
+                {
+                    "title": "Capstone Planning",
+                    "description": "Plan a production-ready project scope and milestones.",
+                    "phase": 3,
+                    "order": 3,
+                    "estimated_minutes": 40
+                }
+            ]
         }
     ]
     roadmap_data = layout_engine(dummy_data)

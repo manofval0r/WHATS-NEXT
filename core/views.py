@@ -3,12 +3,174 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from .serializers import RegisterSerializer, ProjectCommentSerializer, UserProfileSerializer
-from .models import UserRoadmapItem, UserActivity, ProjectReview, ProjectComment, User
+from .models import UserRoadmapItem, UserActivity, ProjectReview, ProjectComment, User, CommunityPost, CommunityReply, Badge
 from .ai_logic import generate_detailed_roadmap
 from .news_logic import fetch_tech_news, fetch_internships
 from django.shortcuts import get_object_or_404
 from datetime import datetime, timedelta
 from django.db import transaction
+
+from django.utils import timezone
+from django.db.models import Count
+
+
+# Offline fallback roadmaps used when AI is unavailable
+FALLBACK_ROADMAPS = {
+    "software engineering": [
+        {
+            "label": "HTML & CSS Foundations",
+            "description": "Master semantic HTML, modern CSS layout (Flexbox/Grid), and accessibility fundamentals to build resilient pages.",
+            "market_value": "Low",
+            "project_prompt": "Ship a responsive portfolio with at least three sections and basic ARIA landmarks.",
+            "resources": {
+                "primary": [
+                    {"title": "MDN HTML Guide", "url": "https://developer.mozilla.org/en-US/docs/Learn/HTML", "type": "docs"},
+                    {"title": "Flexbox Froggy", "url": "https://flexboxfroggy.com/", "type": "interactive"}
+                ],
+                "additional": [
+                    {"title": "Grid Garden", "url": "https://cssgridgarden.com/", "type": "interactive"},
+                    {"title": "ARIA Landmarks", "url": "https://www.w3.org/TR/wai-aria-practices/examples/landmarks/", "type": "docs"}
+                ]
+            }
+        },
+        {
+            "label": "JavaScript Essentials",
+            "description": "Learn modern JavaScript (ES2020+), DOM manipulation, fetch API, and error handling to build interactive experiences.",
+            "market_value": "Med",
+            "project_prompt": "Build a data-powered dashboard that fetches an API, handles loading/error states, and includes keyboard navigation.",
+            "resources": {
+                "primary": [
+                    {"title": "You Don't Know JS (Scopes)", "url": "https://github.com/getify/You-Dont-Know-JS", "type": "docs"},
+                    {"title": "Frontend Mentor - API Challenge", "url": "https://www.frontendmentor.io/challenges?difficulties=3-4", "type": "interactive"}
+                ],
+                "additional": [
+                    {"title": "MDN Fetch", "url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch", "type": "docs"},
+                    {"title": "Async JS Crash Course", "url": "https://youtu.be/PoRJizFvM7s", "type": "video"}
+                ]
+            }
+        },
+        {
+            "label": "Backend API Basics",
+            "description": "Understand REST, authentication, and persistence. Practice with a minimal Python/Node API and deploy it.",
+            "market_value": "High",
+            "project_prompt": "Ship a CRUD API with validation and deploy to a free host (Render/Fly) including a short README.",
+            "resources": {
+                "primary": [
+                    {"title": "Django REST Quickstart", "url": "https://www.django-rest-framework.org/tutorial/quickstart/", "type": "docs"},
+                    {"title": "Railway Deploy Guide", "url": "https://docs.railway.app/deploy/deployments", "type": "docs"}
+                ],
+                "additional": [
+                    {"title": "HTTP Status Cheat Sheet", "url": "https://http.cat/", "type": "docs"},
+                    {"title": "Postman Collections", "url": "https://learning.postman.com/docs/publishing-your-api/collections/", "type": "docs"}
+                ]
+            }
+        }
+    ],
+    "data analysis": [
+        {
+            "label": "Python & Pandas",
+            "description": "Load, clean, and explore datasets using pandas; visualize quick wins with seaborn.",
+            "market_value": "Low",
+            "project_prompt": "Publish a notebook that cleans a messy CSV, calculates 3 KPIs, and plots two charts.",
+            "resources": {
+                "primary": [
+                    {"title": "Pandas 10 Minutes", "url": "https://pandas.pydata.org/pandas-docs/stable/user_guide/10min.html", "type": "docs"},
+                    {"title": "Seaborn Tutorial", "url": "https://seaborn.pydata.org/tutorial.html", "type": "docs"}
+                ],
+                "additional": [
+                    {"title": "Kaggle Getting Started", "url": "https://www.kaggle.com/learn/intro-to-programming", "type": "interactive"}
+                ]
+            }
+        },
+        {
+            "label": "SQL for Analysts",
+            "description": "Practice SELECT, JOIN, GROUP BY, and window functions for analytics questions.",
+            "market_value": "Med",
+            "project_prompt": "Answer 5 business questions on a sample database and document each query with comments.",
+            "resources": {
+                "primary": [
+                    {"title": "Mode SQL Tutorial", "url": "https://mode.com/sql-tutorial/", "type": "interactive"},
+                    {"title": "Postgres Window Functions", "url": "https://www.postgresql.org/docs/current/tutorial-window.html", "type": "docs"}
+                ]
+            }
+        },
+        {
+            "label": "Storytelling Dashboard",
+            "description": "Design a concise dashboard with annotations, highlighting a narrative for stakeholders.",
+            "market_value": "High",
+            "project_prompt": "Create a 1-page dashboard (Streamlit or Tableau Public) with filters, insights, and accessibility notes.",
+            "resources": {
+                "primary": [
+                    {"title": "Streamlit 30 Days", "url": "https://docs.streamlit.io/knowledge-base/tutorials", "type": "docs"},
+                    {"title": "Data Viz Accessibility", "url": "https://www.smashingmagazine.com/2021/03/guide-accessible-data-visualizations/", "type": "docs"}
+                ]
+            }
+        }
+    ]
+}
+
+
+def build_fallback_modules(target_career: str):
+    key = (target_career or "").strip().lower()
+    modules = FALLBACK_ROADMAPS.get(key) or FALLBACK_ROADMAPS.get('software engineering') or []
+    enriched = []
+    for module in modules:
+        resources = module.get('resources', {}) or {}
+        resources['is_fallback'] = True
+        enriched.append({
+            "label": module.get('label', 'Module'),
+            "description": module.get('description', ''),
+            "market_value": module.get('market_value', 'Med'),
+            "project_prompt": module.get('project_prompt', ''),
+            "resources": resources,
+        })
+    return enriched
+
+
+def calculate_current_streak(user):
+    today = datetime.now().date()
+    dates = list(UserActivity.objects.filter(user=user).values_list('date', flat=True).order_by('-date'))
+
+    if not dates:
+        return 0
+
+    current_streak = 0
+    check_date = today
+    if today not in dates:
+        check_date = today - timedelta(days=1)
+        if check_date not in dates:
+            return 0
+
+    while check_date in dates:
+        current_streak += 1
+        check_date -= timedelta(days=1)
+    return current_streak
+
+
+def award_badges(user):
+    completed_count = UserRoadmapItem.objects.filter(user=user, status='completed').count()
+    verified_count = UserRoadmapItem.objects.filter(user=user, verification_status='passed').count()
+    community_xp = getattr(user, 'community_xp', 0)
+    current_streak = calculate_current_streak(user)
+
+    badge_specs = [
+        ('first_module', 'First Module', 'Complete your first module', completed_count >= 1),
+        ('modules_5', 'Five Modules', 'Complete five modules', completed_count >= 5),
+        ('modules_10', 'Ten Modules', 'Complete ten modules', completed_count >= 10),
+        ('verified_project', 'Verified Project', 'Pass your first project verification', verified_count >= 1),
+        ('verified_5', 'Five Verifications', 'Pass five project verifications', verified_count >= 5),
+        ('streak_7', '7-Day Streak', 'Maintain a 7-day learning streak', current_streak >= 7),
+        ('streak_30', '30-Day Streak', 'Maintain a 30-day learning streak', current_streak >= 30),
+        ('community_contributor', 'Community Contributor', 'Earn 100 community XP from posts and replies', community_xp >= 100),
+    ]
+
+    for badge_type, title, description, condition in badge_specs:
+        if condition:
+            Badge.objects.get_or_create(
+                user=user,
+                badge_type=badge_type,
+                defaults={"title": title, "description": description}
+            )
 
 
 
@@ -110,11 +272,23 @@ def complete_onboarding(request):
     # Extract data
     niche = request.data.get('niche', '').strip()
     university_course = request.data.get('university_course', '').strip()
-    budget = request.data.get('budget', 'FREE')
+    budget = request.data.get('budget', 'FREE').upper()
     
     # Validate required field
     if not niche:
         return Response({"error": "Career path (niche) is required"}, status=400)
+    
+    # CRITICAL FIX A7: Input validation
+    if len(niche) > 100:
+        return Response({"error": "Career path must be less than 100 characters"}, status=400)
+    
+    if len(university_course) > 200:
+        return Response({"error": "Course name must be less than 200 characters"}, status=400)
+    
+    # Whitelist budget options
+    allowed_budgets = ['FREE', 'MEDIUM', 'HIGH']
+    if budget not in allowed_budgets:
+        return Response({"error": f"Budget must be one of {allowed_budgets}"}, status=400)
     
     try:
         # Update user profile
@@ -131,6 +305,10 @@ def complete_onboarding(request):
         created_items = []
         for i, module_data in enumerate(modules):
             status = 'active' if i == 0 else 'locked'
+            resources = module_data.get('resources', {})
+            if module_data.get('lessons'):
+                resources['lesson_outline'] = module_data.get('lessons')
+
             item = UserRoadmapItem.objects.create(
                 user=user,
                 step_order=i + 1,
@@ -138,7 +316,7 @@ def complete_onboarding(request):
                 description=module_data.get('description', ''),
                 status=status,
                 market_value=module_data.get('market_value', 'Med'),
-                resources=module_data.get('resources', {}),
+                resources=resources,
                 project_prompt=module_data.get('project_prompt', 'No project defined')
             )
             created_items.append(item)
@@ -204,7 +382,8 @@ def get_my_roadmap(request):
     force_regenerate = request.data.get('force_regenerate', False) if request.data else False
     print(f"Force regenerate: {force_regenerate}")
     
-    existing_items = UserRoadmapItem.objects.filter(user=user).order_by('step_order')
+    # CRITICAL FIX A6: Optimize query to avoid N+1 issues
+    existing_items = UserRoadmapItem.objects.filter(user=user).select_related('user').prefetch_related('comments', 'reviews').order_by('step_order')
     
     if existing_items.exists() and not force_regenerate:
         print(f"Found existing roadmap with {existing_items.count()} items in database")
@@ -266,13 +445,17 @@ def get_my_roadmap(request):
     
     try:
         print(f"Calling generate_detailed_roadmap({niche}, {uni_course}, {budget})")
-        # Generate the roadmap (returns list of modules)
         modules = generate_detailed_roadmap(niche, uni_course, budget)
+        if not modules:
+            raise ValueError("AI returned no modules; using offline fallback")
         print(f"Generated {len(modules)} modules")
         
-        # Save to database
         created_items = []
         for i, module in enumerate(modules):
+            resources = module.get('resources', {}) or {}
+            if module.get('lessons'):
+                resources['lesson_outline'] = module.get('lessons')
+
             item = UserRoadmapItem.objects.create(
                 user=user,
                 step_order=i,
@@ -280,12 +463,11 @@ def get_my_roadmap(request):
                 description=module.get('description', ''),
                 status='active' if i == 0 else 'locked',
                 market_value=module.get('market_value', 'Med'),
-                resources=module.get('resources', {}),
+                resources=resources,
                 project_prompt=module.get('project_prompt', '')
             )
             created_items.append(item)
         
-        # Format response using created items
         formatted_nodes = []
         formatted_edges = []
         for i, item in enumerate(created_items):
@@ -320,6 +502,57 @@ def get_my_roadmap(request):
         print(f"\n!!! ERROR GENERATING ROADMAP !!!")
         print(f"Exception: {type(e).__name__}: {str(e)}")
         traceback.print_exc()
+
+        fallback_modules = build_fallback_modules(niche)
+        if fallback_modules:
+            created_items = []
+            for i, module in enumerate(fallback_modules):
+                item = UserRoadmapItem.objects.create(
+                    user=user,
+                    step_order=i,
+                    label=module.get('label', 'Module'),
+                    description=module.get('description', ''),
+                    status='active' if i == 0 else 'locked',
+                    market_value=module.get('market_value', 'Med'),
+                    resources=module.get('resources', {}),
+                    project_prompt=module.get('project_prompt', '')
+                )
+                created_items.append(item)
+
+            formatted_nodes = []
+            formatted_edges = []
+            for i, item in enumerate(created_items):
+                node_id = str(item.id)
+                formatted_nodes.append({
+                    "id": node_id,
+                    "type": "customNode",
+                    "position": { "x": 250, "y": 500 + (i * 150) },
+                    "data": {
+                        "label": item.label,
+                        "status": item.status,
+                        "description": item.description,
+                        "market_value": item.market_value,
+                        "resources": item.resources,
+                        "project_prompt": item.project_prompt
+                    }
+                })
+                if i > 0:
+                    prev_id = str(created_items[i-1].id)
+                    formatted_edges.append({
+                        "id": f"e{prev_id}-{node_id}",
+                        "source": prev_id,
+                        "target": node_id,
+                        "animated": True,
+                        "style": { "stroke": "#00f2ff" }
+                    })
+
+            print(f"Returning offline fallback roadmap with {len(formatted_nodes)} nodes")
+            return Response({
+                "nodes": formatted_nodes,
+                "edges": formatted_edges,
+                "is_fallback": True
+            })
+
         return Response({
             "error": str(e),
             "type": type(e).__name__,
@@ -517,6 +750,8 @@ def submit_project(request, node_id):
         activity, _ = UserActivity.objects.get_or_create(user=user, date=today)
         activity.count += 1
         activity.save()
+
+        award_badges(user)
         
         return Response({
             "success": True,
@@ -759,7 +994,7 @@ def get_analytics_dashboard(request):
     # Recommendations
     recommendations = []
     if progress_percent < 25:
-        recommendations.append("Keep up the momentum! You're just getting started. 🚀")
+        recommendations.append("Keep up the momentum! You're just getting started.")
     elif progress_percent < 50:
         recommendations.append("Great progress! Focus on completing a project for each module to build your portfolio.")
     elif progress_percent < 75:
@@ -950,21 +1185,166 @@ def get_user_profile(request):
         github = getattr(user, 'github_link', '')
         linkedin = getattr(user, 'linkedin_link', '')
 
+        twitter = getattr(user, 'twitter_link', '')
+        website = getattr(user, 'website_link', '')
+
+        # Community counts
+        posts_count = CommunityPost.objects.filter(author=user).count()
+        replies_count = CommunityReply.objects.filter(author=user).count()
+        reviews_given = ProjectReview.objects.filter(reviewer=user).count()
+
+        # Contribution summary
+        today = timezone.now().date()
+        year_cutoff = today - timedelta(days=365)
+        year_activity = UserActivity.objects.filter(user=user, date__gte=year_cutoff)
+        total_activities_year = sum([a.count for a in year_activity])
+
+        # Longest streak (within last year)
+        active_dates = sorted([a.date for a in year_activity if a.count > 0])
+        longest_streak = 0
+        cur = 0
+        prev = None
+        for d in active_dates:
+            if prev is None or d == prev + timedelta(days=1):
+                cur += 1
+            else:
+                cur = 1
+            longest_streak = max(longest_streak, cur)
+            prev = d
+
+        # Current streak (same logic as get_user_streak)
+        dates = list(UserActivity.objects.filter(user=user).values_list('date', flat=True).order_by('-date'))
+        current_streak = 0
+        check_date = today
+        if dates:
+            if today not in dates:
+                check_date = today - timedelta(days=1)
+            if check_date in dates:
+                while check_date in dates:
+                    current_streak += 1
+                    check_date -= timedelta(days=1)
+
+        # XP: computed score until a dedicated XP ledger exists
+        xp = (completed_count * 500) + (total_activities_year * 15) + (posts_count * 40) + (replies_count * 15) + (reviews_given * 10)
+
+        # Activity visibility defaults
+        visibility = getattr(user, 'activity_visibility', {}) or {}
+        defaults = {
+            'show_contribution_graph': True,
+            'show_activity_feed': True,
+            'show_achievements': True,
+            'show_skills': True,
+            'show_projects': True,
+        }
+        merged_visibility = {**defaults, **visibility}
+
+        # Module buckets (for skills + verification details)
+        completed_modules = []
+        active_modules = []
+        locked_modules = []
+        lessons_completed = 0
+
+        def _module_competencies(item):
+            outline = (item.resources or {}).get('lesson_outline') or []
+            titles = []
+            for lesson in outline[:6]:
+                title = (lesson or {}).get('title')
+                if title:
+                    titles.append(title)
+            if titles:
+                return titles
+            return [word for word in (item.label or '').split() if len(word) > 2][:6]
+
+        for item in all_items.order_by('step_order'):
+            payload = {
+                'id': item.id,
+                'label': item.label,
+                'status': item.status,
+                'step_order': item.step_order,
+                'project_submission_link': item.project_submission_link,
+                'submitted_at': item.submitted_at.isoformat() if item.submitted_at else None,
+                'verification_status': item.verification_status,
+                'verification_count': item.verification_count,
+                'github_score': item.github_score,
+                'score_breakdown': item.score_breakdown,
+                'competencies': _module_competencies(item),
+            }
+
+            outline = (item.resources or {}).get('lesson_outline') or []
+            payload['lessons_total'] = len(outline) if isinstance(outline, list) else 0
+
+            cert = getattr(item, 'certificate', None)
+            payload['certificate_id'] = cert.certificate_id if cert else None
+
+            if item.status == 'completed':
+                completed_modules.append(payload)
+                outline = (item.resources or {}).get('lesson_outline') or []
+                if isinstance(outline, list):
+                    lessons_completed += len(outline)
+            elif item.status == 'active':
+                active_modules.append(payload)
+            else:
+                locked_modules.append(payload)
+
+        # Achievements (starter set)
+        badges = []
+
+        def _badge(key, title, earned, category):
+            badges.append({
+                'key': key,
+                'title': title,
+                'category': category,
+                'earned': bool(earned),
+            })
+
+        _badge('first_module', 'First Module', completed_count >= 1, 'Module Completions')
+        _badge('five_modules', '5 Modules', completed_count >= 5, 'Module Completions')
+        _badge('streak_3', '3-Day Fire', current_streak >= 3, 'Streaks')
+        _badge('streak_7', 'Week Warrior', current_streak >= 7, 'Streaks')
+        _badge('community_first_post', 'First Post', posts_count >= 1, 'Community')
+        _badge('helpful_reviewer', 'Helpful Reviewer', reviews_given >= 10, 'Community')
+
+        recent_badges = [b for b in badges if b['earned']][:6]
+
         return Response({
             "profile": {
                 "username": user.username,
                 "email": user.email,
                 "target_career": user.target_career,
+                "current_level": getattr(user, 'current_level', 'Beginner'),
                 "market_label": market_label,
                 "progress": progress_percent,
                 "github": github,
-                "linkedin": linkedin
+                "linkedin": linkedin,
+                "twitter": twitter,
+                "website": website,
+                "plan_tier": getattr(user, 'plan_tier', 'FREE'),
+                "premium_waitlist_status": getattr(user, 'premium_waitlist_status', 'none'),
+                "profile_visibility": getattr(user, 'profile_visibility', 'public'),
+                "allow_indexing": getattr(user, 'allow_indexing', True),
+                "activity_visibility": merged_visibility,
             },
             "stats": {
                 "completed": completed_count,
                 "total": total_count,
+                "xp": xp,
+                "streak": current_streak,
+                "longest_streak": longest_streak,
+                "total_activities_year": total_activities_year,
+                "community_posts": posts_count,
+                "community_replies": replies_count,
+                "lessons_completed": lessons_completed,
             },
-            "projects": project_cards
+            "projects": project_cards,
+            "modules": {
+                "completed": completed_modules,
+                "active": active_modules,
+                "locked": locked_modules[:12]
+            },
+            "achievements": {
+                "recent": recent_badges,
+                "all": badges
+            }
         })
 
     except Exception as e:
@@ -983,6 +1363,8 @@ def update_socials(request):
     user = request.user
     user.github_link = request.data.get('github', user.github_link)
     user.linkedin_link = request.data.get('linkedin', user.linkedin_link)
+    user.twitter_link = request.data.get('twitter', user.twitter_link)
+    user.website_link = request.data.get('website', user.website_link)
     user.save()
     return Response({"message": "Socials updated"})
 
@@ -1100,6 +1482,9 @@ class CommunityPostViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
+        author = self.request.user
+        author.community_xp = (author.community_xp or 0) + 10
+        author.save(update_fields=['community_xp'])
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -1161,6 +1546,10 @@ class CommunityReplyViewSet(viewsets.ModelViewSet):
         # Update reply count on post
         post.reply_count += 1
         post.save()
+
+        author = self.request.user
+        author.community_xp = (author.community_xp or 0) + 5
+        author.save(update_fields=['community_xp'])
 
     @action(detail=True, methods=['post'])
     def upvote(self, request, pk=None):
@@ -1291,6 +1680,8 @@ def submit_daily_quiz(request):
         pass
     
     activity.save()
+
+    award_badges(user)
     
     return Response({
         "message": "Streak updated!", 
@@ -1361,20 +1752,136 @@ def update_settings(request):
     if request.method == 'GET':
         return Response({
             "budget_preference": user.budget_preference,
-            "is_public": getattr(user, 'is_public', True),
+            "profile_visibility": getattr(user, 'profile_visibility', 'public'),
+            "allow_indexing": getattr(user, 'allow_indexing', True),
+            "activity_visibility": getattr(user, 'activity_visibility', {}) or {},
             "email_notifications": getattr(user, 'email_notifications', True)
         })
     
     # POST - Update settings
     user.budget_preference = request.data.get('budget', user.budget_preference)
-    
-    if 'is_public' in request.data:
-        user.is_public = request.data['is_public']
+
+    if 'profile_visibility' in request.data:
+        user.profile_visibility = request.data['profile_visibility']
+    if 'allow_indexing' in request.data:
+        user.allow_indexing = bool(request.data['allow_indexing'])
+    if 'activity_visibility' in request.data and isinstance(request.data['activity_visibility'], dict):
+        user.activity_visibility = request.data['activity_visibility']
     if 'email_notifications' in request.data:
-        user.email_notifications = request.data['email_notifications']
+        user.email_notifications = bool(request.data['email_notifications'])
     
     user.save()
     return Response({"message": "Settings updated"})
+
+
+# ==========================================
+# 9. PREMIUM & WAITLIST (Phase 5 - Test Mode)
+# ==========================================
+
+FREE_CV_EXPORT_LIMIT = 3
+
+def _reset_cv_export_counter(user):
+    today = datetime.now().date()
+    if not user.cv_exports_reset_at:
+        user.cv_exports_count = 0
+        user.cv_exports_reset_at = today
+        user.save(update_fields=['cv_exports_count', 'cv_exports_reset_at'])
+        return
+
+    if user.cv_exports_reset_at.year != today.year or user.cv_exports_reset_at.month != today.month:
+        user.cv_exports_count = 0
+        user.cv_exports_reset_at = today
+        user.save(update_fields=['cv_exports_count', 'cv_exports_reset_at'])
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_premium_status(request):
+    user = request.user
+    _reset_cv_export_counter(user)
+
+    remaining = None
+    if user.plan_tier != 'PREMIUM':
+        remaining = max(FREE_CV_EXPORT_LIMIT - user.cv_exports_count, 0)
+
+    return Response({
+        "plan_tier": user.plan_tier,
+        "is_premium": user.plan_tier == 'PREMIUM',
+        "waitlist_status": user.premium_waitlist_status,
+        "waitlist_joined_at": user.premium_waitlist_joined_at.isoformat() if user.premium_waitlist_joined_at else None,
+        "cv_exports_remaining": remaining
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def join_premium_waitlist(request):
+    user = request.user
+
+    if user.plan_tier == 'PREMIUM':
+        return Response({
+            "message": "You already have Premium access.",
+            "waitlist_status": user.premium_waitlist_status,
+            "plan_tier": user.plan_tier
+        })
+
+    feature_key = request.data.get('feature_key', '').strip()
+    source = request.data.get('source', '').strip()
+
+    if user.premium_waitlist_status != 'pending':
+        user.premium_waitlist_status = 'pending'
+        if not user.premium_waitlist_joined_at:
+            user.premium_waitlist_joined_at = datetime.now()
+
+    if feature_key:
+        user.premium_waitlist_feature = feature_key
+    if source:
+        user.premium_waitlist_source = source
+
+    user.save(update_fields=[
+        'premium_waitlist_status',
+        'premium_waitlist_joined_at',
+        'premium_waitlist_feature',
+        'premium_waitlist_source'
+    ])
+
+    return Response({
+        "message": "You're on the Premium waitlist.",
+        "waitlist_status": user.premium_waitlist_status,
+        "waitlist_joined_at": user.premium_waitlist_joined_at.isoformat() if user.premium_waitlist_joined_at else None,
+        "plan_tier": user.plan_tier
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def track_cv_export(request):
+    user = request.user
+    _reset_cv_export_counter(user)
+
+    if user.plan_tier == 'PREMIUM':
+        return Response({
+            "allowed": True,
+            "remaining": None,
+            "plan_tier": user.plan_tier
+        })
+
+    if user.cv_exports_count >= FREE_CV_EXPORT_LIMIT:
+        return Response({
+            "allowed": False,
+            "remaining": 0,
+            "plan_tier": user.plan_tier
+        }, status=403)
+
+    user.cv_exports_count += 1
+    user.save(update_fields=['cv_exports_count'])
+
+    remaining = max(FREE_CV_EXPORT_LIMIT - user.cv_exports_count, 0)
+    return Response({
+        "allowed": True,
+        "remaining": remaining,
+        "plan_tier": user.plan_tier
+    })
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -1499,6 +2006,8 @@ def submit_quiz(request, item_id):
         activity, _ = UserActivity.objects.get_or_create(user=request.user, date=today)
         activity.count += 1
         activity.save()
+
+        award_badges(request.user)
     
     quiz.save()
     
@@ -1559,9 +2068,17 @@ def delete_comment(request, comment_id):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def get_public_user_profile(request, username):
-    """Get a user's public profile with projects and stats."""
+    """Get a user's profile with projects and stats (subject to privacy settings)."""
     user = get_object_or_404(User, username=username)
+
+    visibility = getattr(user, 'profile_visibility', 'public')
+    if user != request.user:
+        if visibility == 'private':
+            return Response({"error": "Profile is private"}, status=403)
+        # 'community' and 'public' are both viewable by authenticated users.
     
     # User basic info
     profile_data = UserProfileSerializer(user).data
@@ -1661,6 +2178,14 @@ def get_recent_activity(request):
             "date": item.submitted_at,
             "details": item.description[:100] + "..."
         })
+
+        if item.project_submission_link:
+            activities.append({
+                "type": "project_submitted",
+                "title": f"Submitted project: {item.label}",
+                "date": item.submitted_at,
+                "details": item.project_submission_link
+            })
         
     # 2. Project Reviews (given)
     reviews = ProjectReview.objects.filter(reviewer=user)
@@ -1681,8 +2206,476 @@ def get_recent_activity(request):
             "date": comment.created_at,
             "details": comment.text[:50] + "..."
         })
+
+    # 4. Community posts + replies
+    posts = CommunityPost.objects.filter(author=user)
+    for post in posts:
+        activities.append({
+            "type": "community_post",
+            "title": f"Posted in community: {post.title}",
+            "date": post.created_at,
+            "details": post.post_type
+        })
+
+    replies = CommunityReply.objects.filter(author=user)
+    for reply in replies:
+        activities.append({
+            "type": "community_comment",
+            "title": f"Replied in community",
+            "date": reply.created_at,
+            "details": (reply.content[:50] + "...") if reply.content else ""
+        })
+
+    # 5. Quiz completions
+    try:
+        from .models import Quiz
+        quizzes = Quiz.objects.filter(roadmap_item__user=user, completed_at__isnull=False)
+        for q in quizzes:
+            activities.append({
+                "type": "quiz_completed",
+                "title": f"Quiz completed: {q.roadmap_item.label}",
+                "date": q.completed_at,
+                "details": f"Score: {q.score}%"
+            })
+    except Exception:
+        pass
         
     # Sort by date descending
     activities.sort(key=lambda x: x['date'], reverse=True)
     
     return Response(activities)
+
+
+# ==========================================
+# PHASE 7: RETENTION FEATURES
+# ==========================================
+
+# ==========================================
+# SAVED RESOURCES (Bookmarks)
+# ==========================================
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def save_resource(request):
+    """Save a resource (news, video, job) as bookmark."""
+    from .models import SavedResource
+    
+    user = request.user
+    data = request.data
+    
+    try:
+        saved = SavedResource.objects.create(
+            user=user,
+            resource_type=data.get('resource_type', 'article'),  # news, video, job, article
+            title=data.get('title', ''),
+            url=data.get('url', ''),
+            source=data.get('source', ''),
+            description=data.get('description', ''),
+            thumbnail_url=data.get('thumbnail', ''),
+            tags=data.get('tags', []),
+        )
+        
+        return Response({
+            "id": saved.id,
+            "message": "Resource saved successfully"
+        }, status=201)
+    except Exception as e:
+        return Response({"error": str(e)}, status=400)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_saved_resources(request):
+    """Get user's saved resources with optional filtering."""
+    from .models import SavedResource
+    
+    user = request.user
+    resource_type = request.query_params.get('type', None)
+    search_query = request.query_params.get('search', None)
+    page = int(request.query_params.get('page', 1))
+    page_size = 20
+    
+    query = SavedResource.objects.filter(user=user)
+    
+    if resource_type:
+        query = query.filter(resource_type=resource_type)
+    
+    if search_query:
+        query = query.filter(title__icontains=search_query) | query.filter(description__icontains=search_query)
+    
+    total_count = query.count()
+    offset = (page - 1) * page_size
+    resources = query.order_by('-saved_at')[offset:offset + page_size]
+    
+    return Response({
+        "total": total_count,
+        "page": page,
+        "page_size": page_size,
+        "results": [
+            {
+                "id": r.id,
+                "type": r.resource_type,
+                "title": r.title,
+                "url": r.url,
+                "source": r.source,
+                "description": r.description,
+                "thumbnail": r.thumbnail_url,
+                "tags": r.tags,
+                "saved_at": r.saved_at,
+            }
+            for r in resources
+        ]
+    })
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_saved_resource(request, resource_id):
+    """Delete a saved resource."""
+    from .models import SavedResource
+    
+    user = request.user
+    try:
+        resource = SavedResource.objects.get(id=resource_id, user=user)
+        resource.delete()
+        return Response({"message": "Resource deleted"})
+    except SavedResource.DoesNotExist:
+        return Response({"error": "Resource not found"}, status=404)
+
+
+# ==========================================
+# COMMUNITY SEARCH (Postgres Full-Text)
+# ==========================================
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def search_community(request):
+    """Search community posts with Postgres full-text search."""
+    from django.contrib.postgres.search import SearchVector, SearchQuery, SearchRank
+    
+    query_str = request.query_params.get('q', '').strip()
+    post_type = request.query_params.get('type', None)  # question, discussion, showcase
+    page = int(request.query_params.get('page', 1))
+    page_size = 20
+    
+    posts = CommunityPost.objects.all()
+    
+    if query_str:
+        search_vector = SearchVector('title', weight='A') + SearchVector('content', weight='B')
+        search_query = SearchQuery(query_str)
+        posts = posts.annotate(
+            rank=SearchRank(search_vector, search_query)
+        ).filter(rank__gte=0.3).order_by('-rank', '-created_at')
+    else:
+        posts = posts.order_by('-created_at')
+    
+    if post_type:
+        posts = posts.filter(post_type=post_type)
+    
+    total_count = posts.count()
+    offset = (page - 1) * page_size
+    results = posts[offset:offset + page_size]
+    
+    return Response({
+        "total": total_count,
+        "page": page,
+        "page_size": page_size,
+        "results": [
+            {
+                "id": r.id,
+                "title": r.title,
+                "content": r.content[:200],
+                "author": r.author.username,
+                "author_avatar": r.author.avatar_url if hasattr(r.author, 'avatar_url') else '',
+                "post_type": r.post_type,
+                "votes": r.votes,
+                "reply_count": r.replies.count(),
+                "created_at": r.created_at,
+            }
+            for r in results
+        ]
+    })
+
+
+# ==========================================
+# ANALYTICS DASHBOARD
+# ==========================================
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_analytics(request):
+    """Get user's learning analytics: time spent, progress, quiz scores."""
+    from .models import Quiz, ProjectReview
+    from django.db.models import Avg, Sum, Count, F
+    
+    user = request.user
+    now = timezone.now()
+    week_ago = now - timedelta(days=7)
+    month_ago = now - timedelta(days=30)
+    
+    # Total modules completed
+    completed_modules = UserRoadmapItem.objects.filter(
+        user=user,
+        verification_count__gt=0
+    ).count()
+    
+    # Weekly activity (last 7 days)
+    weekly_activity = UserActivity.objects.filter(
+        user=user,
+        timestamp__gte=week_ago
+    ).values('activity_type').annotate(count=Count('id'))
+    
+    # Quiz stats (last 30 days)
+    quiz_stats = Quiz.objects.filter(
+        roadmap_item__user=user,
+        completed_at__gte=month_ago
+    ).aggregate(
+        avg_score=Avg('score'),
+        total_attempts=Count('id')
+    )
+    
+    # XP trend (weekly breakdown)
+    weekly_breakdown = []
+    for i in range(7):
+        day = now - timedelta(days=6-i)
+        day_start = day.replace(hour=0, minute=0, second=0)
+        day_end = day_start + timedelta(days=1)
+        
+        xp_earned = UserActivity.objects.filter(
+            user=user,
+            timestamp__gte=day_start,
+            timestamp__lt=day_end
+        ).count() * 10  # Simplified: 10 XP per activity
+        
+        weekly_breakdown.append({
+            "date": day.strftime('%Y-%m-%d'),
+            "xp": xp_earned
+        })
+    
+    # Project completion velocity
+    recent_projects = UserRoadmapItem.objects.filter(
+        user=user,
+        is_project=True
+    ).order_by('-verification_count')[:5]
+
+    leaderboard = User.objects.annotate(
+        posts_count=Count('posts', distinct=True),
+        replies_count=Count('replies', distinct=True)
+    ).order_by('-community_xp', '-posts_count')[:5]
+    
+    return Response({
+        "summary": {
+            "total_xp": user.xp if hasattr(user, 'xp') else 0,
+            "current_streak": user.current_streak,
+            "completed_modules": completed_modules,
+            "total_hours": 0,  # Would need to calculate from activity logs
+            "community_xp": getattr(user, 'community_xp', 0)
+        },
+        "weekly_activity": list(weekly_activity),
+        "quiz_stats": {
+            "average_score": quiz_stats.get('avg_score') or 0,
+            "total_attempts": quiz_stats.get('total_attempts') or 0,
+        },
+        "weekly_xp_trend": weekly_breakdown,
+        "recent_projects": [
+            {
+                "id": p.id,
+                "label": p.label,
+                "submission_link": p.project_submission_link,
+            }
+            for p in recent_projects
+        ],
+        "community_leaderboard": [
+            {
+                "username": u.username,
+                "xp": getattr(u, 'community_xp', 0),
+                "posts": getattr(u, 'posts_count', 0),
+                "replies": getattr(u, 'replies_count', 0)
+            }
+            for u in leaderboard
+        ]
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def community_leaderboard(request):
+    leaders = User.objects.annotate(
+        posts_count=Count('posts', distinct=True),
+        replies_count=Count('replies', distinct=True)
+    ).order_by('-community_xp', '-posts_count')[:10]
+
+    return Response({
+        "leaders": [
+            {
+                "username": u.username,
+                "xp": getattr(u, 'community_xp', 0),
+                "posts": getattr(u, 'posts_count', 0),
+                "replies": getattr(u, 'replies_count', 0)
+            }
+            for u in leaders
+        ]
+    })
+
+
+# ==========================================
+# SHARE PROFILE
+# ==========================================
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def share_profile(request):
+    """Generate shareable public profile link."""
+    user = request.user
+    
+    # Create a sharable profile URL
+    public_url = f"{settings.FRONTEND_URL}/profile/public/{user.username}/"
+    
+    return Response({
+        "public_url": public_url,
+        "username": user.username,
+        "message": "Profile link copied to clipboard"
+    })
+
+
+# ==========================================
+# EMPLOYER JOB MANAGEMENT
+# ==========================================
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def employer_jobs(request):
+    """List employer's jobs or create a new job posting."""
+    from .employer_models import EmployerProfile, JobPosting
+    
+    try:
+        employer = EmployerProfile.objects.get(user=request.user)
+    except EmployerProfile.DoesNotExist:
+        return Response(
+            {"error": "You need to set up an employer profile first"},
+            status=403
+        )
+    
+    if request.method == 'GET':
+        jobs = JobPosting.objects.filter(employer=employer).order_by('-created_at')
+        
+        return Response([
+            {
+                "id": job.id,
+                "title": job.title,
+                "description": job.description,
+                "level": job.level,
+                "location": job.location,
+                "salary_range": job.salary_range,
+                "required_skills": job.required_skills,
+                "is_active": job.is_active,
+                "is_approved": job.is_approved,
+                "created_at": job.created_at,
+                "applications": job.applications.count() if hasattr(job, 'applications') else 0,
+            }
+            for job in jobs
+        ])
+    
+    elif request.method == 'POST':
+        data = request.data
+        
+        try:
+            job = JobPosting.objects.create(
+                employer=employer,
+                title=data.get('title', ''),
+                description=data.get('description', ''),
+                level=data.get('level', 'entry'),
+                location=data.get('location', 'Remote'),
+                salary_range=data.get('salary_range', ''),
+                required_skills=data.get('required_skills', []),
+                is_active=True,
+                is_approved=False,  # Admin review required
+            )
+            
+            return Response({
+                "id": job.id,
+                "message": "Job posted successfully. Pending admin approval."
+            }, status=201)
+        except Exception as e:
+            return Response({"error": str(e)}, status=400)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_job_listings(request):
+    """Get all active, approved job listings (public endpoint)."""
+    from .employer_models import JobPosting
+    
+    jobs = JobPosting.objects.filter(
+        is_active=True,
+        is_approved=True
+    ).order_by('-created_at')
+    
+    search = request.query_params.get('search', '').strip()
+    if search:
+        from django.db.models import Q
+        jobs = jobs.filter(
+            Q(title__icontains=search) | 
+            Q(description__icontains=search) |
+            Q(required_skills__contains=[search])
+        )
+    
+    return Response([
+        {
+            "id": job.id,
+            "title": job.title,
+            "employer": job.employer.company_name,
+            "employer_logo": job.employer.company_logo_url,
+            "description": job.description[:200],
+            "level": job.level,
+            "location": job.location,
+            "salary_range": job.salary_range,
+            "required_skills": job.required_skills,
+            "created_at": job.created_at,
+        }
+        for job in jobs
+    ])
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def apply_to_job(request, job_id):
+    """Apply to a job posting."""
+    from .employer_models import JobPosting, CandidateApplication
+    
+    try:
+        job = JobPosting.objects.get(id=job_id, is_active=True, is_approved=True)
+    except JobPosting.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+    
+    # Check if already applied
+    existing = CandidateApplication.objects.filter(
+        job_posting=job,
+        candidate=request.user
+    ).first()
+    
+    if existing:
+        return Response({"error": "You've already applied to this job"}, status=400)
+    
+    try:
+        # Calculate skill match
+        user_skills = request.user.skills if hasattr(request.user, 'skills') else []
+        required_skills = job.required_skills or []
+        
+        match_count = sum(1 for skill in user_skills if skill.lower() in [s.lower() for s in required_skills])
+        match_score = int((match_count / len(required_skills) * 100)) if required_skills else 0
+        
+        application = CandidateApplication.objects.create(
+            job_posting=job,
+            candidate=request.user,
+            status='applied',
+            match_score=match_score,
+        )
+        
+        return Response({
+            "id": application.id,
+            "message": "Application submitted successfully",
+            "match_score": match_score,
+        }, status=201)
+    except Exception as e:
+        return Response({"error": str(e)}, status=400)

@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronUp, CheckCircle, Circle, ExternalLink, PlayCircle, BookOpen, FileText } from 'lucide-react';
+import { Lock } from 'lucide-react';
+import { usePremium } from '../../premium/PremiumContext';
 
 export default function LessonCard({ 
   lesson, 
@@ -9,6 +11,8 @@ export default function LessonCard({
   onConfidenceChange 
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const { status, checkPremiumAccess } = usePremium();
+  const isPremium = status?.is_premium;
 
   const getPhaseColor = (phase) => {
     if (phase === 1) return '#58a6ff'; // Cyan for Foundations
@@ -102,22 +106,44 @@ export default function LessonCard({
               <h5 style={styles.sectionTitle}>Resources</h5>
               
               {/* Primary Resource */}
-              {lesson.resources.primary && (
-                <a 
-                  href={lesson.resources.primary.url} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  style={styles.primaryResource}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    {getResourceIcon(lesson.resources.primary.type)}
-                    <span>{lesson.resources.primary.title}</span>
-                  </div>
-                  <span style={{ fontSize: '11px', color: '#8b949e', fontFamily: 'JetBrains Mono' }}>
-                    PRIMARY
-                  </span>
-                </a>
-              )}
+              {lesson.resources.primary && (() => {
+                const isPremiumVideo = lesson.resources.primary.type === 'video';
+                if (isPremiumVideo && !isPremium) {
+                  return (
+                    <div className="premium-locked-item" onClick={() => checkPremiumAccess('youtube_module', 'lesson_resource')} role="button" aria-label="Premium lesson resource locked">
+                      <div className="premium-locked-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {getResourceIcon(lesson.resources.primary.type)}
+                          <span>{lesson.resources.primary.title}</span>
+                        </div>
+                        <span style={{ fontSize: '11px', color: '#8b949e', fontFamily: 'JetBrains Mono' }}>
+                          PRIMARY
+                        </span>
+                      </div>
+                      <div className="premium-locked-overlay">
+                        <Lock size={14} /> Premium resource
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <a 
+                    href={lesson.resources.primary.url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    style={styles.primaryResource}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {getResourceIcon(lesson.resources.primary.type)}
+                      <span>{lesson.resources.primary.title}</span>
+                    </div>
+                    <span style={{ fontSize: '11px', color: '#8b949e', fontFamily: 'JetBrains Mono' }}>
+                      PRIMARY
+                    </span>
+                  </a>
+                );
+              })()}
 
               {/* Supplementary Resources */}
               {lesson.resources.supplementary && lesson.resources.supplementary.length > 0 && (
@@ -125,18 +151,42 @@ export default function LessonCard({
                   <div style={{ fontSize: '11px', color: '#8b949e', marginBottom: '8px', fontFamily: 'JetBrains Mono' }}>
                     SUPPLEMENTARY
                   </div>
-                  {lesson.resources.supplementary.map((resource, idx) => (
-                    <a
-                      key={idx}
-                      href={resource.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={styles.supplementaryResource}
-                    >
-                      {getResourceIcon(resource.type)}
-                      <span>{resource.title}</span>
-                    </a>
-                  ))}
+                  {lesson.resources.supplementary.map((resource, idx) => {
+                    const isPremiumVideo = resource.type === 'video';
+                    if (isPremiumVideo && !isPremium) {
+                      return (
+                        <div
+                          key={idx}
+                          className="premium-locked-item"
+                          onClick={() => checkPremiumAccess('youtube_module', 'lesson_resource')}
+                          role="button"
+                          aria-label="Premium lesson resource locked"
+                          style={{ marginBottom: '6px' }}
+                        >
+                          <div className="premium-locked-content" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            {getResourceIcon(resource.type)}
+                            <span>{resource.title}</span>
+                          </div>
+                          <div className="premium-locked-overlay">
+                            <Lock size={14} /> Premium resource
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <a
+                        key={idx}
+                        href={resource.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={styles.supplementaryResource}
+                      >
+                        {getResourceIcon(resource.type)}
+                        <span>{resource.title}</span>
+                      </a>
+                    );
+                  })}
                 </div>
               )}
             </div>

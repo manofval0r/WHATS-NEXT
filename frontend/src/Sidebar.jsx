@@ -105,14 +105,16 @@ export default function Sidebar() {
       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
       style={{
         height: '100vh',
-        background: '#0d1117', // A solid, consistent dark background
-        borderRight: '1px solid #21262d', // A more subtle border
+        background: 'var(--bg-panel)',
+        borderRight: '1px solid var(--border-subtle)',
         display: 'flex',
         flexDirection: 'column',
         zIndex: 50,
         position: 'relative',
         flexShrink: 0,
         overflow: 'hidden',
+        backdropFilter: 'blur(var(--glass-blur))',
+        WebkitBackdropFilter: 'blur(var(--glass-blur))'
       }}
     >
       {/* Brand / Toggle Header */}
@@ -139,7 +141,7 @@ export default function Sidebar() {
                 style={{ 
                     fontFamily: 'var(--font-display)', 
                     fontWeight: 700, 
-                    color: '#e6edf3',
+                    color: 'var(--text-header)',
                     whiteSpace: 'nowrap'
                 }}
              >
@@ -177,14 +179,14 @@ export default function Sidebar() {
               height: '40px',
               minWidth: '40px',
               borderRadius: '50%',
-              background: '#21262d',
-              border: '2px solid #30363d',
+              background: 'var(--bg-surface)',
+              border: '2px solid var(--border-subtle)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               fontSize: '16px',
               fontWeight: 'bold',
-              color: '#e6edf3'
+              color: 'var(--text-primary)'
             }}>
               {userData?.first_name?.charAt(0).toUpperCase() || userData?.username?.charAt(0).toUpperCase() || 'U'}
         </div>
@@ -244,19 +246,19 @@ export default function Sidebar() {
                 borderRadius: '6px',
                 cursor: 'pointer',
                 position: 'relative',
-                color: isActive ? '#e6edf3' : '#8b949e',
-                background: isActive ? 'rgba(88, 166, 255, 0.15)' : 'transparent',
+                color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
+                background: isActive ? 'color-mix(in srgb, var(--neon-cyan), transparent 85%)' : 'transparent',
                 transition: 'all 0.2s',
               }}
               onMouseEnter={(e) => {
                 if (!isActive) {
-                    e.currentTarget.style.color = '#e6edf3';
-                    e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+                    e.currentTarget.style.color = 'var(--text-primary)';
+                    e.currentTarget.style.background = 'var(--void-glow)';
                 }
               }}
               onMouseLeave={(e) => {
                 if (!isActive) {
-                    e.currentTarget.style.color = '#8b949e';
+                    e.currentTarget.style.color = 'var(--text-secondary)';
                     e.currentTarget.style.background = 'transparent';
                 }
               }}
@@ -288,7 +290,7 @@ export default function Sidebar() {
       </div>
 
       {/* Footer / Logout */}
-      <div style={{ padding: '20px', borderTop: '1px solid #21262d' }}>
+      <div style={{ padding: '20px', borderTop: '1px solid var(--border-subtle)' }}>
         <button
           onClick={handleLogout}
           style={{

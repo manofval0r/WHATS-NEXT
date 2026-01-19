@@ -34,17 +34,23 @@ urlpatterns = [
     path('api/profile/me/', views.get_my_profile),
     path('api/profile/streak/', views.get_user_streak),
     path('api/profile/activity/', views.get_recent_activity),
+    path('api/profile/activity-log/', views.get_activity_log),
     path('api/profile/update-socials/', views.update_socials),
+    path('api/profile/socials/', views.update_socials),
     path('api/profile/update-cv/<int:item_id>/', views.update_cv_text),
+    path('api/profile/cv/<int:item_id>/', views.update_cv_text),
     path('api/profile/export-html/', views.export_portfolio_html),
     path('api/profile/<str:username>/', views.get_public_user_profile),
-    path('api/analytics/', views.get_analytics_dashboard),
     path('api/pivot-career/', views.pivot_career),
     path('api/settings/', views.update_settings),  # Handles both GET and POST
     path('api/settings/update/', views.update_settings),
+    path('api/premium/status/', views.get_premium_status),
+    path('api/premium/waitlist/', views.join_premium_waitlist),
+    path('api/premium/cv-export/', views.track_cv_export),
     path('api/account/delete/', views.delete_account),
     path('api/account/export/', views.export_account_data),
     path('api/community/feed/', views.get_community_feed),
+    path('api/community/leaderboard/', views.community_leaderboard),
     path('api/community/verify/<int:item_id>/', views.verify_project),
     path('api/community/comments/<int:project_id>/', views.get_project_comments),
     path('api/community/comments/<int:project_id>/create/', views.create_comment),
@@ -58,8 +64,25 @@ urlpatterns = [
     path('api/quiz/<int:item_id>/submit/', views.submit_quiz),
     
     # --- EMPLOYER ENDPOINTS ---
-    path('api/employer/jobs/', views.get_job_listings),
-    path('api/employer/apply/<int:job_id>/', views.apply_to_job),
+    path('api/employer/jobs/', views.employer_jobs),
+    path('api/employer/jobs/create/', views.employer_jobs),
+    path('api/job-listings/', views.get_job_listings),
+    path('api/job-listings/<int:job_id>/apply/', views.apply_to_job),
+    
+    # --- PHASE 7: RETENTION & ENGAGEMENT ---
+    # Saved Resources (Bookmarks)
+    path('api/resources/save/', views.save_resource),
+    path('api/resources/saved/', views.get_saved_resources),
+    path('api/resources/saved/<int:resource_id>/delete/', views.delete_saved_resource),
+    
+    # Community Search
+    path('api/community/search/', views.search_community),
+    
+    # Analytics
+    path('api/analytics/', views.get_analytics),
+    
+    # Share Profile
+    path('api/profile/share/', views.share_profile),
 ]
 
 # Router for ViewSets

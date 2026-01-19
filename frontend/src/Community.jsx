@@ -6,7 +6,7 @@ import {
     CheckCircle, X, Send, ArrowBigUp, ArrowBigDown, User,
     Image as ImageIcon, Link as LinkIcon, MoreVertical,
     Share2, Bookmark, Flag, Users, Trophy, Star, Filter,
-    Hash, Code, Youtube
+    Hash, Code, Youtube, Palette
 } from 'lucide-react';
 import { useIsMobile } from './hooks/useMediaQuery';
 
@@ -130,13 +130,12 @@ export default function Community() {
     return (
         <div style={{
             minHeight: '100vh',
-            background: '#05070a', // Deep Cyberpunk black
+            background: 'var(--bg-dark)',
             paddingBottom: isMobile ? '100px' : '40px',
             fontFamily: 'Inter, sans-serif'
         }}>
-            {/* INJECT CYPBERPUNK STYLES */}
+            {/* INJECT CYPBERPUNK STYLES - REMOVED root override to respect theme.js */}
             <style>{`
-                :root { --neon-cyan: #00f2ff; --neon-blue: #3713ec; }
                 .blink { animation: blink 1s infinite; }
                 @keyframes blink { 50% { opacity: 0; } }
             `}</style>
@@ -144,15 +143,15 @@ export default function Community() {
             {/* Header */}
             <div style={{
                 position: 'sticky', top: 0, zIndex: 10,
-                background: 'rgba(5, 7, 10, 0.85)',
-                backdropFilter: 'blur(12px)',
-                borderBottom: '1px solid rgba(0, 242, 255, 0.1)'
+                background: 'var(--panel-bg)',
+                backdropFilter: 'blur(var(--glass-blur))',
+                borderBottom: '1px solid var(--border-subtle)'
             }}>
                 <div style={{ padding: isMobile ? '12px 16px' : '16px 24px', maxWidth: '1200px', margin: '0 auto' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                             <div style={{ width: '4px', height: '24px', background: 'var(--neon-cyan)', boxShadow: '0 0 10px var(--neon-cyan)' }}></div>
-                            <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 'bold', color: '#fff', fontFamily: 'JetBrains Mono', letterSpacing: '-0.5px' }}>
+                            <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 'bold', color: 'var(--text-primary)', fontFamily: 'JetBrains Mono', letterSpacing: '-0.5px' }}>
                                 COMMUNITY_HUB
                             </h1>
                         </div>
@@ -383,8 +382,16 @@ function PostCard({ post, onClick, onUpvote, navigate }) {
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
                     {post.post_type === 'question' && <span style={{...styles.typeBadge, background: 'rgba(239, 68, 68, 0.2)', color: '#fca5a5'}}>?</span>}
-                    {post.post_type === 'showcase' && <span style={{...styles.typeBadge, background: 'rgba(168, 85, 247, 0.2)', color: '#d8b4fe'}}>🎨</span>}
-                    {post.post_type === 'achievement' && <span style={{...styles.typeBadge, background: 'rgba(255, 190, 11, 0.2)', color: '#fcd34d'}}>🏆</span>}
+                    {post.post_type === 'showcase' && (
+                        <span style={{...styles.typeBadge, background: 'rgba(168, 85, 247, 0.2)', color: '#d8b4fe'}}>
+                            <Palette size={12} />
+                        </span>
+                    )}
+                    {post.post_type === 'achievement' && (
+                        <span style={{...styles.typeBadge, background: 'rgba(255, 190, 11, 0.2)', color: '#fcd34d'}}>
+                            <Trophy size={12} />
+                        </span>
+                    )}
                 </div>
             </div>
 
@@ -460,10 +467,10 @@ function PostDetailView({ post, onBack, onUpvote, currentUser, navigate }) {
     };
 
     return (
-        <div style={{ minHeight: '100vh', background: '#05070a', paddingBottom: '40px' }}>
+        <div style={{ minHeight: '100vh', background: 'var(--bg-dark)', paddingBottom: '40px' }}>
             <div style={{
-                position: 'sticky', top: 0, zIndex: 10, background: 'rgba(5,7,10,0.9)', backdropFilter: 'blur(10px)',
-                padding: '16px', borderBottom: '1px solid #30363d', display: 'flex', alignItems: 'center', gap: '16px'
+                position: 'sticky', top: 0, zIndex: 10, background: 'var(--panel-bg)', backdropFilter: 'blur(var(--glass-blur))',
+                padding: '16px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: '16px'
             }}>
                 <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--neon-cyan)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <ArrowLeft size={18} /> BACK
@@ -549,27 +556,27 @@ const styles = {
         fontWeight: 'bold', fontSize: '12px', fontFamily: 'JetBrains Mono', boxShadow: '0 0 10px rgba(0,242,255,0.2)'
     },
     searchBar: {
-        background: 'rgba(255,255,255,0.03)', border: '1px solid #30363d', borderRadius: '8px', padding: '10px 14px',
+        background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: '8px', padding: '10px 14px',
         display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px'
     },
-    searchInput: { flex: 1, background: 'none', border: 'none', color: '#fff', outline: 'none', fontFamily: 'JetBrains Mono', fontSize: '13px' },
-    clearButton: { background: 'none', border: 'none', color: '#8b949e', cursor: 'pointer' },
+    searchInput: { flex: 1, background: 'none', border: 'none', color: 'var(--text-primary)', outline: 'none', fontFamily: 'JetBrains Mono', fontSize: '13px' },
+    clearButton: { background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' },
     filterContainer: { display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '5px' },
     filterTag: {
         padding: '6px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s', whiteSpace: 'nowrap'
     },
     card: {
-        background: 'rgba(22, 27, 34, 0.6)', borderRadius: '8px', border: '1px solid #30363d', padding: '20px',
+        background: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border-subtle)', padding: '20px',
         cursor: 'pointer', transition: 'all 0.2s', position: 'relative', overflow: 'hidden'
     },
     cardHeader: { display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px', position: 'relative', zIndex: 1 },
-    userAvatar: { width: '28px', height: '28px', borderRadius: '4px', background: '#21262d', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8b949e' },
-    username: { margin: 0, color: '#c9d1d9', fontSize: '14px', fontWeight: '600', cursor: 'pointer' },
-    timeAgo: { margin: 0, color: '#484f58', fontSize: '12px' },
-    cardTitle: { margin: '0 0 8px 0', color: '#fff', fontSize: '18px', fontWeight: '600', lineHeight: '1.4' },
-    cardDescription: { margin: 0, color: '#8b949e', fontSize: '14px', lineHeight: '1.6', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' },
+    userAvatar: { width: '28px', height: '28px', borderRadius: '4px', background: 'var(--bg-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' },
+    username: { margin: 0, color: 'var(--text-primary)', fontSize: '14px', fontWeight: '600', cursor: 'pointer' },
+    timeAgo: { margin: 0, color: 'var(--text-secondary)', fontSize: '12px' },
+    cardTitle: { margin: '0 0 8px 0', color: 'var(--text-primary)', fontSize: '18px', fontWeight: '600', lineHeight: '1.4' },
+    cardDescription: { margin: 0, color: 'var(--text-secondary)', fontSize: '14px', lineHeight: '1.6', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' },
     cardFooter: { marginTop: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
-    stats: { display: 'flex', gap: '20px', color: '#8b949e', fontSize: '14px' },
+    stats: { display: 'flex', gap: '20px', color: 'var(--text-secondary)', fontSize: '14px' },
     statItem: { display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' },
     tags: { display: 'flex', gap: '8px' },
     tag: { color: 'var(--neon-cyan)', fontSize: '12px', opacity: 0.8 },

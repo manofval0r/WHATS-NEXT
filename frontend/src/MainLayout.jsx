@@ -2,16 +2,19 @@ import React from 'react';
 import Sidebar from './Sidebar';
 import FloatingBottomBar from './components/FloatingBottomBar';
 import { useIsMobile } from './hooks/useMediaQuery';
+import PremiumGateModal from './components/common/PremiumGateModal';
+import { usePremium } from './premium/PremiumContext';
 
 export default function MainLayout({ children }) {
   const isMobile = useIsMobile();
+  const { gateState, closeGate, joinWaitlist, joining, feature, status } = usePremium();
 
   return (
     <div style={{
       display: 'flex',
       height: '100vh',
       width: '100vw',
-      background: 'var(--void-deep)',
+      background: 'transparent',
       color: 'var(--text-primary)',
       overflow: 'hidden'
     }}>
@@ -30,6 +33,15 @@ export default function MainLayout({ children }) {
 
       {/* Floating Bottom Navigation - Mobile only */}
       {isMobile && <FloatingBottomBar />}
+
+      <PremiumGateModal
+        isOpen={gateState.isOpen}
+        onClose={closeGate}
+        onJoinWaitlist={joinWaitlist}
+        feature={feature}
+        status={status}
+        joining={joining}
+      />
     </div>
   );
 }
