@@ -20,19 +20,15 @@ export default function AuthCallback() {
             api.get('/api/profile/')
                 .then(response => {
                     const data = response.data;
-                    const profile = data.profile || data; // Handle potential structure variations
+                    const profile = data.profile || data;
 
-                    // Store username for UI consistency
                     if (profile.username) {
                         localStorage.setItem('username', profile.username);
                     }
 
-                    // If user hasn't set a target career, send to onboarding
-                    if (!profile.target_career) {
-                        navigate('/onboarding', { replace: true });
-                    } else {
-                        navigate('/dashboard', { replace: true });
-                    }
+                    // Always send to onboarding — the wizard has a skip-guard
+                    // that will redirect to /dashboard if user already has a career
+                    navigate('/onboarding', { replace: true });
                 })
                 .catch(err => {
                     console.error('Token verification failed:', err);

@@ -35,6 +35,15 @@ function ProtectedRoute({ children }) {
   );
 }
 
+// Protected but without the sidebar/layout (for onboarding)
+function ProtectedBare({ children }) {
+  const token = localStorage.getItem('access_token');
+  if (!token) {
+    return <Navigate to="/signup" replace />;
+  }
+  return children;
+}
+
 // Landing page (redirect to dashboard if already authenticated)
 function LandingRoute() {
   const token = localStorage.getItem('access_token');
@@ -60,7 +69,7 @@ export default function App() {
           <Route path="/register" element={<AuthPage />} />
           <Route path="/signup" element={<AuthPage />} />
           <Route path="/auth-callback" element={<AuthCallback />} />
-          <Route path="/onboarding" element={<Onboarding />} />
+          <Route path="/onboarding" element={<ProtectedBare><Onboarding /></ProtectedBare>} />
 
           {/* Public Profile Route */}
           <Route path="/u/:username" element={<UserProfile />} />
