@@ -896,6 +896,80 @@
 }
 
 /* ═══════════════════════════════════════════════════════════
+    RESPONSIVE – 780px–950px (height ~916px)
+    ═══════════════════════════════════════════════════════════ */
+
+@media (min-width: 769px) and (max-width: 950px) and (min-height: 900px) and (max-height: 940px) {
+    .profile-container {
+        padding: 10px 18px 60px;
+    }
+
+    .profile-wrapper {  
+        gap: 24px;
+    }
+
+    /* Header: tighten spacing without fully switching to mobile layout */
+    .profile-header-card {
+        padding: 20px 6px;
+        gap: 20px;
+        border-radius: 20px;
+    }
+
+    .profile-avatar-wrapper {
+        width: 150px;
+        height: 120px;
+    }
+
+    .profile-name {
+        font-size: 26px;
+    }
+
+    .profile-bio {
+        font-size: 14px;
+        margin-bottom: 18px;
+    }
+
+    .profile-stats-row {
+        gap: 18px;
+        flex-wrap: wrap;
+    }
+
+    .p-stat-val {
+        font-size: 18px;
+    }
+
+    /* Sidebar/actions: keep visible but prevent squeezing */
+    .profile-actions-card {
+        width: 300px;
+        max-width: 40vw;
+    }
+
+    /* Main grid: slightly rebalance columns */
+    .profile-main-grid {
+        grid-template-columns: 1.6fr 1fr;
+        gap: 20px;
+    }
+
+    /* Cards: reduce padding a bit */
+    .contribution-section,
+    .skills-card,
+    .activity-card {
+        padding: 22px;
+        border-radius: 20px;
+    }
+
+    .heatmap-cell {
+        width: 11px;
+        height: 11px;
+    }
+
+    /* Achievements grid density */
+    .badge-grid {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════
    RESPONSIVE – 768px
    ═══════════════════════════════════════════════════════════ */
 
