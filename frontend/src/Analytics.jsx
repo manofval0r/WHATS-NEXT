@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { apiClient } from './api';
+import api from './api';
 import './Analytics.css';
 
 export default function Analytics() {
@@ -12,7 +12,7 @@ export default function Analytics() {
 
   const fetchAnalytics = async () => {
     try {
-      const response = await apiClient.get('/analytics/');
+      const response = await api.get('/api/analytics/');
       setAnalytics(response.data);
     } catch (error) {
       console.error('Failed to fetch analytics:', error);

@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import api from '../api';
+import { usePostHogApp } from '../PostHogProvider';
 
 const PremiumContext = createContext(null);
 
@@ -65,6 +66,13 @@ export const PremiumProvider = ({ children }) => {
     source: ''
   });
   const [joining, setJoining] = useState(false);
+  const { capture, featureFlag } = usePostHogApp();
+
+  /**
+   * PostHog feature flag: when 'show-premium-features' is false,
+   * the gating modal is hidden (features are ungated).
+   */
+  const premiumFlagEnabled = featureFlag('show-premium-features');
 
   const refreshStatus = useCallback(async () => {
     const token = localStorage.getItem('access_token');
@@ -83,8 +91,9 @@ export const PremiumProvider = ({ children }) => {
   }, [refreshStatus]);
 
   const openGate = useCallback((featureKey, source = '') => {
+    capture('premium_gate_shown', { feature_key: featureKey || 'general_upgrade', source });
     setGateState({ isOpen: true, featureKey: featureKey || 'general_upgrade', source });
-  }, []);
+  }, [capture]);
 
   const closeGate = useCallback(() => {
     setGateState(prev => ({ ...prev, isOpen: false }));
@@ -97,6 +106,7 @@ export const PremiumProvider = ({ children }) => {
         feature_key: gateState.featureKey,
         source: gateState.source
       });
+      capture('premium_waitlist_joined', { feature_key: gateState.featureKey, source: gateState.source });
       setStatus(prev => ({
         ...prev,
         waitlist_status: res.data.waitlist_status || 'pending',
@@ -111,9 +121,11 @@ export const PremiumProvider = ({ children }) => {
 
   const checkPremiumAccess = useCallback((featureKey, source = '') => {
     if (status.is_premium) return true;
+    // If PostHog flag says premium features are hidden, ungated (allow access)
+    if (premiumFlagEnabled === false) return true;
     openGate(featureKey, source);
     return false;
-  }, [status.is_premium, openGate]);
+  }, [status.is_premium, premiumFlagEnabled, openGate]);
 
   const requestCvExport = useCallback(async (source = '') => {
     if (status.is_premium) return { allowed: true };

@@ -15,6 +15,7 @@ import { PremiumProvider } from './premium/PremiumContext';
 import UserProfile from './UserProfile';
 import ActivityLog from './ActivityLog';
 import ErrorBoundary from './components/ErrorBoundary';
+import PostHogAppProvider from './PostHogProvider';
 
 import AuthCallback from './AuthCallback';
 
@@ -56,6 +57,7 @@ function LandingRoute() {
 export default function App() {
   return (
     <ErrorBoundary>
+      <PostHogAppProvider>
       <Router>
         <JadaProvider>
           <JadaOverlay />
@@ -117,6 +119,7 @@ export default function App() {
         </Routes>
       </JadaProvider>
     </Router>
+    </PostHogAppProvider>
     </ErrorBoundary>
   );
 }

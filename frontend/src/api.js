@@ -86,6 +86,11 @@ export const getFriendsProgress = () => api.get('/api/social/friends-progress/')
 export const joinWaitlist = (email, name, source = 'landing') =>
   api.post('/api/waitlist/', { email, name, source });
 
-// Resource tracking
-export const trackClick = (url, title, moduleId = null) =>
-  api.post('/api/track-click/', { url, title, module_id: moduleId });
+// Resource tracking — also fires PostHog event for analytics
+export const trackClick = (url, title, moduleId = null) => {
+  // Lazy import to avoid circular deps
+  import('./posthog').then(({ default: posthog }) => {
+    if (posthog?.capture) posthog.capture('resource_clicked', { url, title, module_id: moduleId });
+  }).catch(() => {});
+  return api.post('/api/track-click/', { url, title, module_id: moduleId });
+};

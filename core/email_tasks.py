@@ -9,6 +9,7 @@ from django.utils import timezone
 from datetime import timedelta
 from django.conf import settings
 from .models import User, UserRoadmapItem, CommunityReply
+from .posthog_client import ph_capture
 
 
 @shared_task
@@ -43,6 +44,7 @@ def send_streak_reminder_emails():
                 recipient_list=[user.email],
                 fail_silently=True,
             )
+            ph_capture(user, 'email_sent', {'type': 'streak_reminder', 'streak': user.current_streak})
         except Exception as e:
             print(f"Failed to send streak reminder to {user.email}: {e}")
 
@@ -73,6 +75,7 @@ def send_module_completion_email(user_id, module_name):
             recipient_list=[user.email],
             fail_silently=True,
         )
+        ph_capture(user, 'email_sent', {'type': 'module_completion', 'module_name': module_name})
     except User.DoesNotExist:
         pass
     except Exception as e:

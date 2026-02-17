@@ -1,10 +1,12 @@
 import { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from './api';
+import { usePostHogApp } from './PostHogProvider';
 
 export default function AuthCallback() {
     const navigate = useNavigate();
     const location = useLocation();
+    const { identify, capture } = usePostHogApp();
 
     useEffect(() => {
         const params = new URLSearchParams(location.search);
@@ -26,6 +28,15 @@ export default function AuthCallback() {
                         localStorage.setItem('username', profile.username);
                     }
 
+                    // PostHog: identify + capture OAuth signup
+                    identify(profile.id || profile.username, {
+                        username: profile.username,
+                        email: profile.email || '',
+                        plan_tier: profile.plan_tier || 'FREE',
+                        target_career: profile.target_career || '',
+                    });
+                    capture('user_signed_up', { method: 'oauth' });
+
                     // Always send to onboarding — the wizard has a skip-guard
                     // that will redirect to /dashboard if user already has a career
                     navigate('/onboarding', { replace: true });
@@ -38,7 +49,7 @@ export default function AuthCallback() {
             // Handle error or redirect to login
             navigate(`/auth?error=${error || 'oauth_failed'}`, { replace: true });
         }
-    }, [location, navigate]);
+    }, [location, navigate, identify, capture]);
 
     return (
         <div style={{

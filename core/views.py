@@ -12,12 +12,32 @@ from .models import (
 from .ai_logic import generate_detailed_roadmap
 from .role_catalog import get_role_template, get_available_roles, suggest_role_for_course
 from .news_logic import fetch_tech_news, fetch_internships
+from .posthog_client import ph_capture, ph_identify
 from django.shortcuts import get_object_or_404
 from datetime import datetime, timedelta
 from django.db import transaction
 
 from django.utils import timezone
 from django.db.models import Count
+import re
+
+
+# ==========================================
+# 0. USERNAME AVAILABILITY CHECK
+# ==========================================
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def check_username(request):
+    """Return whether a username is available for registration."""
+    q = request.query_params.get('q', '').strip()
+    if not q or len(q) < 3:
+        return Response({"available": False, "reason": "Username must be at least 3 characters"})
+    if len(q) > 30:
+        return Response({"available": False, "reason": "Username must be 30 characters or fewer"})
+    if not re.match(r'^[a-zA-Z0-9_]+$', q):
+        return Response({"available": False, "reason": "Only letters, numbers, and underscores allowed"})
+    taken = User.objects.filter(username__iexact=q).exists()
+    return Response({"available": not taken})
 
 
 # Offline fallback roadmaps used when AI is unavailable
@@ -211,6 +231,10 @@ def social_login_success(request):
     access_token = str(refresh.access_token)
     refresh_token = str(refresh)
     
+    # PostHog: identify + track
+    ph_identify(user)
+    ph_capture(user, 'user_registered', {'method': 'oauth'})
+
     # Determine frontend URL based on environment
     # In production, settings.DEBUG is False
     frontend_url = "https://whats-next-1.onrender.com/auth-callback"
@@ -230,7 +254,16 @@ class RegisterView(generics.CreateAPIView):
         print("DEBUG: RegisterView.create called")
         print(f"DEBUG: Request data: {request.data}")
         try:
-            return super().create(request, *args, **kwargs)
+            response = super().create(request, *args, **kwargs)
+            # PostHog: identify + track registration
+            try:
+                from .models import User as UserModel
+                user = UserModel.objects.get(username=request.data.get('username', ''))
+                ph_identify(user)
+                ph_capture(user, 'user_registered', {'method': 'email'})
+            except Exception:
+                pass
+            return response
         except Exception as e:
             import traceback
             print(f"REGISTER ERROR: {str(e)}")
@@ -271,7 +304,7 @@ def list_roles(request):
     """
     Return available career roles for the onboarding dropdown.
     """
-    return Response(get_available_roles())
+    return Response({"roles": get_available_roles()})
 
 
 @api_view(['POST'])
@@ -298,7 +331,8 @@ def suggest_role(request):
 def complete_onboarding(request):
     """
     Complete onboarding using role-based roadmap templates.
-    Accepts: role (key from catalog), university_course (optional), gender
+    Accepts: role (key from catalog), level (novice/apprentice/pro/expert),
+             university_course (optional), budget, gender.
     Loads pre-built roadmap from catalog — no more per-user AI generation.
     """
     user = request.user
@@ -309,6 +343,7 @@ def complete_onboarding(request):
     university_course = request.data.get('university_course', '').strip()
     budget = request.data.get('budget', 'FREE').upper()
     gender = request.data.get('gender', '').strip().lower()
+    level = request.data.get('level', '').strip().lower()
 
     # Accept either 'role' (new) or 'niche' (legacy)
     if not role_key and niche:
@@ -343,6 +378,10 @@ def complete_onboarding(request):
         user.budget_preference = budget
         if gender:
             user.gender = gender
+        # Persist experience level
+        level_map = {'novice': 'Beginner', 'apprentice': 'Intermediate', 'pro': 'Advanced', 'expert': 'Expert'}
+        if level and level in level_map:
+            user.current_level = level_map[level]
         user.save()
 
         # Clear existing roadmap and load from template
@@ -372,6 +411,14 @@ def complete_onboarding(request):
             created_items.append(item)
 
         print(f"[ONBOARDING] Loaded {len(created_items)} modules from '{role_key}' template for {user.username}")
+
+        # PostHog: track onboarding completion
+        ph_capture(user, 'onboarding_completed', {
+            'role': role_key,
+            'role_title': template['title'],
+            'level': level,
+            'module_count': len(created_items),
+        })
 
         return Response({
             "message": "Onboarding complete! Roadmap loaded.",
@@ -1958,6 +2005,12 @@ def join_premium_waitlist(request):
         'premium_waitlist_feature',
         'premium_waitlist_source'
     ])
+
+    # PostHog: track waitlist join
+    ph_capture(user, 'premium_waitlist_joined', {
+        'feature_key': feature_key,
+        'source': source,
+    })
 
     return Response({
         "message": "You're on the Premium waitlist.",

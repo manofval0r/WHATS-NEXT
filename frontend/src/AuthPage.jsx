@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import api from './api';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { User, Lock, Mail, ArrowRight, Zap, Github, Chrome, AlertCircle, Eye, EyeOff, Code2, Check, X } from 'lucide-react';
+import { usePostHogApp } from './PostHogProvider';
 import './Auth.css';
 
 /* ─── Password strength helper ─── */
@@ -47,6 +48,7 @@ export default function AuthPage() {
 
   const navigate = useNavigate();
   const location = useLocation();
+  const { identify, capture } = usePostHogApp();
 
   useEffect(() => {
     if (location.pathname === '/login') setIsLogin(true);
@@ -158,6 +160,19 @@ export default function AuthPage() {
     const res = await api.post('/api/token/', { username, password });
     localStorage.setItem('access_token', res.data.access);
     localStorage.setItem('refresh_token', res.data.refresh);
+
+    // PostHog: identify user + capture event
+    try {
+      const profile = await api.get('/api/profile/');
+      const p = profile.data?.profile || profile.data;
+      if (p?.id) identify(p.id, { username: p.username, email: p.email, plan_tier: p.plan_tier || 'FREE', target_career: p.target_career || '' });
+      if (redirectTo === '/onboarding') {
+        capture('user_signed_up', { method: 'email' });
+      } else {
+        capture('user_logged_in', { method: 'email' });
+      }
+    } catch (_) { /* best-effort */ }
+
     navigate(redirectTo);
   };
 

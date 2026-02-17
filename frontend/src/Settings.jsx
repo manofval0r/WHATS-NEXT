@@ -5,6 +5,7 @@ import { ArrowLeft, Save, Wallet, LogOut, Trash2, Download, Activity, Palette, S
 import { initTheme, applyTheme } from './theme';
 import { useIsMobile } from './hooks/useMediaQuery';
 import { usePremium } from './premium/PremiumContext';
+import { usePostHogApp } from './PostHogProvider';
 
 export default function Settings() {
     const [username, setUsername] = useState('');
@@ -30,6 +31,8 @@ export default function Settings() {
     const navigate = useNavigate();
     const isMobile = useIsMobile();
     const { status, openGate } = usePremium();
+    const { reset: resetPostHog, featureFlag } = usePostHogApp();
+    const showPremiumCard = featureFlag('show-premium-features') !== false;
 
     useEffect(() => {
         initTheme();
@@ -124,6 +127,7 @@ export default function Settings() {
     };
 
     const handleLogout = () => {
+        resetPostHog();
         localStorage.removeItem('access_token');
         navigate('/');
     };
@@ -254,8 +258,8 @@ export default function Settings() {
                     </div>
                 </div>
 
-                {/* PREMIUM STATUS CARD */}
-                <div style={cardStyle}>
+                {/* PREMIUM STATUS CARD — hidden when PostHog flag 'show-premium-features' is off */}
+                {showPremiumCard && <div style={cardStyle}>
                     <h2 style={sectionTitle}><Crown size={20} /> Premium</h2>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -299,7 +303,7 @@ export default function Settings() {
                             </div>
                         )}
                     </div>
-                </div>
+                </div>}
 
                 {/* PREFERENCES CARD */}
                 <div style={cardStyle}>

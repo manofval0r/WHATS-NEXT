@@ -10,6 +10,7 @@ urlpatterns = [
     # --- AUTHENTICATION (Login/Signup) ---
     path('api/health/', views.health_check, name='health_check'),
     path('api/register/', views.RegisterView.as_view(), name='register'),
+    path('api/check-username/', views.check_username, name='check_username'),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/normalize-course/', views.normalize_course, name='normalize_course'),

@@ -4,6 +4,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from .lesson_generator import generate_lessons_for_module
+from .posthog_client import ph_capture
 from django.utils import timezone
 from datetime import timedelta
 
@@ -57,6 +58,13 @@ def generate_module_lessons(request, module_id):
         module.lesson_data = lessons
         module.lesson_cached_at = timezone.now()
         module.save(update_fields=['lesson_data', 'lesson_cached_at'])
+
+        # PostHog: track lesson generation
+        ph_capture(user, 'lesson_generated', {
+            'module_id': module_id,
+            'module_label': module.label,
+            'lesson_count': len(lessons),
+        })
         
         return Response({
             "module_id": module_id,

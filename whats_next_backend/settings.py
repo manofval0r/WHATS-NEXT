@@ -176,6 +176,12 @@ CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes max for AI tasks
 
 # ==========================================
+# POSTHOG ANALYTICS
+# ==========================================
+POSTHOG_API_KEY = os.getenv('POSTHOG_API_KEY', '')
+POSTHOG_HOST = os.getenv('POSTHOG_HOST', 'https://us.i.posthog.com')
+
+# ==========================================
 # AUTHENTICATION & OAUTH CONFIGURATION
 # ==========================================
 SITE_ID = 1
@@ -216,3 +222,7 @@ SOCIALACCOUNT_PROVIDERS = {
 # Redirects
 LOGIN_REDIRECT_URL = '/api/auth/social/success/'
 LOGOUT_REDIRECT_URL = 'https://whats-next-1.onrender.com'
+
+# PostHog Analytics
+POSTHOG_API_KEY = os.environ.get('POSTHOG_API_KEY', '')
+POSTHOG_HOST = os.environ.get('POSTHOG_HOST', 'https://us.i.posthog.com')

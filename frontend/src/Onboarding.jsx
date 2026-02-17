@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Cpu, Code, Globe, Database, Zap, Sparkles, Layout, Server, Smartphone, BarChart3, PencilLine, Shield, Palette, ChevronRight, ArrowLeft } from 'lucide-react';
 import api from './api';
+import { usePostHogApp } from './PostHogProvider';
 import './Onboarding.css';
 
 const STEPS = ['Role', 'Experience', 'Profile', 'Building...'];
@@ -25,6 +26,7 @@ export default function Onboarding() {
   const [roles, setRoles] = useState([]);
   const contentRef = useRef(null);
   const calibratingRef = useRef(false);
+  const { capture, identify } = usePostHogApp();
 
   const [form, setForm] = useState({
     role: null,
@@ -81,6 +83,11 @@ export default function Onboarding() {
   };
 
   const next = () => {
+    // PostHog: track each step completion
+    const stepNames = ['role', 'experience', 'profile'];
+    if (step < stepNames.length) {
+      capture('onboarding_step_completed', { step: stepNames[step], value: step === 0 ? form.role : step === 1 ? form.level : form.gender });
+    }
     if (step < STEPS.length - 2) { goTo(step + 1); return; }
     goTo(STEPS.length - 1);
     calibrate();
@@ -103,6 +110,9 @@ export default function Onboarding() {
       const res = await api.get('/api/profile/');
       const p = res.data?.profile || res.data;
       if (p?.username) localStorage.setItem('username', p.username);
+      // PostHog: track onboarding finished and identify with career
+      capture('onboarding_finished', { role: form.role, level: form.level });
+      if (p?.id) identify(p.id, { username: p.username, target_career: p.target_career || form.role, plan_tier: p.plan_tier || 'FREE' });
       navigate('/dashboard');
     } catch (e) {
       console.error('Onboarding failed', e);
