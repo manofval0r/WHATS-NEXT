@@ -11,8 +11,11 @@ from .models import (
 )
 from .ai_logic import generate_detailed_roadmap
 from .role_catalog import get_role_template, get_available_roles, suggest_role_for_course
-from .news_logic import fetch_tech_news, fetch_internships
+from .news_logic import fetch_tech_news, fetch_jobs_multi
+from .youtube_logic import fetch_youtube_for_modules
+from .resource_queries import get_user_search_context
 from .posthog_client import ph_capture, ph_identify
+from django.core.cache import cache as django_cache
 from django.shortcuts import get_object_or_404
 from datetime import datetime, timedelta
 from django.db import transaction
@@ -2050,28 +2053,83 @@ def track_cv_export(request):
         "plan_tier": user.plan_tier
     })
 
+# ── Constants for resource feed ──
+_RESOURCE_CACHE_TTL = 3600           # 1 h
+_FREE_RESOURCE_LIMIT = 14            # Premium wall kicks in after 14
+_PAGE_SIZE = 6                       # Items per incremental load
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_resources_feed(request):
+    """
+    Paginated, cached, per-tab resource feed.
+
+    Query params
+    ------------
+    tab    : 'news' | 'jobs' | 'videos'  (required)
+    offset : int  (default 0)
+    limit  : int  (default 6, max 20)
+    """
     user = request.user
-    career = user.target_career or "Technology"
-    
-    try:
-        news = fetch_tech_news(career)
-        jobs = fetch_internships(career)
-        from .youtube_logic import search_youtube_videos
-        videos = search_youtube_videos(f"{career} career guide", max_results=12)
-    except Exception as e:
-        print(f"Feed Error: {e}")
-        news = []
-        jobs = []
-        videos = []
+    tab = request.query_params.get('tab', 'news')
+    offset = int(request.query_params.get('offset', 0))
+    limit = min(int(request.query_params.get('limit', _PAGE_SIZE)), 20)
+
+    is_premium = getattr(user, 'plan_tier', 'FREE') == 'PREMIUM'
+
+    # Build search context from user's roadmap
+    ctx = get_user_search_context(user)
+
+    # ── cache key per user + tab ──
+    cache_key = f"res_feed:{user.id}:{tab}"
+    items = django_cache.get(cache_key)
+
+    if items is None:
+        try:
+            if tab == 'news':
+                items = fetch_tech_news(
+                    ctx['module_labels'], career_title=ctx['career_title'], limit=30,
+                )
+            elif tab == 'jobs':
+                items = fetch_jobs_multi(
+                    ctx['module_labels'], career_title=ctx['career_title'], limit=30,
+                )
+            elif tab == 'videos':
+                items = fetch_youtube_for_modules(
+                    ctx['module_labels'], per_module=2, limit=30,
+                )
+            else:
+                return Response({'detail': 'Invalid tab'}, status=400)
+        except Exception as exc:
+            print(f"[resources_feed] {tab} error: {exc}")
+            items = []
+
+        django_cache.set(cache_key, items, _RESOURCE_CACHE_TTL)
+
+    # ── premium gating ──
+    total = len(items)
+    if not is_premium and offset + limit > _FREE_RESOURCE_LIMIT:
+        limit = max(_FREE_RESOURCE_LIMIT - offset, 0)
+
+    page = items[offset:offset + limit]
+    has_more = (offset + limit) < total
+    hit_premium_wall = (not is_premium) and (offset + len(page) >= _FREE_RESOURCE_LIMIT) and has_more
+
+    ph_capture(str(user.id), 'resources_feed_loaded', {
+        'tab': tab, 'offset': offset, 'count': len(page),
+        'premium': is_premium,
+    })
 
     return Response({
-        "career_focus": career,
-        "news": news,
-        "internships": jobs,
-        "videos": videos
+        'career_focus': ctx['career_title'],
+        'tab': tab,
+        'items': page,
+        'offset': offset,
+        'count': len(page),
+        'total': total if is_premium else min(total, _FREE_RESOURCE_LIMIT),
+        'has_more': has_more if is_premium else (has_more and not hit_premium_wall),
+        'premium_wall': hit_premium_wall,
     })
 
 # ==========================================

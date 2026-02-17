@@ -164,6 +164,27 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 AUTH_USER_MODEL = 'core.User'
 
 # ==========================================
+# CACHING (Redis → LocMem fallback)
+# ==========================================
+_REDIS_URL = os.getenv('CELERY_BROKER_URL', '')
+if _REDIS_URL:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': _REDIS_URL,
+            'TIMEOUT': 3600,  # 1 hour default
+            'KEY_PREFIX': 'wn',
+        }
+    }
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'TIMEOUT': 3600,
+        }
+    }
+
+# ==========================================
 # CELERY CONFIGURATION
 # ==========================================
 CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')

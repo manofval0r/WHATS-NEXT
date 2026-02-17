@@ -49,6 +49,11 @@ const FEATURE_COPY = {
     title: 'Premium Upgrade',
     description: 'We are sorry, but premium features require additional resources to deliver, so they are reserved for Premium.',
     details: 'Join the waitlist to unlock when test mode ends.'
+  },
+  resources_feed: {
+    title: 'Unlimited Resources Feed',
+    description: 'We are sorry, but fetching and ranking unlimited resources uses extra bandwidth and processing, so the full feed is reserved for Premium.',
+    details: 'Premium unlocks all news, jobs, and video results beyond the first 14.'
   }
 };
 
