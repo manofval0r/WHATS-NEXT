@@ -1,7 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Landing from './Landing';
 import AuthPage from './AuthPage';
-import ProfilePageV2 from './ProfilePageV2';
+import ProfilePage from './ProfilePage';
 
 import Dashboard from './Dashboard';
 import Onboarding from './Onboarding'; // Added import
@@ -78,7 +78,7 @@ export default function App() {
 
           {/* Private Routes */}
           <Route path="/roadmap" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-          <Route path="/profile" element={<ProtectedRoute><ProfilePageV2 /></ProtectedRoute>} />
+          <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
           <Route path="/module/:id" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/dashboard" element={
             <ProtectedRoute>
