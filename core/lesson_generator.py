@@ -8,6 +8,8 @@ import os
 from typing import List, Dict, Any
 import google.generativeai as genai
 
+from .openrouter_client import chat_completions_cascade, OpenRouterError
+
 # Configure Gemini API
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 if GEMINI_API_KEY:
@@ -123,27 +125,43 @@ Example structure:
 Generate the complete lesson plan now:"""
 
     try:
-        # Use Gemini to generate lessons
-        model = genai.GenerativeModel('gemini-pro')
-        response = model.generate_content(prompt)
-        
-        # Parse JSON response
-        lessons_json = response.text.strip()
-        
+        lessons_json = None
+
+        # Primary: Free model cascade (DeepSeek R1 → Gemma 3 27B)
+        try:
+            lessons_json, model_used = chat_completions_cascade(
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+                max_tokens=2200,
+                timeout=90,
+            )
+            lessons_json = lessons_json.strip()
+            print(f"[AI] Lesson generation succeeded with {model_used}")
+        except OpenRouterError as e:
+            print(f"OpenRouter lesson generation failed, falling back to Gemini SDK: {e}")
+
+        # Fallback: Gemini SDK (existing)
+        if not lessons_json:
+            if not GEMINI_API_KEY:
+                raise RuntimeError("No OpenRouter response and GEMINI_API_KEY missing")
+            model = genai.GenerativeModel('gemini-pro')
+            response = model.generate_content(prompt)
+            lessons_json = (response.text or '').strip()
+
         # Remove markdown code blocks if present
         if lessons_json.startswith('```'):
             lessons_json = lessons_json.split('```')[1]
             if lessons_json.startswith('json'):
                 lessons_json = lessons_json[4:]
-        
+
         lessons = json.loads(lessons_json)
-        
+
         # Validate and enrich lessons
         for lesson in lessons:
             lesson['is_completed'] = False
             lesson['confidence_rating'] = None
             lesson['completed_at'] = None
-        
+
         return lessons
         
     except Exception as e:

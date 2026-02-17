@@ -3,8 +3,14 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from .serializers import RegisterSerializer, ProjectCommentSerializer, UserProfileSerializer
-from .models import UserRoadmapItem, UserActivity, ProjectReview, ProjectComment, User, CommunityPost, CommunityReply, Badge
+from .models import (
+    UserRoadmapItem, UserActivity, ProjectReview, ProjectComment, User,
+    CommunityPost, CommunityReply, Badge, UserFollowing, Waitlist,
+    UserTechDebt, ResourceClick, JadaConversation, JadaMessage,
+    RoleRoadmapTemplate,
+)
 from .ai_logic import generate_detailed_roadmap
+from .role_catalog import get_role_template, get_available_roles, suggest_role_for_course
 from .news_logic import fetch_tech_news, fetch_internships
 from django.shortcuts import get_object_or_404
 from datetime import datetime, timedelta
@@ -259,104 +265,128 @@ def normalize_course(request):
         print(f"Normalization error: {e}")
         return Response({"normalized": raw_course})  # Return original if AI fails
 
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def list_roles(request):
+    """
+    Return available career roles for the onboarding dropdown.
+    """
+    return Response(get_available_roles())
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def suggest_role(request):
+    """
+    Given a university_course and chosen_role, suggest a potentially better-fitting role.
+    """
+    course = request.data.get('university_course', '').strip()
+    chosen = request.data.get('chosen_role', '').strip()
+    suggested = suggest_role_for_course(course, chosen)
+    if suggested:
+        tmpl = get_role_template(suggested)
+        return Response({
+            "suggestion": suggested,
+            "title": tmpl["title"] if tmpl else suggested,
+            "description": tmpl["description"] if tmpl else "",
+        })
+    return Response({"suggestion": None})
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def complete_onboarding(request):
     """
-    Complete onboarding for OAuth users by collecting roadmap requirements.
-    Accepts: niche (career path), university_course, budget
-    Triggers roadmap generation and returns success.
+    Complete onboarding using role-based roadmap templates.
+    Accepts: role (key from catalog), university_course (optional), gender
+    Loads pre-built roadmap from catalog — no more per-user AI generation.
     """
     user = request.user
-    
+
     # Extract data
-    niche = request.data.get('niche', '').strip()
+    role_key = request.data.get('role', '').strip().lower()
+    niche = request.data.get('niche', '').strip()  # legacy compat
     university_course = request.data.get('university_course', '').strip()
     budget = request.data.get('budget', 'FREE').upper()
     gender = request.data.get('gender', '').strip().lower()
-    
-    # Validate required field
-    if not niche:
-        return Response({"error": "Career path (niche) is required"}, status=400)
-    
-    # CRITICAL FIX A7: Input validation
-    if len(niche) > 100:
-        return Response({"error": "Career path must be less than 100 characters"}, status=400)
-    
-    if len(university_course) > 200:
-        return Response({"error": "Course name must be less than 200 characters"}, status=400)
-    
-    # Whitelist budget options (match User.budget_preference)
-    allowed_budgets = ['FREE', 'PAID']
-    if budget not in allowed_budgets:
-        return Response({"error": f"Budget must be one of {allowed_budgets}"}, status=400)
 
-    # Whitelist gender options (match User.gender choices)
+    # Accept either 'role' (new) or 'niche' (legacy)
+    if not role_key and niche:
+        # Map legacy niche strings to role keys
+        niche_to_role = {
+            'full stack developer': 'fullstack',
+            'frontend developer': 'frontend',
+            'backend developer': 'backend',
+            'data scientist': 'data',
+            'devops engineer': 'devops',
+            'mobile developer': 'mobile',
+        }
+        role_key = niche_to_role.get(niche.lower(), 'fullstack')
+
+    if not role_key:
+        return Response({"error": "Career role is required"}, status=400)
+
+    # Validate gender
     allowed_genders = {'unspecified', 'female', 'male', 'nonbinary'}
     if gender and gender not in allowed_genders:
         return Response({"error": f"Gender must be one of {sorted(allowed_genders)}"}, status=400)
-    
+
+    # Load role template from catalog
+    template = get_role_template(role_key)
+    if not template:
+        return Response({"error": f"Role '{role_key}' is not available yet"}, status=400)
+
     try:
         # Update user profile
-        user.target_career = niche
+        user.target_career = template["title"]
         user.university_course_raw = university_course
         user.budget_preference = budget
         if gender:
             user.gender = gender
         user.save()
-        
-        # Generate roadmap
-        print(f"[ONBOARDING] Generating roadmap for {user.username}: {niche}")
-        modules = generate_detailed_roadmap(niche, university_course, budget)
-        
-        # Create roadmap items
+
+        # Clear existing roadmap and load from template
+        UserRoadmapItem.objects.filter(user=user).delete()
+
+        modules = template["modules"]
         created_items = []
         for i, module_data in enumerate(modules):
-            status = 'active' if i == 0 else 'locked'
+            item_status = 'active' if i == 0 else 'locked'
             resources = module_data.get('resources', {})
             if module_data.get('lessons'):
-                resources['lesson_outline'] = module_data.get('lessons')
+                resources['lesson_outline'] = module_data['lessons']
+            # Store connections and node_type in resources for frontend graph rendering
+            resources['_connections'] = module_data.get('connections', [])
+            resources['_node_type'] = module_data.get('node_type', 'core')
 
             item = UserRoadmapItem.objects.create(
                 user=user,
-                step_order=i + 1,
+                step_order=i,
                 label=module_data.get('label', f'Module {i+1}'),
                 description=module_data.get('description', ''),
-                status=status,
+                status=item_status,
                 market_value=module_data.get('market_value', 'Med'),
                 resources=resources,
                 project_prompt=module_data.get('project_prompt', 'No project defined')
             )
             created_items.append(item)
-        
-        print(f"[ONBOARDING] Created {len(created_items)} roadmap items")
-        
+
+        print(f"[ONBOARDING] Loaded {len(created_items)} modules from '{role_key}' template for {user.username}")
+
         return Response({
-            "message": "Onboarding complete! Roadmap generated.",
-            "modules_created": len(created_items)
+            "message": "Onboarding complete! Roadmap loaded.",
+            "modules_created": len(created_items),
+            "role": role_key,
+            "role_title": template["title"],
         }, status=200)
-        
+
     except Exception as e:
         import traceback
-        error_type = type(e).__name__
-        error_msg = str(e)
-        
-        print(f"[ONBOARDING ERROR] {error_type}: {error_msg}")
+        print(f"[ONBOARDING ERROR] {type(e).__name__}: {e}")
         traceback.print_exc()
-        
-        # Provide user-friendly error messages
-        user_message = "Failed to generate your roadmap. Please try again."
-        
-        if "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
-            user_message = "Roadmap generation is taking longer than expected. Please try again in a moment."
-        elif "api" in error_msg.lower() or "gemini" in error_msg.lower():
-            user_message = "Our AI service is temporarily unavailable. Please try again shortly."
-        elif "database" in error_msg.lower() or "connection" in error_msg.lower():
-            user_message = "Database connection issue. Please try again."
-        
         return Response({
-            "error": user_message,
-            "technical_details": f"{error_type}: {error_msg}" if settings.DEBUG else None
+            "error": "Failed to load your roadmap. Please try again.",
+            "technical_details": f"{type(e).__name__}: {e}" if settings.DEBUG else None
         }, status=500)
 
 
@@ -373,8 +403,41 @@ def get_my_roadmap(request):
         formatted_nodes = []
         formatted_edges = []
         items_list = list(items_qs)
+
+        order_to_label = {item.step_order: (item.label or '') for item in items_list}
+
+        # Build step_order → real DB id lookup for connection-based edges
+        order_to_id = {item.step_order: str(item.id) for item in items_list}
+
         for i, item in enumerate(items_list):
             node_id = str(item.id)
+            resources = item.resources or {}
+            node_type = resources.pop('_node_type', 'core')
+            connections = resources.pop('_connections', [])
+
+            # Module progress is backend-provided. We currently use github_score (0-100)
+            # as a stable proxy where available.
+            try:
+                score = int(item.github_score or 0)
+            except Exception:
+                score = 0
+            score = max(0, min(100, score))
+
+            if item.status == 'completed':
+                progress_percent = 100
+            elif item.status == 'active':
+                progress_percent = score
+            else:
+                progress_percent = 0
+
+            unlock_hint = None
+            if item.status == 'locked':
+                prev_label = order_to_label.get(item.step_order - 1) or ''
+                if prev_label:
+                    unlock_hint = f"Finish {prev_label} to unlock"
+                else:
+                    unlock_hint = "Finish the previous module to unlock"
+
             formatted_nodes.append({
                 "id": node_id,
                 "type": "customNode",
@@ -384,18 +447,36 @@ def get_my_roadmap(request):
                     "status": item.status,
                     "description": item.description,
                     "market_value": item.market_value,
-                    "resources": item.resources,
+                    "resources": resources,
                     "project_prompt": item.project_prompt,
+                    "node_type": node_type,
+                    "step_order": item.step_order,
+                    "progress_percent": progress_percent,
+                    "unlock_hint": unlock_hint,
                 },
             })
-            if i > 0:
+
+            # Build edges from explicit connections stored in the catalog
+            if connections:
+                for target_order in connections:
+                    target_id = order_to_id.get(target_order)
+                    if target_id and target_id != node_id:
+                        formatted_edges.append({
+                            "id": f"e{node_id}-{target_id}",
+                            "source": node_id,
+                            "target": target_id,
+                            "animated": True,
+                            "style": {"stroke": "#6C63FF"},
+                        })
+            elif i > 0:
+                # Fallback: sequential edge for legacy roadmaps without connections
                 prev_id = str(items_list[i - 1].id)
                 formatted_edges.append({
                     "id": f"e{prev_id}-{node_id}",
                     "source": prev_id,
                     "target": node_id,
                     "animated": True,
-                    "style": {"stroke": "#00f2ff"},
+                    "style": {"stroke": "#6C63FF"},
                 })
 
         is_fallback = False
@@ -459,10 +540,11 @@ def get_my_roadmap(request):
             }, status=200)
 
         return Response({
-            "error": "AI is busy generating your roadmap. Please try again in a moment.",
+            "error": "AI is generating your roadmap. Please wait a moment.",
             "nodes": [],
-            "edges": []
-        }, status=429)
+            "edges": [],
+            "generation_in_progress": True
+        }, status=202)
     cache.set(lock_key, True, timeout=120)
     
     from .ai_logic import generate_detailed_roadmap
@@ -473,7 +555,7 @@ def get_my_roadmap(request):
     
     try:
         print(f"Calling generate_detailed_roadmap({niche}, {uni_course}, {budget})")
-        modules = generate_detailed_roadmap(niche, uni_course, budget)
+        modules, ai_meta = generate_detailed_roadmap(niche, uni_course, budget, return_meta=True)
         if not modules:
             raise ValueError("AI returned no modules; using offline fallback")
         print(f"Generated {len(modules)} modules")
@@ -2482,79 +2564,69 @@ def search_community(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_analytics(request):
-    """Get user's learning analytics: time spent, progress, quiz scores."""
-    from .models import Quiz, ProjectReview
-    from django.db.models import Avg, Sum, Count, F
-    
+    """Get user's learning analytics using real model fields."""
+    from .models import Quiz
+    from django.db.models import Avg, Count
+
     user = request.user
     now = timezone.now()
-    week_ago = now - timedelta(days=7)
     month_ago = now - timedelta(days=30)
-    
-    # Total modules completed
-    completed_modules = UserRoadmapItem.objects.filter(
-        user=user,
-        verification_count__gt=0
-    ).count()
-    
-    # Weekly activity (last 7 days)
-    weekly_activity = UserActivity.objects.filter(
-        user=user,
-        timestamp__gte=week_ago
-    ).values('activity_type').annotate(count=Count('id'))
-    
-    # Quiz stats (last 30 days)
-    quiz_stats = Quiz.objects.filter(
-        roadmap_item__user=user,
-        completed_at__gte=month_ago
-    ).aggregate(
-        avg_score=Avg('score'),
-        total_attempts=Count('id')
-    )
-    
-    # XP trend (weekly breakdown)
+
+    all_items = UserRoadmapItem.objects.filter(user=user)
+    completed_count = all_items.filter(status='completed').count()
+    total_count = all_items.count()
+
+    # Weekly activity — UserActivity uses (date, count) not timestamp
+    week_ago_date = (now - timedelta(days=7)).date()
+    weekly_activities = UserActivity.objects.filter(user=user, date__gte=week_ago_date)
+    weekly_total = sum(a.count for a in weekly_activities)
+
+    # Daily breakdown for the last 7 days
     weekly_breakdown = []
     for i in range(7):
-        day = now - timedelta(days=6-i)
-        day_start = day.replace(hour=0, minute=0, second=0)
-        day_end = day_start + timedelta(days=1)
-        
-        xp_earned = UserActivity.objects.filter(
-            user=user,
-            timestamp__gte=day_start,
-            timestamp__lt=day_end
-        ).count() * 10  # Simplified: 10 XP per activity
-        
+        day = (now - timedelta(days=6 - i)).date()
+        act = weekly_activities.filter(date=day).first()
         weekly_breakdown.append({
-            "date": day.strftime('%Y-%m-%d'),
-            "xp": xp_earned
+            "date": day.isoformat(),
+            "count": act.count if act else 0,
         })
-    
-    # Project completion velocity
-    recent_projects = UserRoadmapItem.objects.filter(
-        user=user,
-        is_project=True
-    ).order_by('-verification_count')[:5]
 
-    leaderboard = User.objects.annotate(
-        posts_count=Count('posts', distinct=True),
-        replies_count=Count('replies', distinct=True)
-    ).order_by('-community_xp', '-posts_count')[:5]
-    
+    # Quiz stats (last 30 days)
+    quizzes = Quiz.objects.filter(roadmap_item__user=user)
+    recent_quizzes = quizzes.filter(completed_at__gte=month_ago)
+    quiz_stats = recent_quizzes.aggregate(
+        avg_score=Avg('score'),
+        total_attempts=Count('id'),
+    )
+
+    # Recent verified projects
+    recent_projects = all_items.filter(
+        status='completed',
+        project_submission_link__isnull=False,
+    ).order_by('-submitted_at')[:5]
+
+    # Streak
+    current_streak = calculate_current_streak(user)
+
+    # XP (computed)
+    year_activities = UserActivity.objects.filter(user=user, date__gte=(now - timedelta(days=365)).date())
+    total_year = sum(a.count for a in year_activities)
+    xp = (completed_count * 500) + (total_year * 15) + (getattr(user, 'community_xp', 0))
+
     return Response({
         "summary": {
-            "total_xp": user.xp if hasattr(user, 'xp') else 0,
-            "current_streak": user.current_streak,
-            "completed_modules": completed_modules,
-            "total_hours": 0,  # Would need to calculate from activity logs
-            "community_xp": getattr(user, 'community_xp', 0)
+            "total_xp": xp,
+            "current_streak": current_streak,
+            "completed_modules": completed_count,
+            "total_modules": total_count,
+            "community_xp": getattr(user, 'community_xp', 0),
         },
-        "weekly_activity": list(weekly_activity),
+        "weekly_activity_total": weekly_total,
         "quiz_stats": {
             "average_score": quiz_stats.get('avg_score') or 0,
             "total_attempts": quiz_stats.get('total_attempts') or 0,
         },
-        "weekly_xp_trend": weekly_breakdown,
+        "weekly_breakdown": weekly_breakdown,
         "recent_projects": [
             {
                 "id": p.id,
@@ -2563,15 +2635,6 @@ def get_analytics(request):
             }
             for p in recent_projects
         ],
-        "community_leaderboard": [
-            {
-                "username": u.username,
-                "xp": getattr(u, 'community_xp', 0),
-                "posts": getattr(u, 'posts_count', 0),
-                "replies": getattr(u, 'replies_count', 0)
-            }
-            for u in leaderboard
-        ]
     })
 
 
@@ -2629,10 +2692,12 @@ def employer_jobs(request):
     try:
         employer = EmployerProfile.objects.get(user=request.user)
     except EmployerProfile.DoesNotExist:
-        return Response(
-            {"error": "You need to set up an employer profile first"},
-            status=403
-        )
+        return Response({
+            "nodes": nodes,
+            "edges": edges,
+            "provider_used": (ai_meta or {}).get("provider"),
+            "ai_meta": ai_meta,
+        })
     
     if request.method == 'GET':
         jobs = JobPosting.objects.filter(employer=employer).order_by('-created_at')
@@ -2757,3 +2822,385 @@ def apply_to_job(request, job_id):
         }, status=201)
     except Exception as e:
         return Response({"error": str(e)}, status=400)
+
+
+# ==========================================
+# JADA AI ASSISTANT (OpenRouter dual-model)
+# ==========================================
+
+import requests as http_requests
+
+OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
+
+# Model routing: casual → Llama, technical → DeepSeek
+JADA_MODELS = {
+    "casual": "meta-llama/llama-3.1-8b-instruct:free",
+    "technical": "deepseek/deepseek-r1:free",
+}
+
+JADA_SYSTEM_PROMPT = (
+    "You are JADA — a friendly, proactive AI career coach for aspiring developers. "
+    "Keep answers concise (under 200 words unless asked for detail). "
+    "Reference the user's current module and progress when possible. "
+    "If a question is vague, ask a clarifying question. "
+    "Use code blocks with language tags when showing code. "
+    "Never make up URLs or resources."
+)
+
+
+def _classify_complexity(message: str) -> str:
+    """Route messages: code/debug/architecture → technical, else casual."""
+    technical_keywords = [
+        'code', 'debug', 'error', 'function', 'class', 'api', 'deploy',
+        'database', 'sql', 'algorithm', 'refactor', 'architecture', 'git',
+        'docker', 'test', 'import', 'exception', 'stack trace', 'bug',
+        'review my', 'explain this code', 'how to implement',
+    ]
+    msg_lower = message.lower()
+    return "technical" if any(kw in msg_lower for kw in technical_keywords) else "casual"
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def jada_chat(request):
+    """
+    Send a message to JADA. Routes to Llama 3.1 (casual) or DeepSeek-R1 (technical).
+    Body: { message, conversation_id? (optional), mode? }
+    """
+    import os
+    user = request.user
+    message = request.data.get('message', '').strip()
+
+    if not message:
+        return Response({"error": "Message is required"}, status=400)
+    if len(message) > 4000:
+        return Response({"error": "Message too long (max 4000 chars)"}, status=400)
+
+    mode = request.data.get('mode', 'general')
+    conversation_id = request.data.get('conversation_id')
+
+    # Get or create conversation
+    conversation = None
+    if conversation_id:
+        conversation = JadaConversation.objects.filter(id=conversation_id, user=user).first()
+
+    if not conversation:
+        # Attach current active module for context
+        active_module = UserRoadmapItem.objects.filter(user=user, status='active').first()
+        conversation = JadaConversation.objects.create(
+            user=user,
+            context_module=active_module,
+            mode=mode,
+        )
+
+    # Build message history (last 20 messages for context window)
+    history = list(conversation.messages.order_by('-created_at')[:20])
+    history.reverse()
+
+    messages = [{"role": "system", "content": JADA_SYSTEM_PROMPT}]
+
+    # Add user context
+    active_module = conversation.context_module
+    if active_module:
+        messages.append({
+            "role": "system",
+            "content": f"User is working on: {active_module.label} — {active_module.description}. Status: {active_module.status}."
+        })
+
+    completed_count = UserRoadmapItem.objects.filter(user=user, status='completed').count()
+    total_count = UserRoadmapItem.objects.filter(user=user).count()
+    if total_count:
+        messages.append({
+            "role": "system",
+            "content": f"Progress: {completed_count}/{total_count} modules completed."
+        })
+
+    for msg in history:
+        messages.append({"role": "user" if msg.role == "user" else "assistant", "content": msg.content})
+    messages.append({"role": "user", "content": message})
+
+    # Route to appropriate model
+    complexity = _classify_complexity(message)
+    model = JADA_MODELS[complexity]
+
+    api_key = os.environ.get('OPENROUTER_API_KEY', '')
+    if not api_key:
+        # Graceful fallback when API key is missing
+        fallback = "I'm having trouble connecting right now. Please try again in a moment!"
+        JadaMessage.objects.create(conversation=conversation, role='user', content=message)
+        JadaMessage.objects.create(conversation=conversation, role='jada', content=fallback, model_used='fallback')
+        return Response({
+            "reply": fallback,
+            "conversation_id": conversation.id,
+            "model_used": "fallback",
+        })
+
+    try:
+        resp = http_requests.post(
+            OPENROUTER_API_URL,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": os.environ.get('SITE_URL', 'https://whatsnext.dev'),
+            },
+            json={
+                "model": model,
+                "messages": messages,
+                "max_tokens": 1024,
+                "temperature": 0.7,
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        reply = data["choices"][0]["message"]["content"]
+        model_used = data.get("model", model)
+    except Exception as e:
+        print(f"[JADA] OpenRouter error: {e}")
+        reply = "Sorry, I couldn't process that right now. Try rephrasing or ask again shortly."
+        model_used = "error"
+
+    # Persist messages
+    JadaMessage.objects.create(conversation=conversation, role='user', content=message)
+    JadaMessage.objects.create(conversation=conversation, role='jada', content=reply, model_used=model_used)
+
+    return Response({
+        "reply": reply,
+        "conversation_id": conversation.id,
+        "model_used": model_used,
+        "complexity": complexity,
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def jada_conversations(request):
+    """List user's JADA conversations."""
+    convos = JadaConversation.objects.filter(user=request.user)[:20]
+    return Response([
+        {
+            "id": c.id,
+            "mode": c.mode,
+            "module": c.context_module.label if c.context_module else None,
+            "started_at": c.started_at,
+            "last_message_at": c.last_message_at,
+            "message_count": c.messages.count(),
+        }
+        for c in convos
+    ])
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def jada_conversation_detail(request, conversation_id):
+    """Get all messages in a JADA conversation."""
+    convo = get_object_or_404(JadaConversation, id=conversation_id, user=request.user)
+    messages = convo.messages.all()
+    return Response({
+        "id": convo.id,
+        "mode": convo.mode,
+        "module": convo.context_module.label if convo.context_module else None,
+        "messages": [
+            {
+                "role": m.role,
+                "content": m.content,
+                "model_used": m.model_used,
+                "created_at": m.created_at,
+            }
+            for m in messages
+        ],
+    })
+
+
+# ==========================================
+# SOCIAL: FOLLOWING & FRIENDS PROGRESS
+# ==========================================
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def follow_user(request):
+    """Follow another user."""
+    username = request.data.get('username', '').strip()
+    if not username:
+        return Response({"error": "Username is required"}, status=400)
+
+    target = User.objects.filter(username=username).first()
+    if not target:
+        return Response({"error": "User not found"}, status=404)
+    if target == request.user:
+        return Response({"error": "You can't follow yourself"}, status=400)
+
+    _, created = UserFollowing.objects.get_or_create(follower=request.user, following=target)
+    if not created:
+        return Response({"message": "Already following"}, status=200)
+    return Response({"message": f"Now following {username}"}, status=201)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def unfollow_user(request):
+    """Unfollow a user."""
+    username = request.data.get('username', '').strip()
+    if not username:
+        return Response({"error": "Username is required"}, status=400)
+
+    target = User.objects.filter(username=username).first()
+    if not target:
+        return Response({"error": "User not found"}, status=404)
+
+    deleted, _ = UserFollowing.objects.filter(follower=request.user, following=target).delete()
+    if not deleted:
+        return Response({"error": "Not following this user"}, status=400)
+    return Response({"message": f"Unfollowed {username}"})
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_following(request):
+    """Get list of users the current user follows."""
+    following = UserFollowing.objects.filter(follower=request.user).select_related('following')
+    return Response([
+        {
+            "username": f.following.username,
+            "avatar_seed": str(f.following.avatar_seed),
+            "target_career": f.following.target_career,
+            "followed_at": f.created_at,
+        }
+        for f in following
+    ])
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_followers(request):
+    """Get list of users who follow the current user."""
+    followers = UserFollowing.objects.filter(following=request.user).select_related('follower')
+    return Response([
+        {
+            "username": f.follower.username,
+            "avatar_seed": str(f.follower.avatar_seed),
+            "target_career": f.follower.target_career,
+            "followed_at": f.created_at,
+        }
+        for f in followers
+    ])
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_friends_progress(request):
+    """
+    Get roadmap progress of users the current user follows.
+    Used for the 'friends overlay' on the roadmap graph.
+    """
+    following_ids = UserFollowing.objects.filter(
+        follower=request.user
+    ).values_list('following_id', flat=True)
+
+    friends = User.objects.filter(id__in=following_ids)
+    progress_data = []
+
+    for friend in friends:
+        items = UserRoadmapItem.objects.filter(user=friend)
+        total = items.count()
+        completed = items.filter(status='completed').count()
+        active_module = items.filter(status='active').first()
+
+        progress_data.append({
+            "username": friend.username,
+            "avatar_seed": str(friend.avatar_seed),
+            "total_modules": total,
+            "completed_modules": completed,
+            "active_module": active_module.label if active_module else None,
+            "active_step_order": active_module.step_order if active_module else None,
+        })
+
+    return Response(progress_data)
+
+
+# ==========================================
+# WAITLIST (Landing page + Loops.so)
+# ==========================================
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def join_waitlist(request):
+    """
+    Join the platform waitlist. Syncs to Loops.so for email campaigns.
+    """
+    import os
+
+    email = request.data.get('email', '').strip().lower()
+    name = request.data.get('name', '').strip()
+    source = request.data.get('source', 'landing').strip()
+
+    if not email or '@' not in email:
+        return Response({"error": "Valid email is required"}, status=400)
+
+    waitlist_entry, created = Waitlist.objects.get_or_create(
+        email=email,
+        defaults={"name": name, "source": source}
+    )
+
+    if not created:
+        return Response({"message": "You're already on the list!", "already_registered": True})
+
+    # Sync to Loops.so (non-blocking, best-effort)
+    loops_api_key = os.environ.get('LOOPS_API_KEY', '')
+    if loops_api_key:
+        try:
+            http_requests.post(
+                "https://app.loops.so/api/v1/contacts/create",
+                headers={
+                    "Authorization": f"Bearer {loops_api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "email": email,
+                    "firstName": name,
+                    "source": source,
+                    "userGroup": "waitlist",
+                },
+                timeout=5,
+            )
+            waitlist_entry.synced_to_loops = True
+            waitlist_entry.save(update_fields=['synced_to_loops'])
+        except Exception as e:
+            print(f"[WAITLIST] Loops.so sync failed: {e}")
+
+    return Response({
+        "message": "You're on the list! We'll be in touch.",
+        "position": Waitlist.objects.count(),
+    }, status=201)
+
+
+# ==========================================
+# RESOURCE CLICK TRACKING
+# ==========================================
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def track_resource_click(request):
+    """
+    Track when a user clicks an external resource link.
+    Used for analytics and auto-swapping low-CTR resources.
+    """
+    url = request.data.get('url', '').strip()
+    title = request.data.get('title', '').strip()
+    module_id = request.data.get('module_id')
+
+    if not url:
+        return Response({"error": "URL is required"}, status=400)
+
+    module = None
+    if module_id:
+        module = UserRoadmapItem.objects.filter(id=module_id, user=request.user).first()
+
+    ResourceClick.objects.create(
+        user=request.user,
+        url=url,
+        title=title[:500] if title else '',
+        module=module,
+    )
+
+    return Response({"tracked": True})

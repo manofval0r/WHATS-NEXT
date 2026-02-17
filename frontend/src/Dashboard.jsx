@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import api from './api';
 import { useNavigate } from 'react-router-dom';
-import { Terminal, Award, Zap, Sparkles } from 'lucide-react';
+import { BookOpen, Award, Zap, Sparkles, Route, Gem, Bot } from 'lucide-react';
 import RoadmapMap from './RoadmapMap';
 import MobileModuleModal from './components/MobileModuleModal';
 import { useIsMobile } from './hooks/useMediaQuery';
@@ -47,6 +47,7 @@ const TypewriterText = ({ texts }) => {
 export default function Dashboard() {
   // --- STATE ---
   const [nodes, setNodes] = useState([]); // Raw nodes from backend
+  const [roadmapAiMeta, setRoadmapAiMeta] = useState(null);
   const [selectedNode, setSelectedNode] = useState(null);
   const [loading, setLoading] = useState(true);
   const [regenerating, setRegenerating] = useState(false);
@@ -54,6 +55,9 @@ export default function Dashboard() {
   const [userData, setUserData] = useState({ level: 'Beginner' });
   const [submissionLink, setSubmissionLink] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Roadmap Search
+  const [roadmapQuery, setRoadmapQuery] = useState('');
 
   // Quiz State
   const [showQuiz, setShowQuiz] = useState(false);
@@ -65,14 +69,59 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const isMobile = useIsMobile(); // Detect mobile viewport
   const jada = useJada();
+  const fetchingRef = React.useRef(false); // Guard against double-fetching
+
+  const providerUsed = roadmapAiMeta?.provider || null;
+  const providerModel = roadmapAiMeta?.model || null;
+
+  const ProviderIcon = ({ size = 16 }) => {
+    const title = providerUsed
+      ? `AI: ${providerUsed}${providerModel ? ` • ${providerModel}` : ''}`
+      : 'AI: unknown';
+
+    const commonProps = {
+      size,
+      color: 'var(--text-tertiary)',
+    };
+
+    let Icon = Bot;
+    if (providerUsed === 'openrouter') Icon = Route;
+    if (providerUsed === 'gemini') Icon = Gem;
+
+    return (
+      <span
+        title={title}
+        style={{ display: 'inline-flex', alignItems: 'center', opacity: 0.9 }}
+      >
+        <Icon {...commonProps} />
+      </span>
+    );
+  };
 
   // --- FETCH ROADMAP ---
   const fetchRoadmap = async () => {
     const token = localStorage.getItem('access_token');
     if (!token) { navigate('/'); return; }
+    if (fetchingRef.current) return; // Prevent double-fetch
+    fetchingRef.current = true;
 
     try {
-      const res = await api.post('/api/my-roadmap/', {});
+      const res = await api.post('/api/my-roadmap/', {}, { timeout: 180000 }); // 3 min for AI generation
+
+      // If the backend says generation is already in progress, wait and retry once
+      if (res.status === 202 || res.data?.generation_in_progress) {
+        console.log('Roadmap generation in progress, retrying in 5s...');
+        await new Promise(r => setTimeout(r, 5000));
+        const retry = await api.post('/api/my-roadmap/', {}, { timeout: 180000 });
+        // Use the retry response from here on
+        Object.assign(res, retry);
+      }
+
+      if (res?.data && typeof res.data === 'object' && !Array.isArray(res.data)) {
+        setRoadmapAiMeta(res.data.ai_meta || null);
+      } else {
+        setRoadmapAiMeta(null);
+      }
 
       // Handle the response - ensure nodes is always an array
       const nodeData = res.data.nodes || res.data || [];
@@ -162,6 +211,7 @@ export default function Dashboard() {
     } finally {
       // Always ensure loading state is cleared
       setLoading(false);
+      fetchingRef.current = false;
     }
   };
 
@@ -223,6 +273,12 @@ export default function Dashboard() {
         '/api/my-roadmap/',
         { force_regenerate: true }
       );
+
+      if (res?.data && typeof res.data === 'object' && !Array.isArray(res.data)) {
+        setRoadmapAiMeta(res.data.ai_meta || null);
+      } else {
+        setRoadmapAiMeta(null);
+      }
 
       // Check if we got a real roadmap back (not fallback)
       if (res.data.is_fallback) {
@@ -335,6 +391,17 @@ export default function Dashboard() {
   };
 
   // --- RENDER ---
+  const normalizedQuery = roadmapQuery.trim().toLowerCase();
+  const highlightedNodeIds = normalizedQuery
+    ? nodes
+        .filter((n) => {
+          const label = String(n?.data?.label || '').toLowerCase();
+          return label.includes(normalizedQuery);
+        })
+        .map((n) => n.id)
+    : [];
+  const firstHighlightedNodeId = highlightedNodeIds.length > 0 ? highlightedNodeIds[0] : null;
+
   return (
     <div style={{
       width: '100%',
@@ -348,33 +415,29 @@ export default function Dashboard() {
       {(loading || regenerating) && (
         <div style={{
           position: 'absolute', inset: 0, zIndex: 50,
-          background: 'var(--overlay-bg)', backdropFilter: 'blur(10px)',
+          background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(8px)',
           display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center', gap: '30px'
         }}>
           <div style={{ textAlign: 'center' }}>
             <div style={{
-              fontSize: '24px',
-              fontFamily: 'var(--font-display)',
-              color: 'var(--neon-cyan)',
+              fontSize: '20px',
+              fontWeight: 700,
+              color: 'var(--primary)',
               marginBottom: '10px',
-              textShadow: '0 0 10px rgba(95, 245, 255, 0.5)',
-              animation: 'pulseGlow 2s infinite alternate'
             }}>
-              {regenerating ? 'REGENERATING SYSTEM...' : 'INITIALIZING NEURAL LINK...'}
+              {regenerating ? 'Rebuilding your roadmap...' : 'Setting things up...'}
             </div>
             <div style={{
               fontSize: '14px',
               color: 'var(--text-secondary)',
-              fontFamily: 'var(--font-mono)',
-              height: '20px' // Fixed height
+              height: '20px'
             }}>
               <TypewriterText
                 texts={[
-                  "ANALYZING CAREER TRENDS...",
-                  "CURATING RESOURCES...",
-                  "OPTIMIZING PATH...",
-                  "CALIBRATING..."
+                  "Finding the best resources...",
+                  "Mapping your learning path...",
+                  "Almost ready...",
                 ]}
               />
             </div>
@@ -405,33 +468,35 @@ export default function Dashboard() {
             pointerEvents: 'none' // Let clicks pass through to map
           }}>
              {/* HEADER DASHBOARD */}
-             <Card variant="glass" style={{ padding: '8px 24px', display: 'flex', alignItems: 'center', gap: '32px', pointerEvents: 'auto', borderRadius: 'var(--radius-full)' }}>
+             <Card variant="glass" style={{ padding: '8px 24px', display: 'flex', alignItems: 'center', gap: '28px', pointerEvents: 'auto', borderRadius: 14 }}>
                 {/* LEVEL */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                   <Terminal size={16} color="var(--neon-cyan)" />
+                   <BookOpen size={16} color="var(--primary)" />
                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                       <span style={{ fontSize: '10px', color: 'var(--text-tertiary)', letterSpacing: '1px' }}>SYSTEM LEVEL</span>
-                       <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>{userData.level === 'Beginner' ? '01' : '02'}</span>
+                       <span style={{ fontSize: '10px', color: 'var(--text-tertiary)', fontWeight: 600 }}>Level</span>
+                       <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>{userData.level === 'Beginner' ? '1' : '2'}</span>
                    </div>
                 </div>
                 
                 {/* VERTICAL SEPARATOR */}
-                <div style={{ width: '1px', height: '24px', background: 'var(--void-glow)' }}></div>
+                <div style={{ width: '1px', height: '24px', background: 'var(--border-subtle)' }}></div>
 
                 {/* PROGRESS */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '200px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '180px' }}>
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ fontSize: '10px', color: 'var(--text-tertiary)' }}>MASTERY</span>
-                          <span style={{ fontSize: '10px', color: 'var(--neon-violet)' }}>
+                        <span style={{ fontSize: '10px', color: 'var(--text-tertiary)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                         Progress <ProviderIcon size={14} />
+                        </span>
+                          <span style={{ fontSize: '10px', color: 'var(--primary)', fontWeight: 600 }}>
                              {nodes && nodes.length > 0 ? Math.round((nodes.filter(n => n.data.status === 'completed').length / Math.max(nodes.length, 1)) * 100) : 0}%
                           </span>
                        </div>
-                       <div style={{ height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', overflow: 'hidden' }}>
+                       <div style={{ height: '4px', background: 'var(--border-subtle)', borderRadius: '2px', overflow: 'hidden' }}>
                            <div style={{
                                height: '100%',
                                width: `${(nodes.filter(n => n.data.status === 'completed').length / Math.max(nodes.length, 1)) * 100}%`,
-                               background: 'var(--gradient-mastery)',
+                               background: 'var(--success)',
                                transition: 'width 1s ease'
                            }}></div>
                        </div>
@@ -441,23 +506,42 @@ export default function Dashboard() {
                  {/* XP */}
                  <Badge label="1,240 XP" variant="violet" />
 
+                 {/* ROADMAP SEARCH */}
+                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 240 }}>
+                   <span style={{ fontSize: '10px', color: 'var(--text-tertiary)', fontWeight: 600 }}>Search</span>
+                   <input
+                     value={roadmapQuery}
+                     onChange={(e) => setRoadmapQuery(e.target.value)}
+                     placeholder="Search modules"
+                     style={{
+                       height: 34,
+                       borderRadius: 10,
+                       padding: '0 12px',
+                       background: 'var(--bg-surface)',
+                       border: '1px solid var(--border-subtle)',
+                       color: 'var(--text-primary)',
+                       fontSize: 13,
+                       outline: 'none',
+                     }}
+                   />
+                 </div>
+
                  {/* DAILY QUIZ TRIGGER */}
                  {!quizCompleted && (
                     <button 
                        onClick={openDailyQuiz}
                        style={{ 
-                          background: 'rgba(255, 190, 11, 0.1)', border: '1px solid var(--neon-gold)', 
-                          color: 'var(--neon-gold)', borderRadius: 'var(--radius-full)', padding: '6px 16px',
+                          background: 'rgba(245, 158, 11, 0.08)', border: '1px solid var(--warning)', 
+                          color: 'var(--warning)', borderRadius: 10, padding: '6px 16px',
                           display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer',
-                          fontFamily: 'var(--font-mono)', fontSize: '12px', fontWeight: 700,
-                          transition: 'all 0.2s',
-                          animation: 'pulseGlow 3s infinite'
+                          fontSize: '13px', fontWeight: 600,
+                          transition: 'all 0.15s',
                        }}
-                       onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 190, 11, 0.2)'}
-                       onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 190, 11, 0.1)'}
+                       onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(245, 158, 11, 0.15)'}
+                       onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(245, 158, 11, 0.08)'}
                     >
-                       <Zap size={14} fill="var(--neon-gold)" />
-                       DAILY_CHALLENGE
+                       <Zap size={14} fill="var(--warning)" />
+                       Daily Quiz
                     </button>
                  )}
              </Card>
@@ -471,30 +555,51 @@ export default function Dashboard() {
             padding: '12px 16px',
             background: 'var(--panel-bg)', backdropFilter: 'blur(var(--glass-blur))',
             borderBottom: '1px solid var(--border-subtle)',
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 10,
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                   <Badge label={`LVL ${userData.level === 'Beginner' ? '01' : '02'}`} variant="cyan" />
+                   <Badge label={`Lvl ${userData.level === 'Beginner' ? '1' : '2'}`} variant="cyan" />
                 </div>
-                 <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 700 }}>
+                 <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>
                    {nodes && nodes.length > 0 ? Math.round((nodes.filter(n => n.data.status === 'completed').length / Math.max(nodes.length, 1)) * 100) : 0}%
                  </span>
-            </div>
+                 <ProviderIcon size={16} />
+              </div>
 
             {!quizCompleted && (
               <button
                 onClick={openDailyQuiz}
                 style={{
-                  background: 'rgba(255, 190, 11, 0.1)', border: '1px solid var(--neon-gold)',
-                  color: 'var(--neon-gold)', borderRadius: '50%', width: '40px', height: '40px',
+                  background: 'rgba(245, 158, 11, 0.08)', border: '1px solid var(--warning)',
+                  color: 'var(--warning)', borderRadius: '50%', width: '40px', height: '40px',
                   cursor: 'pointer', pointerEvents: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: '0 0 10px rgba(255, 190, 11, 0.3)'
                 }}
               >
-                <Zap size={20} fill="var(--neon-gold)" />
+                <Zap size={20} fill="var(--warning)" />
               </button>
             )}
+            </div>
+
+            <input
+              value={roadmapQuery}
+              onChange={(e) => setRoadmapQuery(e.target.value)}
+              placeholder="Search modules"
+              style={{
+                width: '100%',
+                height: 36,
+                borderRadius: 12,
+                padding: '0 12px',
+                background: 'var(--bg-surface)',
+                border: '1px solid var(--border-subtle)',
+                color: 'var(--text-primary)',
+                fontSize: 13,
+                outline: 'none',
+              }}
+            />
           </div>
         )}
 
@@ -503,6 +608,9 @@ export default function Dashboard() {
           nodes={nodes}
           onNodeClick={(e, node) => setSelectedNode(node)}
           isMobile={isMobile}
+          highlightedNodeIds={highlightedNodeIds}
+          scrollToNodeId={firstHighlightedNodeId}
+          topPadding={isMobile ? 120 : 110}
         />
 
       </div>

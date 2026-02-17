@@ -13,6 +13,8 @@ urlpatterns = [
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/normalize-course/', views.normalize_course, name='normalize_course'),
+    path('api/roles/', views.list_roles, name='list_roles'),
+    path('api/roles/suggest/', views.suggest_role, name='suggest_role'),
 
     # --- OAUTH ---
     path('accounts/', include('allauth.urls')),
@@ -84,6 +86,24 @@ urlpatterns = [
     
     # Share Profile
     path('api/profile/share/', views.share_profile),
+
+    # --- JADA AI ASSISTANT ---
+    path('api/jada/chat/', views.jada_chat, name='jada_chat'),
+    path('api/jada/conversations/', views.jada_conversations, name='jada_conversations'),
+    path('api/jada/conversations/<int:conversation_id>/', views.jada_conversation_detail, name='jada_conversation_detail'),
+
+    # --- SOCIAL: FOLLOWING ---
+    path('api/social/follow/', views.follow_user, name='follow_user'),
+    path('api/social/unfollow/', views.unfollow_user, name='unfollow_user'),
+    path('api/social/following/', views.get_following, name='get_following'),
+    path('api/social/followers/', views.get_followers, name='get_followers'),
+    path('api/social/friends-progress/', views.get_friends_progress, name='friends_progress'),
+
+    # --- WAITLIST ---
+    path('api/waitlist/', views.join_waitlist, name='join_waitlist'),
+
+    # --- RESOURCE CLICK TRACKING ---
+    path('api/track-click/', views.track_resource_click, name='track_resource_click'),
 ]
 
 # Router for ViewSets

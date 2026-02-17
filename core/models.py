@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.conf import settings
+from django.utils import timezone
 import uuid
 
 # ==========================================
@@ -520,6 +521,9 @@ class Badge(models.Model):
         ('verified_5', 'Five Verified Projects'),
         ('community_contributor', 'Community Contributor'),
         ('top_contributor', 'Top Contributor This Week'),
+        ('product_thinker', 'Product Thinker'),
+        ('communicator', 'Strong Communicator'),
+        ('soft_skills', 'Soft Skills Champion'),
     ]
     
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='badges')
@@ -535,3 +539,186 @@ class Badge(models.Model):
     
     def __str__(self):
         return f"{self.title} - {self.user.username}"
+
+
+# ==========================================
+# 11. ROLE-BASED ROADMAP TEMPLATES
+# ==========================================
+
+class RoleRoadmapTemplate(models.Model):
+    """
+    Pre-built, curated roadmap template for a specific career role.
+    Replaces per-user AI generation with high-quality static paths.
+    """
+    ROLE_CHOICES = [
+        ('fullstack', 'Full-Stack Developer'),
+        ('frontend', 'Frontend Developer'),
+        ('backend', 'Backend Developer'),
+        ('data', 'Data Scientist'),
+        ('devops', 'DevOps Engineer'),
+        ('mobile', 'Mobile Developer'),
+    ]
+
+    role = models.CharField(max_length=30, choices=ROLE_CHOICES, unique=True)
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    modules = models.JSONField(
+        default=list,
+        help_text='Ordered list of module dicts: label, description, market_value, project_prompt, resources, lessons, connections'
+    )
+    version = models.IntegerField(default=1, help_text='Bump when updating the template')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['role']
+
+    def __str__(self):
+        return f"{self.get_role_display()} v{self.version}"
+
+
+# ==========================================
+# 12. SOCIAL: FOLLOWING / FRIENDS
+# ==========================================
+
+class UserFollowing(models.Model):
+    """
+    Lightweight follow relationship so users can see friends' roadmap progress.
+    """
+    follower = models.ForeignKey(User, on_delete=models.CASCADE, related_name='following')
+    following = models.ForeignKey(User, on_delete=models.CASCADE, related_name='followers')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('follower', 'following')
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.follower.username} -> {self.following.username}"
+
+
+# ==========================================
+# 13. WAITLIST (Loops.so sync)
+# ==========================================
+
+class Waitlist(models.Model):
+    """
+    Email waitlist entries synced to Loops.so via Django signals.
+    """
+    email = models.EmailField(unique=True)
+    name = models.CharField(max_length=100, blank=True)
+    source = models.CharField(max_length=50, default='landing', help_text='landing, referral, social')
+    synced_to_loops = models.BooleanField(default=False)
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='waitlist_entry')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.email} ({self.source})"
+
+
+# ==========================================
+# 14. TECHNICAL DEBT TRACKER
+# ==========================================
+
+class UserTechDebt(models.Model):
+    """
+    Tracks topics the user has been skipping or avoiding.
+    JADA uses this to nudge the user proactively.
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='tech_debts')
+    topic = models.CharField(max_length=200)
+    skipped_count = models.IntegerField(default=1)
+    last_skipped_at = models.DateTimeField(auto_now=True)
+    resolved = models.BooleanField(default=False)
+
+    class Meta:
+        unique_together = ('user', 'topic')
+        ordering = ['-skipped_count']
+
+    def __str__(self):
+        return f"{self.user.username}: {self.topic} (skipped {self.skipped_count}x)"
+
+
+# ==========================================
+# 15. RESOURCE CLICK TRACKING
+# ==========================================
+
+class ResourceClick(models.Model):
+    """
+    Tracks every external resource click.
+    Low CTR resources are auto-swapped by a nightly task.
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='resource_clicks')
+    url = models.URLField()
+    title = models.CharField(max_length=500, blank=True)
+    module = models.ForeignKey(UserRoadmapItem, on_delete=models.SET_NULL, null=True, blank=True)
+    clicked_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-clicked_at']
+        indexes = [
+            models.Index(fields=['url', '-clicked_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} clicked {self.url[:60]}"
+
+
+# ==========================================
+# 16. JADA CONVERSATIONS
+# ==========================================
+
+class JadaConversation(models.Model):
+    """
+    A chat session between a user and JADA.
+    Stores context so JADA can remember technical debt, progress, etc.
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='jada_conversations')
+    context_module = models.ForeignKey(
+        UserRoadmapItem, on_delete=models.SET_NULL, null=True, blank=True,
+        help_text='Module context for this conversation'
+    )
+    mode = models.CharField(
+        max_length=20, default='general',
+        choices=[
+            ('general', 'General Chat'),
+            ('lesson', 'Lesson Help'),
+            ('review', 'Code Review'),
+            ('manager', 'Manager Mode'),
+            ('architect', 'Architect Mode'),
+        ]
+    )
+    started_at = models.DateTimeField(auto_now_add=True)
+    last_message_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-last_message_at']
+
+    def __str__(self):
+        return f"JADA chat: {self.user.username} ({self.mode})"
+
+
+class JadaMessage(models.Model):
+    """
+    Individual message in a JADA conversation.
+    """
+    ROLE_CHOICES = [
+        ('user', 'User'),
+        ('jada', 'JADA'),
+        ('system', 'System'),
+    ]
+    conversation = models.ForeignKey(JadaConversation, on_delete=models.CASCADE, related_name='messages')
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES)
+    content = models.TextField()
+    model_used = models.CharField(max_length=50, blank=True, help_text='e.g. llama-3.1, deepseek-r1')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"{self.role}: {self.content[:50]}"

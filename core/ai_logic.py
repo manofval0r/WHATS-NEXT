@@ -5,11 +5,27 @@ import time
 from jsonschema import validate, ValidationError
 from dotenv import load_dotenv
 
+from .openrouter_client import chat_completions, chat_completions_cascade, OpenRouterError
+
 load_dotenv()
 
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 # Use the latest available Gemini 2.5 Flash model
 GEMINI_URL = f"https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
+
+
+def _call_gemini_text(prompt: str, *, temperature: float, timeout=(10, 90)) -> str:
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": temperature},
+    }
+    if not GEMINI_API_KEY:
+        raise RuntimeError("GEMINI_API_KEY is missing")
+
+    response = requests.post(GEMINI_URL, json=payload, timeout=timeout)
+    response.raise_for_status()
+    result = response.json()
+    return result['candidates'][0]['content']['parts'][0]['text']
 
 # JSON Schema for validating AI-generated roadmap modules
 MODULE_SCHEMA = {
@@ -46,10 +62,27 @@ ROADMAP_SCHEMA = {
     "minItems": 1
 }
 
-def generate_detailed_roadmap(niche, uni_course, budget):
+def generate_detailed_roadmap(niche, uni_course, budget, return_meta: bool = False):
     """
     Generates a highly specific, context-aware roadmap.
     """
+
+    def _return(modules, meta):
+        print(
+            f"[AI] roadmap_generation provider={meta.get('provider')} model={meta.get('model')} "
+            f"fallback_used={meta.get('fallback_used')}"
+        )
+        return (modules, meta) if return_meta else modules
+
+    def _fallback(reason: str):
+        modules = get_fallback_roadmap(niche, uni_course)
+        meta = {
+            "provider": "fallback",
+            "model": None,
+            "fallback_used": True,
+            "reason": reason,
+        }
+        return _return(modules, meta)
     
     uni_context = ""
     if uni_course and len(uni_course) > 2:
@@ -135,75 +168,100 @@ def generate_detailed_roadmap(niche, uni_course, budget):
     """
 
     try:
-        payload = { 
-            "contents": [{ "parts": [{"text": prompt}] }],
-            "generationConfig": { "temperature": 0.7 }
-        }
-        if not GEMINI_API_KEY:
-            raise RuntimeError("GEMINI_API_KEY is missing")
+        text = None
+        meta = None
 
-        # Avoid logging secrets: never print the full URL containing the API key.
-        print("[AI] Calling Gemini API (gemini-2.5-flash)")
+        try:
+            # Primary: free model cascade (Gemma 3 27B → DeepSeek R1)
+            text, model_used = chat_completions_cascade(
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+                max_tokens=8192,
+                timeout=120,
+            )
+            meta = {
+                "provider": "openrouter",
+                "model": model_used,
+                "fallback_used": False,
+            }
+        except OpenRouterError as e:
+            print(f"[AI] OpenRouter failed, falling back to Gemini: {e}")
+            # Fallback: Gemini
+            last_error = None
+            for attempt in range(2):
+                try:
+                    text = _call_gemini_text(prompt, temperature=0.7, timeout=(10, 90))
+                    meta = {
+                        "provider": "gemini",
+                        "model": "gemini-2.5-flash",
+                        "fallback_used": True,
+                        "fallback_from": "openrouter",
+                    }
+                    last_error = None
+                    break
+                except (requests.exceptions.ReadTimeout, requests.exceptions.ConnectTimeout) as ex:
+                    last_error = ex
+                    backoff = 1.5 ** attempt
+                    print(f"[AI] Timeout calling Gemini (attempt {attempt + 1}/2). Retrying in {backoff:.1f}s...")
+                    time.sleep(backoff)
+            if last_error is not None:
+                raise last_error
 
-        # Retry a couple times on transient timeouts.
-        response = None
-        last_error = None
-        for attempt in range(3):
-            try:
-                # timeout=(connect, read)
-                response = requests.post(GEMINI_URL, json=payload, timeout=(10, 90))
-                last_error = None
-                break
-            except (requests.exceptions.ReadTimeout, requests.exceptions.ConnectTimeout) as e:
-                last_error = e
-                backoff = 1.5 ** attempt
-                print(f"[AI] Timeout calling Gemini (attempt {attempt + 1}/3). Retrying in {backoff:.1f}s...")
-                time.sleep(backoff)
+        if not text:
+            return _fallback("empty_ai_response")
 
-        if last_error is not None:
-            raise last_error
+        print(f"[AI] Raw response length: {len(text)}")
+        print(f"[AI] Raw response first 300 chars: {repr(text[:300])}")
 
-        print(f"[AI] Response status: {response.status_code}")
-        
-        if response.status_code != 200:
-            # Don't dump full body; can contain large content.
-            print(f"[AI] API Error: {response.text[:500]}")
-            return get_fallback_roadmap(niche, uni_course)
-
-        result = response.json()
-        print(f"[AI] Got response from API, parsing JSON...")
-        text = result['candidates'][0]['content']['parts'][0]['text']
-        print(f"[AI] Raw text from API: {text[:200]}...")
         clean_text = safe_parse_json(text)
         
         if clean_text is None:
             print(f"[AI] Failed to parse JSON; using fallback")
-            return get_fallback_roadmap(niche, uni_course)
+            print(f"[AI] Full raw text for debug: {repr(text[:1000])}")
+            return _fallback("json_parse_failed")
         
         print(f"[AI] Parsed {len(clean_text)} modules from API")
-        
+
+        # --- Normalise common LLM variations before schema validation ---
+        _MV_MAP = {
+            "low": "Low", "medium": "Med", "med": "Med", "high": "High",
+            "low-med": "Low-Med", "low-medium": "Low-Med",
+            "med-high": "Med-High", "medium-high": "Med-High",
+        }
+        _STATUS_MAP = {"lock": "locked", "active": "active", "complete": "completed", "completed": "completed", "locked": "locked"}
+        for mod in clean_text:
+            mv = (mod.get("market_value") or "Med").strip()
+            mod["market_value"] = _MV_MAP.get(mv.lower(), "Med")
+            st = (mod.get("status") or "locked").strip()
+            mod["status"] = _STATUS_MAP.get(st.lower(), "locked")
+            # Clamp numeric ranges for lessons
+            for lesson in mod.get("lessons") or []:
+                lesson["phase"] = max(1, min(3, int(lesson.get("phase", 1))))
+                lesson["order"] = max(1, min(20, int(lesson.get("order", 1))))
+                lesson["estimated_minutes"] = max(10, min(90, int(lesson.get("estimated_minutes", 30))))
+
         # Validate against schema
         try:
             validate(instance=clean_text, schema=ROADMAP_SCHEMA)
             print(f"[AI] Schema validation passed")
         except ValidationError as e:
             print(f"[AI] Schema validation failed: {e}")
-            return get_fallback_roadmap(niche, uni_course)
+            return _fallback("schema_validation_failed")
         
         modules_list = clean_text
         
         # Optimization: Skip separate YouTube API calls to reduce generation time.
         # We rely on Gemini to provide the video links in the 'resources' field.
         
-        print(f"[AI] Roadmap generation successful!")
-        print(f"[AI] Returning {len(modules_list)} modules")
-        return layout_engine(modules_list)
+        modules_out = layout_engine(modules_list)
+        meta = meta or {"provider": "unknown", "model": None, "fallback_used": False}
+        return _return(modules_out, meta)
 
     except Exception as e:
         print(f"[AI] AI Logic Failed: {type(e).__name__}: {e}")
         import traceback
         traceback.print_exc()
-        return get_fallback_roadmap(niche, uni_course)
+        return _fallback("exception")
 
 def safe_parse_json(text):
     """
@@ -357,20 +415,20 @@ def normalize_university_course(raw_course):
     """
     
     try:
-        payload = { 
-            "contents": [{ "parts": [{"text": prompt}] }],
-            "generationConfig": { "temperature": 0.3 }
-        }
-        response = requests.post(GEMINI_URL, json=payload, timeout=10)
-        
-        if response.status_code == 200:
-            result = response.json()
-            text = result['candidates'][0]['content']['parts'][0]['text'].strip()
-            # Clean up any quotes or extra whitespace
-            cleaned = text.strip('"\'').strip()
-            return cleaned if cleaned else raw_course
-        else:
-            return raw_course
+        try:
+            text, _ = chat_completions_cascade(
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
+                max_tokens=64,
+                timeout=30,
+            )
+            text = text.strip()
+        except OpenRouterError as e:
+            print(f"Course normalization OpenRouter failed, falling back to Gemini: {e}")
+            text = _call_gemini_text(prompt, temperature=0.3, timeout=10).strip()
+
+        cleaned = text.strip('"\'').strip()
+        return cleaned if cleaned else raw_course
     except Exception as e:
         print(f"Course normalization error: {e}")
         return raw_course
@@ -404,17 +462,16 @@ def generate_quiz(module_label, description):
     """
     
     try:
-        payload = {
-            "contents": [{
-                "parts": [{"text": prompt}]
-            }]
-        }
-        
-        response = requests.post(GEMINI_URL, json=payload)
-        response.raise_for_status()
-        
-        result = response.json()
-        raw_text = result['candidates'][0]['content']['parts'][0]['text']
+        try:
+            raw_text, _ = chat_completions_cascade(
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.5,
+                max_tokens=1200,
+                timeout=60,
+            )
+        except OpenRouterError as e:
+            print(f"Quiz generation OpenRouter failed, falling back to Gemini: {e}")
+            raw_text = _call_gemini_text(prompt, temperature=0.5, timeout=(10, 60))
         
         raw_text = raw_text.strip()
         if raw_text.startswith('```'):

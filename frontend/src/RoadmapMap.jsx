@@ -1,235 +1,457 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Clock, Lock } from 'lucide-react';
 
-const RoadmapMap = ({ nodes, onNodeClick, isMobile }) => {
+/**
+ * Duolingo-style skill-tree roadmap.
+ * Nodes snake left-right down a path. Completed = green, active = primary, locked = gray.
+ */
+const RoadmapMap = ({ nodes, onNodeClick, isMobile, highlightedNodeIds = [], scrollToNodeId = null, topPadding = 0 }) => {
   const svgRef = useRef(null);
   const containerRef = useRef(null);
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
-  const [hoveredNode, setHoveredNode] = useState(null);
+  const [dims, setDims] = useState({ w: 0, h: 0 });
+  const expandedNodeIdRef = useRef(null);
 
-  // Resize Observer with debounce
+  // Observe container resize
   useEffect(() => {
     if (!containerRef.current) return;
-
-    let timeoutId;
-    const resizeObserver = new ResizeObserver(entries => {
-      for (let entry of entries) {
-        clearTimeout(timeoutId);
-        timeoutId = setTimeout(() => {
-          if (entry.contentRect.width > 0 && entry.contentRect.height > 0) {
-            setDimensions({
-              width: entry.contentRect.width,
-              height: entry.contentRect.height
-            });
-          }
-        }, 100);
+    let tid;
+    const ro = new ResizeObserver(entries => {
+      for (const e of entries) {
+        clearTimeout(tid);
+        tid = setTimeout(() => {
+          if (e.contentRect.width > 0)
+            setDims({ w: e.contentRect.width, h: e.contentRect.height });
+        }, 80);
       }
     });
-
-    resizeObserver.observe(containerRef.current);
-    return () => {
-      resizeObserver.disconnect();
-      clearTimeout(timeoutId);
-    };
+    ro.observe(containerRef.current);
+    return () => { ro.disconnect(); clearTimeout(tid); };
   }, []);
 
-  // D3 Render Logic
+  // D3 render
   useEffect(() => {
-    // Pass if dimensions are 0 or no nodes
-    if (!dimensions.width || nodes.length === 0) return;
-
-    // --- STYLE INJECTION ---
-    if (!document.getElementById('roadmap-styles')) {
-      const style = document.createElement('style');
-      style.id = 'roadmap-styles';
-      style.innerHTML = `
-            .node-item {
-                opacity: 0;
-                animation: fadeIn 0.5s forwards;
-                transform-box: fill-box;
-                transition: all 0.3s ease;
-            }
-            @keyframes fadeIn {
-                to { opacity: 1; }
-            }
-            /* Tech Pulse for Active Node */
-            @keyframes techPulse {
-                0% { box-shadow: 0 0 0 0 rgba(88, 166, 255, 0.4); }
-                70% { box-shadow: 0 0 0 10px rgba(88, 166, 255, 0); }
-                100% { box-shadow: 0 0 0 0 rgba(88, 166, 255, 0); }
-            }
-        `;
-      document.head.appendChild(style);
-    }
+    if (!dims.w || nodes.length === 0) return;
 
     const svg = d3.select(svgRef.current);
-    svg.selectAll("*").remove();
+    svg.selectAll('*').remove();
 
-    const width = dimensions.width;
-    // Mobile adjustments: tighter wave, closer nodes
-    const mobileView = isMobile || width < 600;
-    const waveWidth = mobileView ? Math.min(width * 0.3, 100) : Math.min(width * 0.5, 300);
-    const nodeSpacing = mobileView ? 160 : 220;
-    const totalHeight = nodes.length * nodeSpacing + 400;
+    const mobile = isMobile || dims.w < 600;
+    const waveAmp = mobile ? Math.min(dims.w * 0.18, 70) : Math.min(dims.w * 0.22, 160);
+    const spacing = mobile ? 120 : 150;
+    const totalH = nodes.length * spacing + 240;
+    const cx = dims.w / 2;
 
-    svg.attr("height", totalHeight);
+    svg.attr('height', totalH);
 
-    // --- 1. GENERATE PATH ---
-    const pathPoints = nodes.map((node, i) => {
-      const y = (i * nodeSpacing) + 150;
-      // Zig-zag / Sine wave
-      const direction = i % 2 === 0 ? 1 : -1;
-      const x = (width / 2) + (direction * (waveWidth / 2));
+    const approxCharW = mobile ? 6.2 : 6.8;
+    const pillH = mobile ? 44 : 50;
+    const padX = mobile ? 14 : 18;
+    const maxPillW = mobile ? Math.max(220, dims.w - 40) : 420;
 
-      return { x, y, data: node };
+    const computePillWidth = (label) => {
+      const safe = String(label || '');
+      const w = safe.length * approxCharW + padX * 2;
+      return Math.max(170, Math.min(maxPillW, w));
+    };
+
+    const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+    const clamp01 = (v) => clamp(v, 0, 100);
+
+    const truncateByChars = (value, maxChars) => {
+      const s = String(value || '');
+      if (!maxChars || maxChars <= 0) return '';
+      return s.length > maxChars ? `${s.slice(0, Math.max(0, maxChars - 1))}…` : s;
+    };
+
+    const getProgressPercent = (data) => {
+      const candidates = [
+        data?.progress_percent,
+        data?.progressPercent,
+        data?.progress,
+        data?.percent_complete,
+      ];
+      const raw = candidates.find(v => v !== null && v !== undefined && v !== '');
+      const parsed = Number(raw);
+      if (Number.isFinite(parsed)) return clamp01(parsed);
+
+      const status = String(data?.status || '').toLowerCase();
+      if (status === 'completed') return 100;
+      return 0;
+    };
+
+    // Build node positions — snake pattern (centered pills clamped within viewport)
+    const pts = nodes.map((node, i) => {
+      const y = i * spacing + 120;
+      const dir = i % 2 === 0 ? 1 : -1;
+      const pillW = computePillWidth(node?.data?.label);
+      const half = pillW / 2 + 10;
+      const rawX = cx + dir * waveAmp * 0.5;
+      const x = clamp(rawX, half, dims.w - half);
+      return { x, y, pillW, pillH, data: node };
     });
 
     // Curve generator
-    const lineGenerator = d3.line()
+    const line = d3.line()
       .curve(d3.curveCatmullRom.alpha(0.5))
       .x(d => d.x)
       .y(d => d.y);
 
-    // --- 2. DRAW PATH ---
-    // Background "River"
-    svg.append("path")
-      .datum(pathPoints)
-      .attr("d", lineGenerator)
-      .attr("fill", "none")
-      .attr("stroke", "var(--border-subtle)") // Theme adaptable
-      .attr("stroke-width", 2)   // Thinner precision line
-      .attr("stroke-dasharray", "4,4") // Schematic dashed look
-      .attr("fill", "none");
+    // --- Trail (background) ---
+    svg.append('path')
+      .datum(pts)
+      .attr('d', line)
+      .attr('fill', 'none')
+      .attr('stroke', 'var(--border-subtle)')
+      .attr('stroke-width', mobile ? 4 : 6)
+      .attr('stroke-linecap', 'round');
 
-    // Active "Cable" (Progress)
-    let activeIndex = nodes.findIndex(n => n.data.status === 'active');
-    if (activeIndex === -1) activeIndex = nodes.length - 1;
+    // --- Progress trail ---
+    let activeIdx = nodes.findIndex(n => n.data.status === 'active');
+    if (activeIdx === -1) activeIdx = nodes.length - 1;
 
-    // Guard: Only draw active path if we have points and activeIndex is valid
-    if (pathPoints.length > 0 && activeIndex >= 0) {
-      const activePoints = pathPoints.slice(0, activeIndex + 1);
-
-      // We need at least 1 point to draw something
-      svg.append("path")
-        .datum(activePoints)
-        .attr("d", lineGenerator)
-        .attr("fill", "none")
-        .attr("d", lineGenerator)
-        .attr("fill", "none")
-        .attr("stroke", "var(--neon-cyan)") // Theme adaptable
-        .attr("stroke-width", 2)
-        .attr("stroke-linecap", "round");
-      // Removed heavy drop-shadow
+    if (pts.length > 0 && activeIdx >= 0) {
+      svg.append('path')
+        .datum(pts.slice(0, activeIdx + 1))
+        .attr('d', line)
+        .attr('fill', 'none')
+        .attr('stroke', 'var(--success)')
+        .attr('stroke-width', mobile ? 4 : 6)
+        .attr('stroke-linecap', 'round');
     }
 
-    // --- 3. DRAW NODES ---
-    const nodeGroups = svg.selectAll(".node-group")
-      .data(pathPoints)
+    // --- Nodes (pill labels) ---
+
+    const groups = svg.selectAll('.node-g')
+      .data(pts)
       .enter()
-      .append("g")
-      .attr("class", d => `node-group node-item`) // Removed node-floating
-      .attr("transform", d => `translate(${d.x}, ${d.y})`)
-      .style("cursor", "pointer")
-      .on("click", (event, d) => {
-        setHoveredNode(null); // Clear tooltip immediately to prevent persistence
+      .append('g')
+      .attr('class', 'node-g')
+      .attr('data-node-id', d => d.data?.id)
+      .attr('transform', d => `translate(${d.x},${d.y})`)
+      .style('cursor', d => d.data.data.status === 'locked' ? 'not-allowed' : 'pointer')
+      .on('click', (ev, d) => {
+        const expandedId = expandedNodeIdRef.current;
+        if (expandedId) {
+          const prevGroup = groups.filter(p => p?.data?.id === expandedId);
+          prevGroup.each(function (p) {
+            collapseNode(d3.select(this), p);
+          });
+          expandedNodeIdRef.current = null;
+        }
         if (d.data?.data?.status === 'locked') return;
-        onNodeClick(event, d.data);
+        onNodeClick(ev, d.data);
       })
-      .on("mouseenter", (event, d) => {
-        // Disable tooltip on mobile/narrow screens to avoid "sticky" hover issues
-        if (!mobileView) {
-          setHoveredNode({
-            data: d.data.data,
-            x: d.x,
-            y: d.y
+      .on('mouseenter', (ev, d) => {
+        if (mobile) return;
+
+        const nextId = d?.data?.id;
+        const expandedId = expandedNodeIdRef.current;
+
+        if (expandedId && expandedId !== nextId) {
+          const prevGroup = groups.filter(p => p?.data?.id === expandedId);
+          prevGroup.each(function (p) {
+            collapseNode(d3.select(this), p);
           });
         }
-        // Subtle Scale only
-        d3.select(event.currentTarget)
-          .transition().duration(200).ease(d3.easeCubicOut)
-          .attr("transform", `translate(${d.x}, ${d.y}) scale(${mobileView ? 1.02 : 1.05})`);
-      })
-      .on("mouseleave", (event, d) => {
-        setHoveredNode(null);
-        // Return to normal
-        d3.select(event.currentTarget)
-          .transition().duration(200)
-          .attr("transform", `translate(${d.x}, ${d.y}) scale(1)`);
+
+        if (expandedId !== nextId) {
+          const g = d3.select(ev.currentTarget);
+          expandNode(g, d);
+          expandedNodeIdRef.current = nextId;
+        }
       });
 
-    const radius = mobileView ? 32 : 40;
+    const highlighted = new Set(highlightedNodeIds || []);
 
-    // 3A. Base Circle (Dark Fill)
-    nodeGroups.append("circle")
-      .attr("r", radius)
-      .attr("fill", "var(--bg-card)")
-      .attr("stroke", d => {
-        if (d.data.data.status === 'completed') return "var(--neon-green)";
-        if (d.data.data.status === 'active') return "var(--neon-cyan)";
-        return "var(--border-subtle)";
-      })
-      .attr("stroke-width", d => d.data.data.status === 'active' ? 3 : 2);
+    const applyCollapsedVisuals = (g, d) => {
+      const s = d?.data?.data?.status;
+      const isHighlighted = highlighted.has(d?.data?.id);
 
-    // 3B. Outer Glow Ring (Active only)
-    nodeGroups.filter(d => d.data.data.status === 'active')
-      .append("circle")
-      .attr("r", radius + 8)
-      .attr("fill", "none")
-      .attr("stroke", "var(--neon-cyan)")
-      .attr("stroke-opacity", 0.3)
-      .attr("stroke-width", 2)
-      .style("animation", "pulse-ring 2s ease-in-out infinite");
+      const fill = s === 'completed'
+        ? 'var(--success)'
+        : s === 'active'
+          ? 'var(--primary)'
+          : 'var(--bg-surface)';
+      const stroke = isHighlighted
+        ? 'var(--primary)'
+        : s === 'completed'
+          ? 'var(--success)'
+          : s === 'active'
+            ? 'var(--primary)'
+            : 'var(--border-subtle)';
+      const textColor = (s === 'completed' || s === 'active') ? '#fff' : 'var(--text-primary)';
 
-    // Add pulse animation
-    if (!document.getElementById('pulse-ring-animation')) {
-      const style = document.createElement('style');
-      style.id = 'pulse-ring-animation';
-      style.innerHTML = `
-        @keyframes pulse-ring {
-          0%, 100% { opacity: 0.3; transform: scale(1); }
-          50% { opacity: 0.6; transform: scale(1.05); }
-        }
-      `;
-      document.head.appendChild(style);
-    }
-
-    // 3C. Status Icons (Checkmark for completed, Number for others)
-    nodeGroups.each(function(d, i) {
-      const group = d3.select(this);
-      const status = d.data.data.status;
-
-      if (status === 'completed') {
-        // Checkmark Icon
-        group.append("text")
-          .attr("dy", 6)
-          .attr("text-anchor", "middle")
-          .attr("fill", "var(--neon-green)")
-          .style("font-size", mobileView ? "20px" : "24px")
-          .style("pointer-events", "none")
-          .text("✓");
+      if (s === 'locked') {
+        g.style('opacity', 0.65);
       } else {
-        // Show number for all other states (locked, active, etc.)
-        group.append("text")
-          .attr("dy", 6)
-          .attr("text-anchor", "middle")
-          .attr("fill", status === 'active' ? "var(--neon-cyan)" : "var(--text-secondary)")
-          .style("font-family", "JetBrains Mono, monospace")
-          .style("font-size", "14px")
-          .style("font-weight", "600")
-          .style("pointer-events", "none")
-          .style("opacity", status === 'locked' ? "0.4" : "1")
-          .text(`0${i + 1}`);
+        g.style('opacity', 1);
       }
+
+      // Pill background
+      g.select('rect.pill-rect')
+        .attr('x', -d.pillW / 2)
+        .attr('y', -d.pillH / 2 + 2)
+        .attr('width', d.pillW)
+        .attr('height', d.pillH)
+        .attr('rx', d.pillH / 2)
+        .attr('ry', d.pillH / 2)
+        .attr('fill', fill)
+        .attr('stroke', stroke)
+        .attr('stroke-width', isHighlighted ? 3 : 2);
+
+      const rawLabel = String(d?.data?.data?.label || '');
+      const maxChars = Math.max(10, Math.floor((d.pillW - padX * 2) / approxCharW));
+      const label = truncateByChars(rawLabel, maxChars);
+
+      g.select('text.pill-label')
+        .attr('x', 0)
+        .attr('y', 0)
+        .attr('dy', 6)
+        .attr('text-anchor', 'middle')
+        .attr('fill', s === 'locked' ? 'var(--text-tertiary)' : textColor)
+        .style('font-size', mobile ? '12px' : '13px')
+        .style('font-weight', '700')
+        .text(label);
+    };
+
+    const collapseNode = (g, d) => {
+      g.selectAll('.expanded-el').remove();
+      applyCollapsedVisuals(g, d);
+    };
+
+    const expandNode = (g, d) => {
+      g.raise();
+      g.selectAll('.expanded-el').remove();
+
+      const s = d?.data?.data?.status;
+      const isHighlighted = highlighted.has(d?.data?.id);
+      const data = d?.data?.data || {};
+      const progress = getProgressPercent(data);
+
+      const panelH = mobile ? 54 : 64;
+      const panelGap = 10;
+      const panelW = d.pillW;
+      const x0 = -panelW / 2;
+      const pillY = -d.pillH / 2 + 2;
+      const panelY = pillY - panelGap - panelH;
+
+      const stroke = isHighlighted
+        ? 'var(--primary)'
+        : s === 'completed'
+          ? 'var(--success)'
+          : s === 'active'
+            ? 'var(--primary)'
+            : 'var(--border-subtle)';
+
+      // Keep base pill unchanged; only add a structured top panel.
+      // (We still re-apply stroke emphasis for highlight consistency.)
+      g.select('rect.pill-rect')
+        .interrupt()
+        .transition()
+        .duration(140)
+        .attr('fill', 'var(--bg-surface)')
+        .attr('stroke', stroke)
+        .attr('stroke-width', isHighlighted ? 3 : 2);
+
+      // Keep pill label centered and unchanged.
+      applyCollapsedVisuals(g, d);
+
+      const leftPad = 18;
+      const rightPad = 18;
+
+      // === Expanded top panel (grows upward, semi-transparent) ===
+      const panel = g.append('g')
+        .attr('class', 'expanded-el')
+        .style('pointer-events', 'all');
+
+      const panelBg = panel.append('rect')
+        .attr('class', 'expanded-el')
+        .attr('x', x0)
+        .attr('y', pillY - panelGap)
+        .attr('width', panelW)
+        .attr('height', 0)
+        .attr('rx', 16)
+        .attr('ry', 16)
+        .attr('fill', 'var(--bg-surface)')
+        .attr('opacity', 0);
+
+      panelBg
+        .transition()
+        .duration(180)
+        .attr('y', panelY)
+        .attr('height', panelH)
+        .attr('opacity', 0.75);
+
+      const statusText = String(s || '').toUpperCase();
+      const statusColor = s === 'completed' ? 'var(--success)' : s === 'active' ? 'var(--primary)' : 'var(--text-tertiary)';
+
+      // Status tag
+      panel.append('text')
+        .attr('class', 'expanded-el')
+        .attr('x', x0 + leftPad)
+        .attr('y', panelY + 18)
+        .attr('text-anchor', 'start')
+        .attr('fill', statusColor)
+        .style('font-size', '10px')
+        .style('font-weight', '900')
+        .style('letter-spacing', '0.06em')
+        .text(statusText);
+
+      if (s === 'locked') {
+        const hint = String(data.unlock_hint || 'Finish the previous module to unlock');
+        const hintMaxChars = Math.max(16, Math.floor(((d.pillW * 0.85) - leftPad - rightPad) / approxCharW));
+        panel.append('text')
+          .attr('class', 'expanded-el')
+          .attr('x', x0 + leftPad)
+          .attr('y', panelY + 40)
+          .attr('text-anchor', 'start')
+          .attr('fill', 'var(--text-secondary)')
+          .style('font-size', mobile ? '11px' : '12px')
+          .style('font-weight', '600')
+          .text(truncateByChars(hint, hintMaxChars));
+        return;
+      }
+
+      // Progress track
+      const trackH = 10;
+      const trackY = panelY + 38;
+      const trackX = x0 + leftPad;
+      const percentBlockW = mobile ? 60 : 78;
+      const trackW = Math.max(90, panelW - leftPad - rightPad - percentBlockW);
+
+      panel.append('rect')
+        .attr('class', 'expanded-el')
+        .attr('x', trackX)
+        .attr('y', trackY)
+        .attr('width', trackW)
+        .attr('height', trackH)
+        .attr('rx', trackH / 2)
+        .attr('ry', trackH / 2)
+        .attr('fill', 'var(--border-subtle)')
+        .attr('opacity', 0.9);
+
+      const fillColor = s === 'completed' ? 'var(--success)' : 'var(--primary)';
+      const fillRect = panel.append('rect')
+        .attr('class', 'expanded-el')
+        .attr('x', trackX)
+        .attr('y', trackY)
+        .attr('width', 0)
+        .attr('height', trackH)
+        .attr('rx', trackH / 2)
+        .attr('ry', trackH / 2)
+        .attr('fill', fillColor);
+
+      fillRect
+        .transition()
+        .duration(240)
+        .attr('width', (trackW * progress) / 100);
+
+      // Big percent on the right (animated)
+      const percentX = x0 + panelW - rightPad;
+      const percentText = panel.append('text')
+        .attr('class', 'expanded-el')
+        .attr('x', percentX)
+        .attr('y', panelY + 48)
+        .attr('text-anchor', 'end')
+        .attr('fill', fillColor)
+        .style('font-size', mobile ? '16px' : '20px')
+        .style('font-weight', '900')
+        .text('0%');
+
+      percentText
+        .transition()
+        .duration(260)
+        .tween('text', function () {
+          const node = this;
+          const current = Number(String(d3.select(node).text()).replace('%', '')) || 0;
+          const interp = d3.interpolateNumber(current, Math.round(progress));
+          return function (t) {
+            d3.select(node).text(`${Math.round(interp(t))}%`);
+          };
+        });
+    };
+
+    groups.each(function (d) {
+      const g = d3.select(this);
+      const s = d.data.data.status;
+      const isHighlighted = highlighted.has(d.data.id);
+
+      const fill = s === 'completed'
+        ? 'var(--success)'
+        : s === 'active'
+          ? 'var(--primary)'
+          : 'var(--bg-surface)';
+      const stroke = isHighlighted
+        ? 'var(--primary)'
+        : s === 'completed'
+          ? 'var(--success)'
+          : s === 'active'
+            ? 'var(--primary)'
+            : 'var(--border-subtle)';
+      const textColor = (s === 'completed' || s === 'active') ? '#fff' : 'var(--text-primary)';
+
+      if (s === 'locked') {
+        g.style('opacity', 0.65);
+      }
+
+      // Pill background
+      g.append('rect')
+        .attr('class', 'pill-rect')
+        .attr('x', -d.pillW / 2)
+        .attr('y', -d.pillH / 2 + 2)
+        .attr('width', d.pillW)
+        .attr('height', d.pillH)
+        .attr('rx', d.pillH / 2)
+        .attr('ry', d.pillH / 2)
+        .attr('fill', fill)
+        .attr('stroke', stroke)
+        .attr('stroke-width', isHighlighted ? 3 : 2);
+
+      // Label inside pill (module name only)
+      const rawLabel = String(d.data.data.label || '');
+      const maxChars = Math.max(10, Math.floor((d.pillW - padX * 2) / approxCharW));
+      const label = rawLabel.length > maxChars ? rawLabel.slice(0, Math.max(0, maxChars - 1)) + '…' : rawLabel;
+
+      g.append('text')
+        .attr('class', 'pill-label')
+        .attr('x', 0)
+        .attr('y', 0)
+        .attr('dy', 6)
+        .attr('text-anchor', 'middle')
+        .attr('fill', s === 'locked' ? 'var(--text-tertiary)' : textColor)
+        .style('font-size', mobile ? '12px' : '13px')
+        .style('font-weight', '700')
+        .style('pointer-events', 'none')
+        .text(label);
     });
 
-    // Apply overall opacity to locked nodes
-    nodeGroups.filter(d => d.data.data.status === 'locked')
-      .style("opacity", "0.4")
-      .style("cursor", "not-allowed");
+    // If a node was expanded previously, restore it after redraw
+    if (!mobile && expandedNodeIdRef.current) {
+      const expandedId = expandedNodeIdRef.current;
+      const g = groups.filter(p => p?.data?.id === expandedId);
+      g.each(function (p) {
+        expandNode(d3.select(this), p);
+      });
+    }
 
-  }, [dimensions, nodes, onNodeClick, isMobile]);
+  }, [dims, nodes, onNodeClick, isMobile, highlightedNodeIds]);
+
+  // Scroll to the first matched node when requested
+  useEffect(() => {
+    if (!scrollToNodeId || !containerRef.current || !dims.w || nodes.length === 0) return;
+
+    const mobile = isMobile || dims.w < 600;
+    const spacing = mobile ? 120 : 150;
+
+    const idx = nodes.findIndex((n) => n?.id === scrollToNodeId);
+    if (idx < 0) return;
+
+    const targetY = idx * spacing + 120 + (Number(topPadding) || 0);
+    const container = containerRef.current;
+    const desiredTop = Math.max(0, targetY - container.clientHeight / 2);
+
+    container.scrollTo({ top: desiredTop, behavior: 'smooth' });
+  }, [scrollToNodeId, dims.w, nodes, isMobile, topPadding]);
 
   return (
     <div
@@ -239,117 +461,11 @@ const RoadmapMap = ({ nodes, onNodeClick, isMobile }) => {
         height: '100%',
         overflowY: 'auto',
         position: 'relative',
-        background: 'transparent'
+        paddingTop: topPadding,
+        background: 'transparent',
       }}
     >
-      <svg ref={svgRef} width="100%" style={{ minHeight: '100%' }}></svg>
-
-      {/* Tooltip (Holo Design) */}
-      <AnimatePresence>
-        {hoveredNode && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ duration: 0.15 }}
-            style={{
-              position: 'absolute',
-              left: hoveredNode.x, // Centered logic handled in mouseenter
-              top: hoveredNode.y - 90,
-              transform: 'translateX(-50%)',
-              background: 'var(--panel-bg)',
-              backdropFilter: 'blur(var(--glass-blur))',
-              border: '1px solid var(--border-subtle)',
-              boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
-              borderRadius: '6px',
-              padding: '12px',
-              pointerEvents: 'none',
-              zIndex: 1000,
-              minWidth: '200px',
-              textAlign: 'left' // Left align for tech feel
-            }}
-          >
-            {/* Connection Line - Directed Arrow */}
-            <div style={{
-              position: 'absolute', bottom: '-8px', left: '50%', transform: 'translateX(-50%) rotate(45deg)',
-              width: '16px', height: '16px',
-              background: 'var(--panel-bg)',
-              borderBottom: '1px solid var(--border-subtle)',
-              borderRight: '1px solid var(--border-subtle)',
-              zIndex: 2
-            }}></div>
-
-            <div style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px',
-              borderBottom: '1px solid var(--border-subtle)', paddingBottom: '8px'
-            }}>
-              <span style={{ fontSize: '11px', fontFamily: 'JetBrains Mono', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
-                    MODULE_INFO
-              </span>
-              <span style={{
-                fontSize: '10px', fontWeight: 'bold',
-                color: hoveredNode.data.status === 'completed' ? 'var(--neon-green)' : hoveredNode.data.status === 'active' ? 'var(--neon-cyan)' : 'var(--text-secondary)',
-                fontFamily: 'JetBrains Mono'
-              }}>
-                [{hoveredNode.data.status.toUpperCase()}]
-              </span>
-            </div>
-
-            <h4 style={{ margin: '0 0 8px 0', color: 'var(--text-primary)', fontSize: '14px', fontFamily: 'Inter', fontWeight: '600' }}>
-              {hoveredNode.data.label}
-            </h4>
-
-            <p style={{ margin: '0 0 12px 0', color: 'var(--text-secondary)', fontSize: '12px', fontFamily: 'Inter', lineHeight: '1.4' }}>
-              {hoveredNode.data.description?.slice(0, 100)}...
-            </p>
-
-            {/* Progress Bar (if active or completed) */}
-            {(hoveredNode.data.status === 'active' || hoveredNode.data.status === 'completed') && (
-              <div style={{ marginBottom: '8px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                  <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Progress</span>
-                  <span style={{ fontSize: '10px', color: 'var(--neon-cyan)', fontFamily: 'JetBrains Mono' }}>
-                    {hoveredNode.data.status === 'completed' ? '100%' : '45%'}
-                  </span>
-                </div>
-                <div style={{ width: '100%', height: '4px', background: 'var(--border-subtle)', borderRadius: '2px', overflow: 'hidden' }}>
-                  <div style={{
-                    width: hoveredNode.data.status === 'completed' ? '100%' : '45%',
-                    height: '100%',
-                    background: hoveredNode.data.status === 'completed' ? 'var(--neon-green)' : 'var(--neon-cyan)',
-                    transition: 'width 0.3s ease'
-                  }}></div>
-                </div>
-              </div>
-            )}
-
-            {/* Estimated Time */}
-            <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Clock size={12} />
-              <span>Est. Time: <span style={{ color: 'var(--text-primary)' }}>2-3 hours</span></span>
-            </div>
-
-            {/* Prerequisites (if locked) */}
-            {hoveredNode.data.status === 'locked' && (
-              <div style={{ 
-                marginTop: '8px', 
-                padding: '8px', 
-                background: 'rgba(255, 190, 11, 0.1)', 
-                border: '1px solid rgba(255, 190, 11, 0.3)',
-                borderRadius: '4px',
-                fontSize: '11px',
-                color: '#ffbe0b',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}>
-                <Lock size={12} /> Complete previous modules to unlock
-              </div>
-            )}
-
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <svg ref={svgRef} width="100%" style={{ minHeight: '100%' }} />
     </div>
   );
 };

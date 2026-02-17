@@ -31,11 +31,9 @@ export default function Settings() {
     const isMobile = useIsMobile();
     const { status, openGate } = usePremium();
 
-    const premiumThemes = ['monokai-pro', 'synthwave', 'nord-theme', 'dracula', 'tokyo-night'];
-
     useEffect(() => {
         initTheme();
-        const saved = localStorage.getItem('app-theme') || 'neon-dojo';
+        const saved = localStorage.getItem('app-theme') || 'standard-dark';
         setSelectedTheme(saved);
         fetchSettings();
     }, []);
@@ -121,10 +119,6 @@ export default function Settings() {
 
     const handleThemeChange = (e) => {
         const theme = e.target.value;
-        if (premiumThemes.includes(theme) && !status.is_premium) {
-            openGate('premium_theme', 'settings_theme');
-            return;
-        }
         setSelectedTheme(theme);
         applyTheme(theme);
     };
@@ -333,15 +327,8 @@ export default function Settings() {
                             onChange={handleThemeChange}
                             style={selectStyle}
                         >
-                            <option value="neon-dojo">Neon Dojo (Default)</option>
-                            <option value="github-dark">GitHub Dark</option>
-                            <option value="github-light">GitHub Light</option>
-                            <option value="dark-not-boring">Dark Not Boring</option>
-                            <option value="monokai-pro">Monokai Pro (Premium)</option>
-                            <option value="synthwave">Synthwave (Premium)</option>
-                            <option value="nord-theme">Nord Theme (Premium)</option>
-                            <option value="dracula">Dracula (Premium)</option>
-                            <option value="tokyo-night">Tokyo Night (Premium)</option>
+                            <option value="standard-dark">Standard Dark</option>
+                            <option value="standard-light">Standard Light</option>
                         </select>
                     </div>
                 </div>

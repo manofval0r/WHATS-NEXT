@@ -110,18 +110,27 @@ export default function LessonCard({
                 const isPremiumVideo = lesson.resources.primary.type === 'video';
                 if (isPremiumVideo && !isPremium) {
                   return (
-                    <div className="premium-locked-item" onClick={() => checkPremiumAccess('youtube_module', 'lesson_resource')} role="button" aria-label="Premium lesson resource locked">
-                      <div className="premium-locked-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          {getResourceIcon(lesson.resources.primary.type)}
-                          <span>{lesson.resources.primary.title}</span>
-                        </div>
-                        <span style={{ fontSize: '11px', color: '#8b949e', fontFamily: 'JetBrains Mono' }}>
-                          PRIMARY
-                        </span>
+                    <div 
+                      onClick={() => checkPremiumAccess('youtube_module', 'lesson_resource')} 
+                      style={{
+                        ...styles.primaryResource,
+                        opacity: 0.6,
+                        cursor: 'pointer',
+                        borderColor: 'var(--border-subtle)',
+                        background: 'transparent'
+                      }}
+                      role="button" 
+                      aria-label="Premium lesson resource locked"
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {getResourceIcon(lesson.resources.primary.type)}
+                        <span>{lesson.resources.primary.title}</span>
                       </div>
-                      <div className="premium-locked-overlay">
-                        <Lock size={14} /> Premium resource
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                         <Lock size={12} color="#F59E0B" />
+                        <span style={{ fontSize: '11px', color: '#F59E0B', fontFamily: 'JetBrains Mono' }}>
+                          PREMIUM
+                        </span>
                       </div>
                     </div>
                   );
@@ -157,19 +166,23 @@ export default function LessonCard({
                       return (
                         <div
                           key={idx}
-                          className="premium-locked-item"
                           onClick={() => checkPremiumAccess('youtube_module', 'lesson_resource')}
                           role="button"
                           aria-label="Premium lesson resource locked"
-                          style={{ marginBottom: '6px' }}
+                          style={{ 
+                            ...styles.supplementaryResource,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            opacity: 0.6,
+                            cursor: 'pointer'
+                          }}
                         >
-                          <div className="premium-locked-content" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             {getResourceIcon(resource.type)}
                             <span>{resource.title}</span>
-                          </div>
-                          <div className="premium-locked-overlay">
-                            <Lock size={14} /> Premium resource
-                          </div>
+                           </div>
+                           <Lock size={12} color="#F59E0B" />
                         </div>
                       );
                     }

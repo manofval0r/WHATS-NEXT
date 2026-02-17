@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Terminal, ChevronRight, Github, Zap, Brain, TrendingUp, Users, Award, CheckCircle, ArrowRight, MessageSquare, Sparkles, MousePointer2 } from 'lucide-react';
+import { BookOpen, ChevronRight, Github, Zap, Brain, TrendingUp, Users, Award, CheckCircle, ArrowRight, MessageSquare, Sparkles, MousePointer2 } from 'lucide-react';
 import { motion, useInView } from 'framer-motion';
 import Button from './components/common/Button';
 import './Landing.css';
@@ -267,18 +267,12 @@ export default function Landing() {
 
   return (
     <div className="landing-page">
-      {/* Noise Overlay */}
-      <div className="noise-overlay"></div>
-      
-      {/* Gradient Orbs */}
-      <div className="gradient-orb orb-1"></div>
-      <div className="gradient-orb orb-2"></div>
-      <div className="gradient-orb orb-3"></div>
+
       
       {/* NAVBAR */}
       <nav className={`navbar ${scrolled ? 'scrolled' : ''}`}>
         <div className="nav-container">
-          <a href="#" className="nav-logo"><Terminal size={20}/> WHATS-NEXT</a>
+          <a href="#" className="nav-logo"><BookOpen size={20}/> What's Next</a>
           <div className="nav-links">
             <a href="#how-it-works" onClick={(e) => scrollToSection(e, '#how-it-works')}>How It Works</a>
             <a href="#features" onClick={(e) => scrollToSection(e, '#features')}>Features</a>
@@ -286,7 +280,7 @@ export default function Landing() {
           </div>
           <div className="nav-actions">
             <a href="/login" className="nav-login">Log In</a>
-            <Button variant="primary" onClick={() => navigate('/signup')} size="sm">Get Started</Button>
+            <Button variant="primary" className="nav-cta" onClick={() => navigate('/signup')} size="sm">Get Started</Button>
           </div>
         </div>
       </nav>
@@ -591,7 +585,7 @@ export default function Landing() {
                     width: 120,
                     height: 120,
                     borderRadius: 28,
-                    background: 'linear-gradient(135deg, rgba(95,245,255,0.22), rgba(168,85,247,0.18), rgba(95,245,255,0.22))',
+                    background: 'linear-gradient(135deg, rgba(108,99,255,0.18), rgba(16,185,129,0.14), rgba(108,99,255,0.18))',
                     backgroundSize: '200% 200%',
                     border: '1px solid var(--border-subtle)',
                     boxShadow: '0 16px 40px rgba(0,0,0,0.35)',
@@ -607,7 +601,7 @@ export default function Landing() {
                       position: 'absolute',
                       inset: 14,
                       borderRadius: 22,
-                      background: 'radial-gradient(circle at 30% 30%, rgba(95,245,255,0.55), transparent 60%)',
+                      background: 'radial-gradient(circle at 30% 30%, rgba(108,99,255,0.45), transparent 60%)',
                       filter: 'blur(6px)',
                     }}
                   />
@@ -706,8 +700,8 @@ export default function Landing() {
                     padding: '24px 80px', 
                     fontSize: '1.5rem', 
                     borderRadius: '100px',
-                    boxShadow: '0 0 60px rgba(0, 242, 255, 0.3)',
-                    border: '1px solid white'
+                    boxShadow: '0 8px 30px rgba(108, 99, 255, 0.25)',
+                    border: 'none'
                 }}>
                  Start Building Now
              </Button>
@@ -718,7 +712,7 @@ export default function Landing() {
       <footer className="startup-footer">
            <div className="footer-grid">
                 <div className="footer-brand">
-                    <h4> <Terminal size={24}/> WHATS-NEXT</h4>
+                    <h4> <BookOpen size={24}/> What's Next</h4>
                     <p className="footer-desc">
                         We gather the resources so you dont have to. Stop searching and start learning.
                     </p>

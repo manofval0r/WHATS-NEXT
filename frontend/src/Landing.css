@@ -2,11 +2,16 @@
 
 /* === GLOBAL === */
 .landing-page {
-  background-color: var(--void-deep);
+  background-color: #030014; /* Deep dark void */
+  /* Added Grid Background */
+  background-image: 
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 50px 50px;
   min-height: 100vh;
   font-family: var(--font-body);
   overflow-x: hidden;
-  color: var(--text-main);
+  color: var(--text-primary);
   display: flex;
   flex-direction: column;
   position: relative;
@@ -61,18 +66,18 @@
   top: 0;
   width: 100%;
   z-index: 100;
-  padding: 1.2rem 0rem; /* Better spacing */
+  padding: 1.2rem 0rem;
   transition: all 0.3s ease;
-  background: rgba(10, 0, 21, 0.6);
-  backdrop-filter: blur(16px); /* Stronger blur */
-  border-bottom: 1px solid rgba(255,255,255,0.03);
+  background: transparent; /* Totally different - transparent */
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.02); /* Very subtle */
 }
 
 .navbar.scrolled {
-  background: rgba(10, 0, 21, 0.95);
-  backdrop-filter: blur(24px);
-  border-bottom: 1px solid var(--void-glow);
-  box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+  background: rgba(0, 0, 0, 0.8); /* Dark glass */
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
   width: calc(100% - 48px);
   max-width: 1300px;
   margin: 8px auto 0;
@@ -94,16 +99,11 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: 1.4rem;
+  font-weight: 700;
+  font-size: 1.3rem;
   letter-spacing: -0.02em;
   color: var(--text-primary);
   text-decoration: none;
-  background: linear-gradient(135deg, white 0%, #b8b8d1 100%);
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
 }
 
 .nav-links {
@@ -121,7 +121,7 @@
 }
 
 .nav-links a:hover {
-  color: white;
+  color: var(--text-primary);
 }
 
 .nav-links a::after {
@@ -131,7 +131,7 @@
   left: 0;
   width: 0;
   height: 2px;
-  background: var(--neon-cyan);
+  background: var(--primary);
   transition: width 0.3s ease;
 }
 
@@ -149,19 +149,20 @@
 .particle {
   position: absolute;
   font-family: var(--font-mono);
-  color: rgba(95, 245, 255, 0.15);
+  color: rgba(108, 99, 255, 0.12);
   z-index: 2;
   pointer-events: none;
   font-size: 1.2rem;
-  text-shadow: 0 0 10px rgba(95, 245, 255, 0.3);
 }
 
 /* === GLITCH TEXT EFFECT === */
 .glitch-text {
   position: relative;
   display: inline-block;
+  /* Ensure main text is visible or styled as base */
 }
 
+/* CRITICAL FIX: Removed display:none/content:none */
 .glitch-text::before,
 .glitch-text::after {
   content: attr(data-text);
@@ -170,18 +171,19 @@
   left: 0;
   width: 100%;
   height: 100%;
+  background: #030014; /* Match background specifically to mask main text */
 }
 
 .glitch-text::before {
   left: 2px;
-  text-shadow: -2px 0 #ff00ea;
+  text-shadow: -2px 0 #ff00ea; /* Magenta/Pink */
   clip-path: polygon(0 0, 100% 0, 100% 35%, 0 35%);
   animation: glitch-anim-1 2.5s infinite linear alternate-reverse;
 }
 
 .glitch-text::after {
   left: -2px;
-  text-shadow: 2px 0 #00fff9;
+  text-shadow: 2px 0 #00fff9; /* Cyan */
   clip-path: polygon(0 65%, 100% 65%, 100% 100%, 0 100%);
   animation: glitch-anim-2 2.5s infinite linear alternate-reverse;
 }
@@ -209,7 +211,7 @@
 
 .typewriter-cursor {
   display: inline-block;
-  color: var(--neon-cyan);
+  color: var(--primary);
   animation: blink 1s step-end infinite;
   margin-left: 2px;
   font-weight: 300;
@@ -236,8 +238,8 @@
 
 .hero-bg-grid {
   background-image: 
-    linear-gradient(rgba(95, 245, 255, 0.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(95, 245, 255, 0.02) 1px, transparent 1px);
+    linear-gradient(rgba(108, 99, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(108, 99, 255, 0.03) 1px, transparent 1px);
   background-size: 60px 60px;
   position: absolute;
   top: 0;
@@ -263,10 +265,10 @@
   align-items: center;
   gap: 8px;
   padding: 10px 20px;
-  background: rgba(95, 245, 255, 0.08);
-  border: 1px solid rgba(95, 245, 255, 0.2);
+  background: var(--primary-bg);
+  border: 1px solid rgba(108, 99, 255, 0.2);
   border-radius: 100px;
-  color: var(--neon-cyan);
+  color: var(--primary);
   font-size: 0.85rem;
   font-weight: 500;
   margin-bottom: 32px;
@@ -280,10 +282,7 @@
   font-family: var(--font-display);
   font-size: clamp(42px, 8vw, 80px);
   font-weight: 800;
-  background: linear-gradient(135deg, #fff 0%, var(--neon-cyan) 100%);
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--text-primary);
   line-height: 1.1;
   letter-spacing: -0.02em;
 }
@@ -298,7 +297,7 @@
 }
 
 .text-highlight {
-  color: var(--neon-cyan);
+  color: var(--primary);
   font-weight: 500;
 }
 
@@ -359,29 +358,45 @@
   filter: drop-shadow(0 0 15px rgba(95, 245, 255, 0.4));
 }
 
+/* Pink "Get Started" in Navbar */
+.nav-cta {
+  background-color: #EC4899 !important;
+  color: white !important;
+  border: none !important;
+  font-weight: 700 !important;
+  box-shadow: 0 0 15px rgba(236, 72, 153, 0.4) !important;
+  transition: all 0.3s ease;
+}
+
+.nav-cta:hover {
+  background-color: #db2777 !important;
+  box-shadow: 0 0 25px rgba(236, 72, 153, 0.6) !important;
+  transform: translateY(-1px);
+}
+
+/* Dark Outlined "Let's Go" Button */
 .btn-primary-cta {
   display: inline-flex;
   align-items: center;
   gap: 12px;
-  padding: 18px 40px;
-  border: 1px solid rgba(95, 245, 255, 0.4);
+  padding: 16px 36px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid var(--primary); /* Uses existing primary or #6C63FF */
   border-radius: 12px;
-  background: linear-gradient(135deg, rgba(95, 245, 255, 0.15) 0%, rgba(167, 139, 250, 0.1) 100%);
-  font-family: var(--font-display);
-  font-size: 1rem;
-  font-weight: 600;
-  color: #fff;
+  color: white;
+  font-weight: 700;
+  font-size: 1.1rem;
   text-decoration: none;
-  cursor: pointer;
+  box-shadow: 0 0 20px rgba(108, 99, 255, 0.2);
+  backdrop-filter: blur(10px);
   transition: all 0.3s ease;
-  box-shadow: 0 0 30px rgba(95, 245, 255, 0.15);
 }
 
 .btn-primary-cta:hover {
-  background: linear-gradient(135deg, rgba(95, 245, 255, 0.25) 0%, rgba(167, 139, 250, 0.15) 100%);
-  border-color: var(--neon-cyan);
+  background: rgba(108, 99, 255, 0.15);
+  box-shadow: 0 0 30px rgba(108, 99, 255, 0.5);
+  border-color: #8b85ff;
   transform: translateY(-2px);
-  box-shadow: 0 10px 40px rgba(95, 245, 255, 0.2);
 }
 
 .btn-primary-cta .cta-arrow {

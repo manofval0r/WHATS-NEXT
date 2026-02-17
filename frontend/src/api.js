@@ -61,3 +61,31 @@ api.interceptors.response.use(
 );
 
 export default api;
+
+/* ─── Helper functions for new endpoints ─── */
+
+// Roles
+export const fetchRoles = () => api.get('/api/roles/');
+export const suggestRole = (course, role) =>
+  api.post('/api/roles/suggest/', { course, chosen_role: role });
+
+// JADA AI
+export const jadaChat = (message, conversationId = null, mode = 'general') =>
+  api.post('/api/jada/chat/', { message, conversation_id: conversationId, mode });
+export const jadaConversations = () => api.get('/api/jada/conversations/');
+export const jadaConversationDetail = (id) => api.get(`/api/jada/conversations/${id}/`);
+
+// Social / Following
+export const followUser = (userId) => api.post('/api/social/follow/', { user_id: userId });
+export const unfollowUser = (userId) => api.post('/api/social/unfollow/', { user_id: userId });
+export const getFollowing = () => api.get('/api/social/following/');
+export const getFollowers = () => api.get('/api/social/followers/');
+export const getFriendsProgress = () => api.get('/api/social/friends-progress/');
+
+// Waitlist
+export const joinWaitlist = (email, name, source = 'landing') =>
+  api.post('/api/waitlist/', { email, name, source });
+
+// Resource tracking
+export const trackClick = (url, title, moduleId = null) =>
+  api.post('/api/track-click/', { url, title, module_id: moduleId });
