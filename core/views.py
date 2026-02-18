@@ -2952,13 +2952,34 @@ JADA_SYSTEM_PROMPT = (
     "- Use - for bullet lists, 1. for numbered steps.\n"
     "- Keep tables simple and small (max 3-4 columns). Prefer bullet lists over tables when possible.\n"
     "- Use short paragraphs (2-3 sentences max per paragraph).\n"
-    "- Separate sections with a blank line, never use --- horizontal rules.\n"
-    "- When asking the user to choose between options, write 'Choose one:' on its own line "
-    "followed by a numbered list like:\n"
-    "Choose one:\n"
-    "1. First option\n"
-    "2. Second option\n"
-    "3. Third option\n"
+    "- Separate sections with a blank line, never use --- horizontal rules.\n\n"
+    "INTERACTIVE QUESTION FORMAT — use these EXACT markers on their own line:\n"
+    "When you want the user to pick ONE option, write:\n"
+    "[SINGLE_SELECT]\n"
+    "Question text here\n"
+    "1. **Option label** - Optional description\n"
+    "2. **Option label** - Optional description\n\n"
+    "When the user should pick MULTIPLE options, write:\n"
+    "[MULTI_SELECT]\n"
+    "Question text here\n"
+    "1. **Option label** - Optional description\n\n"
+    "For true/false questions, write:\n"
+    "[TRUE_FALSE]\n"
+    "Statement to evaluate here\n\n"
+    "QUIZ FORMAT — when giving a quiz with multiple questions, use:\n"
+    "[QUIZ_START] Quiz Title Here\n"
+    "[QUIZ_Q1]\n"
+    "[SINGLE_SELECT]\n"
+    "Question text\n"
+    "1. Option A\n"
+    "2. Option B\n"
+    "[QUIZ_Q2]\n"
+    "[TRUE_FALSE]\n"
+    "Statement\n"
+    "[QUIZ_END]\n\n"
+    "IMPORTANT: Use these markers whenever asking questions or giving quizzes. "
+    "Always include at least 2 options for select questions. "
+    "For quizzes, include 3-5 questions. Each quiz question MUST have a type marker.\n"
 )
 
 # Cascade models per complexity — fast free models first, heavier for technical
@@ -2984,35 +3005,188 @@ JADA_ALLOWED_MODELS = {
 }
 
 
-def _extract_options(reply: str):
-    """Detect 'Choose one:' (or similar) + numbered list at the end of a reply.
+def _parse_option_line(line: str):
+    """Parse '1. **Label** - Description' or '1. Label' into {label, description}."""
+    import re
+    cleaned = re.sub(r'^\s*\d+\.\s*', '', line).strip()
+    # Try **bold label** - description
+    m = re.match(r'\*\*(.+?)\*\*\s*[-–—]\s*(.+)', cleaned)
+    if m:
+        return {'label': m.group(1).strip(), 'description': m.group(2).strip()}
+    # Try bold label without description
+    m = re.match(r'\*\*(.+?)\*\*', cleaned)
+    if m:
+        return {'label': m.group(1).strip(), 'description': ''}
+    # Plain text — check for dash separator
+    if ' - ' in cleaned:
+        parts = cleaned.split(' - ', 1)
+        return {'label': parts[0].strip(), 'description': parts[1].strip()}
+    return {'label': cleaned, 'description': ''}
 
-    Returns (options_list, clean_reply).  options_list is [] when no pattern found.
-    clean_reply has the option block removed so the frontend can render it
-    as interactive buttons instead.
+
+def _extract_interactive(reply: str):
+    """Extract structured interactive questions from LLM reply.
+
+    Detects [SINGLE_SELECT], [MULTI_SELECT], [TRUE_FALSE] markers.
+    Returns (interactive_data_or_None, clean_reply).
+    interactive_data = {type, question_text, options: [{label, description}], include_other}
     """
     import re
-    # Match trigger phrase followed by numbered list items
+
+    # Match [SINGLE_SELECT] or [MULTI_SELECT] block
+    select_pattern = re.compile(
+        r'(?P<before>[\s\S]*?)'
+        r'\[(?P<type>SINGLE_SELECT|MULTI_SELECT)\]\s*\n'
+        r'(?P<question>.+?)\n'
+        r'(?P<opts>(?:\s*\d+\.\s+.+\n?){2,})'
+        r'(?P<after>[\s\S]*?)$',
+        re.IGNORECASE,
+    )
+    m = select_pattern.match(reply)
+    if m:
+        q_type = 'single' if 'SINGLE' in m.group('type').upper() else 'multi'
+        question_text = m.group('question').strip()
+        opts_raw = m.group('opts')
+        options = [
+            _parse_option_line(line)
+            for line in opts_raw.strip().splitlines()
+            if line.strip()
+        ]
+        clean = (m.group('before').rstrip() + '\n' + m.group('after').strip()).strip()
+        return {
+            'type': q_type,
+            'question_text': question_text,
+            'options': options,
+            'include_other': True,
+        }, clean
+
+    # Match [TRUE_FALSE] block
+    tf_pattern = re.compile(
+        r'(?P<before>[\s\S]*?)'
+        r'\[TRUE_FALSE\]\s*\n'
+        r'(?P<statement>.+?)'
+        r'(?:\n(?P<after>[\s\S]*))?$',
+        re.IGNORECASE,
+    )
+    m = tf_pattern.match(reply)
+    if m:
+        statement = m.group('statement').strip()
+        after = (m.group('after') or '').strip()
+        clean = (m.group('before').rstrip() + ('\n' + after if after else '')).strip()
+        return {
+            'type': 'boolean',
+            'question_text': statement,
+            'options': [
+                {'label': 'True', 'description': ''},
+                {'label': 'False', 'description': ''},
+            ],
+            'include_other': False,
+        }, clean
+
+    # Legacy fallback: 'Choose one:' pattern
     trigger = r'(?:Choose one|Pick an option|Select one|Which would you prefer)[:\s]*'
-    pattern = re.compile(
+    legacy_pattern = re.compile(
         r'(?P<before>[\s\S]*?)'
         rf'(?:{trigger})\s*\n'
         r'(?P<opts>(?:\s*\d+\.\s+.+\n?){2,})'
         r'\s*$',
         re.IGNORECASE,
     )
-    m = pattern.match(reply)
+    m = legacy_pattern.match(reply)
     if m:
-        before = m.group('before').rstrip()
+        question_text = ''
+        # Try to grab last line before trigger as question
+        before_text = m.group('before').rstrip()
+        before_lines = before_text.splitlines()
+        if before_lines and before_lines[-1].strip().endswith('?'):
+            question_text = before_lines[-1].strip()
+            before_text = '\n'.join(before_lines[:-1]).rstrip()
         opts_raw = m.group('opts')
         options = [
-            re.sub(r'^\s*\d+\.\s+', '', line).strip()
+            _parse_option_line(line)
             for line in opts_raw.strip().splitlines()
             if line.strip()
         ]
         if options:
-            return options, before
-    return [], reply
+            return {
+                'type': 'single',
+                'question_text': question_text,
+                'options': options,
+                'include_other': True,
+            }, before_text
+
+    return None, reply
+
+
+def _extract_quiz(reply: str):
+    """Extract structured quiz data from LLM reply with [QUIZ_START]...[QUIZ_END] markers.
+
+    Returns (quiz_data_or_None, clean_reply).
+    quiz_data = {title, questions: [{id, type, question_text, options}]}
+    """
+    import re
+
+    quiz_pattern = re.compile(
+        r'(?P<before>[\s\S]*?)'
+        r'\[QUIZ_START\]\s*(?P<title>.*)\n'
+        r'(?P<body>[\s\S]*?)'
+        r'\[QUIZ_END\]'
+        r'(?P<after>[\s\S]*?)$',
+        re.IGNORECASE,
+    )
+    m = quiz_pattern.match(reply)
+    if not m:
+        return None, reply
+
+    title = m.group('title').strip() or 'Quiz'
+    body = m.group('body')
+    clean = (m.group('before').rstrip() + '\n' + m.group('after').strip()).strip()
+
+    # Split by [QUIZ_QN] markers
+    q_parts = re.split(r'\[QUIZ_Q(\d+)\]', body)
+    # q_parts: ['before', '1', 'content1', '2', 'content2', ...]
+    questions = []
+    i = 1
+    while i < len(q_parts) - 1:
+        q_num = q_parts[i]
+        q_content = q_parts[i + 1].strip()
+        i += 2
+
+        q_type = 'single'
+        if re.search(r'\[SINGLE_SELECT\]', q_content, re.IGNORECASE):
+            q_type = 'single'
+            q_content = re.sub(r'\[SINGLE_SELECT\]\s*\n?', '', q_content, flags=re.IGNORECASE)
+        elif re.search(r'\[MULTI_SELECT\]', q_content, re.IGNORECASE):
+            q_type = 'multi'
+            q_content = re.sub(r'\[MULTI_SELECT\]\s*\n?', '', q_content, flags=re.IGNORECASE)
+        elif re.search(r'\[TRUE_FALSE\]', q_content, re.IGNORECASE):
+            q_type = 'boolean'
+            q_content = re.sub(r'\[TRUE_FALSE\]\s*\n?', '', q_content, flags=re.IGNORECASE)
+
+        lines = q_content.strip().splitlines()
+        question_text = ''
+        option_lines = []
+        for line in lines:
+            if re.match(r'\s*\d+\.\s+', line):
+                option_lines.append(line)
+            elif not option_lines:
+                question_text += (' ' + line.strip()) if question_text else line.strip()
+
+        options = [_parse_option_line(ol) for ol in option_lines] if option_lines else []
+        if q_type == 'boolean' and not options:
+            options = [{'label': 'True', 'description': ''}, {'label': 'False', 'description': ''}]
+
+        questions.append({
+            'id': f'q{q_num}',
+            'type': q_type,
+            'question_text': question_text,
+            'options': options,
+        })
+
+    if not questions:
+        return None, reply
+
+    return {'title': title, 'questions': questions}, clean
 
 
 def _classify_complexity(message: str) -> str:
@@ -3077,6 +3251,12 @@ def _build_jada_context(user, module):
     parts = []
 
     if module:
+        parts.insert(0,
+            f"IMPORTANT: The user has ALREADY selected their module — '{module.label}'. "
+            f"Do NOT ask them which module they are working on. "
+            f"Start helping immediately based on this module context. "
+            f"You know their module, their progress, and their status — use it."
+        )
         parts.append(
             f"User is working on module: {module.label} — {module.description}. "
             f"Status: {module.status}."
@@ -3254,10 +3434,11 @@ def jada_chat(request):
                 reply = "Sorry, I couldn't process that right now. Try rephrasing or ask again shortly."
                 model_used = "error"
 
-    # Extract interactive options from reply (if any)
-    options, clean_reply = _extract_options(reply)
+    # Extract structured interactive elements from reply
+    quiz_data, reply_after_quiz = _extract_quiz(reply)
+    interactive_data, clean_reply = _extract_interactive(reply_after_quiz)
 
-    # Persist messages (store the full reply with options text)
+    # Persist messages (store the full original reply)
     JadaMessage.objects.create(conversation=conversation, role='user', content=message)
     JadaMessage.objects.create(conversation=conversation, role='jada', content=reply, model_used=model_used)
 
@@ -3272,7 +3453,8 @@ def jada_chat(request):
         "module_id": conversation.context_module_id,
         "module_label": conversation.context_module.label if conversation.context_module else None,
         "suggestions": suggestions,
-        "options": options,
+        "interactive": interactive_data,
+        "quiz": quiz_data,
     })
 
 

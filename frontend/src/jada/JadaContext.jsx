@@ -49,7 +49,9 @@ export function JadaProvider({ children }) {
   const [isTyping, setIsTyping] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
   const [preferredModel, setPreferredModel] = useState('auto');
-  const [lastOptions, setLastOptions] = useState([]);
+  const [lastInteractive, setLastInteractive] = useState(null);
+  const [activeQuiz, setActiveQuiz] = useState(null);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   /* ── Route-based avatar positioning ──────────────────────────── */
   useEffect(() => {
@@ -127,12 +129,15 @@ export function JadaProvider({ children }) {
 
   const closeChat = useCallback(() => setIsChatOpen(false), []);
 
+  const toggleExpand = useCallback(() => setIsExpanded((v) => !v), []);
+
   const sendMessage = useCallback(async (text) => {
     if (!text.trim()) return;
     setChatMessages((prev) => [...prev, { role: 'user', content: text, created_at: new Date().toISOString() }]);
     setIsTyping(true);
     setSuggestions([]);
-    setLastOptions([]);
+    setLastInteractive(null);
+    setActiveQuiz(null);
 
     try {
       const res = await jadaChatApi(text, activeConversationId, 'general', contextModuleId, preferredModel);
@@ -142,7 +147,8 @@ export function JadaProvider({ children }) {
       if (d.module_id) setContextModuleId(d.module_id);
       setChatMessages((prev) => [...prev, { role: 'assistant', content: d.reply, created_at: new Date().toISOString() }]);
       if (d.suggestions && d.suggestions.length > 0) setSuggestions(d.suggestions);
-      if (d.options && d.options.length > 0) setLastOptions(d.options);
+      if (d.interactive) setLastInteractive(d.interactive);
+      if (d.quiz) setActiveQuiz(d.quiz);
     } catch {
       setChatMessages((prev) => [...prev, { role: 'assistant', content: "Sorry, I couldn't connect. Try again shortly.", created_at: new Date().toISOString() }]);
     } finally {
@@ -166,7 +172,8 @@ export function JadaProvider({ children }) {
     setActiveConversationId(null);
     setChatMessages([]);
     setSuggestions([]);
-    setLastOptions([]);
+    setLastInteractive(null);
+    setActiveQuiz(null);
   }, []);
 
   /* ── Exposed API ─────────────────────────────────────────────── */
@@ -175,10 +182,12 @@ export function JadaProvider({ children }) {
     mode, speech, anchor, sizePx, isHidden,
 
     // Chat state
-    isChatOpen, chatMessages, activeConversationId, contextModuleId, contextModuleLabel, isTyping, suggestions, preferredModel, lastOptions,
+    isChatOpen, chatMessages, activeConversationId, contextModuleId, contextModuleLabel, isTyping, suggestions, preferredModel,
+    lastInteractive, activeQuiz, isExpanded,
 
     // Chat methods
-    openChat, closeChat, sendMessage, switchModule, startNewChat, setPreferredModel, setLastOptions,
+    openChat, closeChat, sendMessage, switchModule, startNewChat, setPreferredModel,
+    setLastInteractive, setActiveQuiz, toggleExpand,
 
     setSpeech: (text, tone = 'neutral') => setSpeech(text ? { text, tone } : null),
     nudge: (text, tone = 'neutral') => emitJadaEvent('speech', { text, tone }),
@@ -206,7 +215,7 @@ export function JadaProvider({ children }) {
       fullscreenOverlayCountRef.current = hidden ? Math.max(1, fullscreenOverlayCountRef.current) : 0;
       setIsHidden(hidden);
     },
-  }), [anchor, isHidden, mode, sizePx, speech, isChatOpen, chatMessages, activeConversationId, contextModuleId, contextModuleLabel, isTyping, preferredModel, lastOptions, openChat, closeChat, sendMessage, switchModule, startNewChat]);
+  }), [anchor, isHidden, mode, sizePx, speech, isChatOpen, chatMessages, activeConversationId, contextModuleId, contextModuleLabel, isTyping, preferredModel, lastInteractive, activeQuiz, isExpanded, openChat, closeChat, sendMessage, switchModule, startNewChat, toggleExpand]);
 
   return <JadaContext.Provider value={api}>{children}</JadaContext.Provider>;
 }

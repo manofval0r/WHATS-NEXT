@@ -1,11 +1,38 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { X, RotateCcw, Send, ChevronDown, Bot, Sparkles, Settings2 } from 'lucide-react';
+import { X, RotateCcw, Send, ChevronDown, Bot, Sparkles, Settings2, Maximize2, Minimize2, Copy, Check } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import hljs from 'highlight.js/lib/core';
+import javascript from 'highlight.js/lib/languages/javascript';
+import python from 'highlight.js/lib/languages/python';
+import css from 'highlight.js/lib/languages/css';
+import xml from 'highlight.js/lib/languages/xml';
+import json from 'highlight.js/lib/languages/json';
+import bash from 'highlight.js/lib/languages/bash';
+import typescript from 'highlight.js/lib/languages/typescript';
+import sql from 'highlight.js/lib/languages/sql';
+import 'highlight.js/styles/atom-one-dark.css';
 import { useJada } from './JadaContext';
+import JadaInteractive from './JadaInteractive';
+import JadaQuizWizard from './JadaQuizWizard';
 import api from '../api';
 import './JadaChat.css';
+
+/* Register highlight.js languages */
+hljs.registerLanguage('javascript', javascript);
+hljs.registerLanguage('js', javascript);
+hljs.registerLanguage('python', python);
+hljs.registerLanguage('py', python);
+hljs.registerLanguage('css', css);
+hljs.registerLanguage('html', xml);
+hljs.registerLanguage('xml', xml);
+hljs.registerLanguage('json', json);
+hljs.registerLanguage('bash', bash);
+hljs.registerLanguage('sh', bash);
+hljs.registerLanguage('typescript', typescript);
+hljs.registerLanguage('ts', typescript);
+hljs.registerLanguage('sql', sql);
 
 const DEFAULT_SUGGESTIONS = [
   'What should I focus on today?',
@@ -22,23 +49,61 @@ const AVAILABLE_MODELS = [
   { id: 'gemini', label: 'Gemini' },
 ];
 
-/* ── Custom react-markdown components for chat styling ── */
+/* ── Custom react-markdown components with syntax highlighting ── */
+function CodeBlock({ inline, className, children, ...props }) {
+  const [copied, setCopied] = useState(false);
+  const codeRef = useRef(null);
+
+  const rawText = String(children).replace(/\n$/, '');
+  const langMatch = /language-(\w+)/.exec(className || '');
+  const lang = langMatch ? langMatch[1] : null;
+
+  useEffect(() => {
+    if (!inline && codeRef.current && lang) {
+      try {
+        codeRef.current.removeAttribute('data-highlighted');
+        hljs.highlightElement(codeRef.current);
+      } catch { /* unsupported lang – leave plain */ }
+    }
+  }, [rawText, lang, inline]);
+
+  if (inline) return <code className="jada-inline-code" {...props}>{children}</code>;
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(rawText).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  return (
+    <div className="jada-code-block">
+      <div className="jada-code-header">
+        <span className="jada-code-lang">{lang || 'code'}</span>
+        <button className="jada-code-copy" onClick={handleCopy} title="Copy code">
+          {copied ? <Check size={12} /> : <Copy size={12} />}
+          <span>{copied ? 'Copied' : 'Copy'}</span>
+        </button>
+      </div>
+      <pre><code ref={codeRef} className={className} {...props}>{rawText}</code></pre>
+    </div>
+  );
+}
+
 const markdownComponents = {
   a: ({ href, children }) => (
     <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>
   ),
-  pre: ({ children }) => <pre>{children}</pre>,
-  code: ({ inline, className, children, ...props }) => {
-    if (inline) return <code {...props}>{children}</code>;
-    return <code className={className} {...props}>{children}</code>;
-  },
+  pre: ({ children }) => <>{children}</>,
+  code: CodeBlock,
 };
 
 export default function JadaChatSheet() {
   const {
     isChatOpen, closeChat, chatMessages, isTyping,
     sendMessage, contextModuleLabel, contextModuleId, startNewChat, suggestions,
-    preferredModel, setPreferredModel, lastOptions, setLastOptions, switchModule,
+    preferredModel, setPreferredModel, lastInteractive, setLastInteractive,
+    activeQuiz, switchModule, isExpanded, toggleExpand,
   } = useJada();
 
   const [input, setInput] = useState('');
@@ -84,10 +149,10 @@ export default function JadaChatSheet() {
     const text = input.trim();
     if (!text || isTyping) return;
     setInput('');
-    setLastOptions([]);
+    setLastInteractive(null);
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
     sendMessage(text);
-  }, [input, isTyping, sendMessage, setLastOptions]);
+  }, [input, isTyping, sendMessage, setLastInteractive]);
 
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -98,14 +163,9 @@ export default function JadaChatSheet() {
 
   const handleSuggestion = useCallback((text) => {
     setInput('');
-    setLastOptions([]);
+    setLastInteractive(null);
     sendMessage(text);
-  }, [sendMessage, setLastOptions]);
-
-  const handleOptionClick = useCallback((optionText) => {
-    setLastOptions([]);
-    sendMessage(optionText);
-  }, [sendMessage, setLastOptions]);
+  }, [sendMessage, setLastInteractive]);
 
   const handleModuleSelect = useCallback((mod) => {
     switchModule(mod.id, mod.label);
@@ -118,9 +178,9 @@ export default function JadaChatSheet() {
 
   return (
     <>
-      {/* Backdrop (mobile only, CSS hides on desktop) */}
+      {/* Backdrop */}
       <motion.div
-        className="jada-chat-backdrop"
+        className={`jada-chat-backdrop ${isExpanded ? 'visible' : ''}`}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
@@ -129,7 +189,7 @@ export default function JadaChatSheet() {
 
       {/* Panel */}
       <motion.div
-        className="jada-chat-panel"
+        className={`jada-chat-panel ${isExpanded ? 'expanded' : ''}`}
         role="dialog"
         aria-label="Chat with Jada"
         initial={{ y: '100%', opacity: 0.6 }}
@@ -155,6 +215,14 @@ export default function JadaChatSheet() {
             </button>
           </div>
           <div className="jada-chat-header-actions">
+            <button
+              className="jada-chat-btn expand-btn"
+              onClick={toggleExpand}
+              title={isExpanded ? 'Collapse' : 'Expand'}
+              aria-label={isExpanded ? 'Collapse chat' : 'Expand chat'}
+            >
+              {isExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+            </button>
             <button
               className="jada-chat-btn"
               onClick={startNewChat}
@@ -232,19 +300,23 @@ export default function JadaChatSheet() {
               </div>
             ))}
 
-            {/* Interactive option buttons */}
-            {lastOptions.length > 0 && !isTyping && (
-              <div className="jada-options">
-                {lastOptions.map((opt, i) => (
-                  <button
-                    key={i}
-                    className="jada-option-btn"
-                    onClick={() => handleOptionClick(opt)}
-                  >
-                    <span className="jada-option-num">{i + 1}</span>
-                    {opt}
-                  </button>
-                ))}
+            {/* Interactive question card */}
+            {lastInteractive && !isTyping && (
+              <div className="jada-msg assistant">
+                <div className="jada-msg-avatar"><Bot size={13} color="#fff" /></div>
+                <div className="jada-msg-bubble jada-msg-interactive">
+                  <JadaInteractive data={lastInteractive} />
+                </div>
+              </div>
+            )}
+
+            {/* Quiz wizard */}
+            {activeQuiz && !isTyping && (
+              <div className="jada-msg assistant">
+                <div className="jada-msg-avatar"><Bot size={13} color="#fff" /></div>
+                <div className="jada-msg-bubble jada-msg-quiz">
+                  <JadaQuizWizard quiz={activeQuiz} />
+                </div>
               </div>
             )}
 
