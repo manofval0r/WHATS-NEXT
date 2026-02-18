@@ -321,14 +321,7 @@ class CommunityPost(models.Model):
     # Status
     is_solved = models.BooleanField(default=False)  # For questions
     is_pinned = models.BooleanField(default=False)  # Admin feature
-    
-    # Phase 7: Full-text search (Postgres)
-    search_vector = models.GeneratedField(
-        expression=models.F('title') + ' ' + models.F('content'),
-        output_field=models.TextField(),
-        db_persist=False
-    )
-    
+        
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
