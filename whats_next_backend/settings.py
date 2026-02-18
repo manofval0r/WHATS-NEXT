@@ -28,7 +28,7 @@ ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,whats-next-oxdf.
 
 # Automatically add Render URL to ALLOWED_HOSTS
 if 'RENDER_EXTERNAL_URL' in os.environ:
-    ALLOWED_HOSTS.append(os.environ['RENDER_EXTERNAL_URL'].replace('https://', ''))
+    ALLOWED_HOSTS.append(os.environ['RENDER_EXTERNAL_URL'].replace('https://', '').rstrip('/'))
 
 if DEBUG:
     ALLOWED_HOSTS = ['*']
@@ -141,11 +141,12 @@ CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "https://whats-next-ate2.onrender.com",
 ]
 
 # Add Render URL to CORS origins
 if 'RENDER_EXTERNAL_URL' in os.environ:
-    render_url = os.environ['RENDER_EXTERNAL_URL']
+    render_url = os.environ['RENDER_EXTERNAL_URL'].rstrip('/')
     CORS_ALLOWED_ORIGINS.append(render_url)
 
 # Add custom CORS origins from env
@@ -157,6 +158,7 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "https://whats-next-1.onrender.com",
+    "https://whats-next-ate2.onrender.com",
 ]
 
 # Default primary key field type
