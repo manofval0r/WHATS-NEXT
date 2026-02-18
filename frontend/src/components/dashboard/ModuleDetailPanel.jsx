@@ -1,13 +1,15 @@
-import React, { useState, useCallback } from 'react';
-import { X, ExternalLink, PlayCircle, BookOpen, Code, CheckCircle, Eye, Send, Award, RotateCcw, Lock } from 'lucide-react';
+import React, { useState, useCallback, useEffect } from 'react';
+import { X, ExternalLink, PlayCircle, BookOpen, Code, CheckCircle, Eye, Send, Award, RotateCcw, Lock, Bot } from 'lucide-react';
 import Button from '../common/Button';
 import Badge from '../common/Badge';
 import Card from '../common/Card';
 import LessonCard from './LessonCard';
+import LessonQuizModal from './LessonQuizModal';
 import ScoreFeedback from './ScoreFeedback';
-import api from '../../api';
+import api, { getLessonProgress } from '../../api';
 import { usePremium } from '../../premium/PremiumContext';
 import { useIsMobile } from '../../hooks/useMediaQuery';
+import { useJada } from '../../jada/JadaContext';
 
 const ModuleDetailPanel = ({ node, onClose, onSubmitProject, submissionLink, setSubmissionLink, submitting, onRefreshRoadmap }) => {
   const [showMore, setShowMore] = useState(false);
@@ -18,6 +20,28 @@ const ModuleDetailPanel = ({ node, onClose, onSubmitProject, submissionLink, set
   const { status, checkPremiumAccess } = usePremium();
   const isPremium = status?.is_premium;
   const isMobile = useIsMobile();
+  const jada = useJada();
+
+  // Lesson progress state
+  const [lessonProgress, setLessonProgress] = useState({});
+  const [quizTarget, setQuizTarget] = useState(null); // { lessonId, lessonTitle }
+
+  // Fetch lesson progress when node changes
+  useEffect(() => {
+    if (!node?.id) return;
+    let cancelled = false;
+    getLessonProgress(node.id)
+      .then(res => {
+        if (cancelled) return;
+        const map = {};
+        (res.data.progress || []).forEach(p => {
+          map[p.lesson_id] = p;
+        });
+        setLessonProgress(map);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [node?.id]);
 
   // Preview score before submission
   const handlePreviewScore = useCallback(async () => {
@@ -103,15 +127,30 @@ const ModuleDetailPanel = ({ node, onClose, onSubmitProject, submissionLink, set
   const { data } = node;
   const isCompleted = data.status === 'completed';
 
-  // Lesson handlers (will connect to API later)
-  const handleLessonToggle = (lessonId) => {
-    console.log('Toggle lesson:', lessonId);
-    // TODO: API call to mark lesson complete/incomplete
+  // Lesson handlers
+  const handleLessonToggle = (lessonId, lessonTitle) => {
+    // Open quiz modal instead of directly toggling
+    setQuizTarget({ lessonId, lessonTitle });
   };
 
   const handleConfidenceChange = (lessonId, rating) => {
-    console.log('Confidence rating:', lessonId, rating);
-    // TODO: API call to update confidence rating
+    setLessonProgress(prev => ({
+      ...prev,
+      [lessonId]: { ...(prev[lessonId] || {}), confidence_rating: rating }
+    }));
+  };
+
+  const handleQuizPass = () => {
+    if (!quizTarget) return;
+    // Mark lesson as completed in local state
+    setLessonProgress(prev => ({
+      ...prev,
+      [quizTarget.lessonId]: {
+        ...(prev[quizTarget.lessonId] || {}),
+        is_completed: true,
+        quiz_passed: true,
+      }
+    }));
   };
 
   return (
@@ -190,6 +229,43 @@ const ModuleDetailPanel = ({ node, onClose, onSubmitProject, submissionLink, set
               }}>
                 // MICRO_LEARNING_UNITS
               </h3>
+
+              {/* Lesson progress bar */}
+              {(() => {
+                const total = data.lessons.length;
+                const completed = data.lessons.filter(l => lessonProgress[l.id]?.is_completed || l.is_completed).length;
+                const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+                return (
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', marginBottom: 6 }}>
+                      <span>{completed}/{total} lessons</span>
+                      <span>{pct}%</span>
+                    </div>
+                    <div style={{ height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+                      <div style={{
+                        height: '100%', borderRadius: 3, transition: 'width 0.4s ease',
+                        width: `${pct}%`,
+                        background: pct === 100 ? 'var(--neon-gold, #ffbe0b)' : 'linear-gradient(90deg, var(--neon-cyan), var(--neon-violet))',
+                      }} />
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Ask Jada about this module */}
+              <button
+                onClick={() => jada.openChat(node.id)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6, width: '100%', justifyContent: 'center',
+                  padding: '8px 12px', marginBottom: 16,
+                  background: 'rgba(6, 182, 212, 0.06)', border: '1px solid rgba(6, 182, 212, 0.18)',
+                  borderRadius: 8, color: 'var(--neon-cyan, #06b6d4)',
+                  fontSize: 12, fontFamily: 'var(--font-mono)', cursor: 'pointer', transition: 'all 0.15s',
+                }}
+              >
+                <Bot size={14} />
+                Ask Jada about this module
+              </button>
               
               {/* Phase-based organization */}
               {[1, 2, 3].map(phase => {
@@ -221,16 +297,21 @@ const ModuleDetailPanel = ({ node, onClose, onSubmitProject, submissionLink, set
                       PHASE {phase}: {phaseNames[phase]}
                     </div>
                     
-                    {phaseLessons.slice(0, showMore ? undefined : 5).map(lesson => (
-                      <LessonCard
-                        key={lesson.id}
-                        lesson={lesson}
-                        isCompleted={lesson.is_completed}
-                        onToggleComplete={() => handleLessonToggle(lesson.id)}
-                        confidenceRating={lesson.confidence_rating}
-                        onConfidenceChange={(rating) => handleConfidenceChange(lesson.id, rating)}
-                      />
-                    ))}
+                    {phaseLessons.slice(0, showMore ? undefined : 5).map(lesson => {
+                      const progress = lessonProgress[lesson.id];
+                      return (
+                        <LessonCard
+                          key={lesson.id}
+                          lesson={lesson}
+                          itemId={node.id}
+                          isCompleted={progress?.is_completed || lesson.is_completed}
+                          onToggleComplete={() => handleLessonToggle(lesson.id, lesson.title)}
+                          confidenceRating={progress?.confidence_rating || lesson.confidence_rating}
+                          onConfidenceChange={(rating) => handleConfidenceChange(lesson.id, rating)}
+                          onQuizRequest={(lessonId, lessonTitle) => setQuizTarget({ lessonId, lessonTitle })}
+                        />
+                      );
+                    })}
                     
                     {!showMore && phaseLessons.length > 5 && (
                       <button
@@ -588,6 +669,17 @@ const ModuleDetailPanel = ({ node, onClose, onSubmitProject, submissionLink, set
 
         </div>
       </div>
+
+      {/* Lesson Quiz Modal */}
+      {quizTarget && node?.id && (
+        <LessonQuizModal
+          itemId={node.id}
+          lessonId={quizTarget.lessonId}
+          lessonTitle={quizTarget.lessonTitle}
+          onClose={() => setQuizTarget(null)}
+          onPass={handleQuizPass}
+        />
+      )}
     </div>
   );
 };

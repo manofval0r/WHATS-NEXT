@@ -5,12 +5,13 @@ from typing import Any, Dict, List, Optional
 import requests
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
-DEFAULT_MODEL = "google/gemma-3-27b-it:free"
+DEFAULT_MODEL = "openrouter/aurora-alpha"
 
 # Ordered list of free models to try when the caller uses `chat_completions_cascade`.
 FREE_MODEL_CASCADE = [
-    "google/gemma-3-27b-it:free",
-    "deepseek/deepseek-r1-0528:free",
+    "openrouter/aurora-alpha",
+    "stepfun/step-3.5-flash:free",
+    "nvidia/nemotron-3-nano-30b-a3b:free",
 ]
 
 

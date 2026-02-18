@@ -44,11 +44,30 @@ export default function CustomNode({ data }) {
       <Handle type="target" position={Position.Bottom} style={{ background: '#fff' }} />
       
       {/* Icon Header */}
-      <div style={{ marginBottom: '10px', display: 'flex', justifyContent: 'center', gap: '10px' }}>
+      <div style={{ marginBottom: '10px', display: 'flex', justifyContent: 'center', gap: '10px', position: 'relative' }}>
         {isLocked && <Lock size={20} />}
         {isDone && <CheckCircle size={20} color="#00ff88" />}
         {isActive && <Cpu size={24} color="#00f2ff" />}
       </div>
+
+      {/* Lesson progress mini-bar (if lessons exist) */}
+      {data.lessons && data.lessons.length > 0 && !isLocked && (
+        (() => {
+          const total = data.lessons.length;
+          const completed = data.lessons.filter(l => l.is_completed).length;
+          const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+          if (pct === 0 && !isActive) return null;
+          return (
+            <div style={{ margin: '0 auto 6px', width: '80%', height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.1)', overflow: 'hidden' }}>
+              <div style={{
+                height: '100%', borderRadius: 2, transition: 'width 0.4s ease',
+                width: `${pct}%`,
+                background: pct === 100 ? '#00ff88' : '#00f2ff',
+              }} />
+            </div>
+          );
+        })()
+      )}
       
       {/* Label */}
       <div style={{ fontWeight: 'bold', fontSize: '14px', fontFamily: 'sans-serif' }}>

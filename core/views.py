@@ -7,9 +7,9 @@ from .models import (
     UserRoadmapItem, UserActivity, ProjectReview, ProjectComment, User,
     CommunityPost, CommunityReply, Badge, UserFollowing, Waitlist,
     UserTechDebt, ResourceClick, JadaConversation, JadaMessage,
-    RoleRoadmapTemplate,
+    RoleRoadmapTemplate, LessonProgress,
 )
-from .ai_logic import generate_detailed_roadmap
+from .ai_logic import generate_detailed_roadmap, generate_lesson_quiz
 from .role_catalog import get_role_template, get_available_roles, suggest_role_for_course
 from .news_logic import fetch_tech_news, fetch_jobs_multi
 from .youtube_logic import fetch_youtube_for_modules
@@ -1395,7 +1395,8 @@ def get_user_profile(request):
         completed_modules = []
         active_modules = []
         locked_modules = []
-        lessons_completed = 0
+        # Real lesson completion count from LessonProgress table
+        lessons_completed = LessonProgress.objects.filter(user=user, is_completed=True).count()
 
         def _module_competencies(item):
             outline = (item.resources or {}).get('lesson_outline') or []
@@ -1431,9 +1432,6 @@ def get_user_profile(request):
 
             if item.status == 'completed':
                 completed_modules.append(payload)
-                outline = (item.resources or {}).get('lesson_outline') or []
-                if isinstance(outline, list):
-                    lessons_completed += len(outline)
             elif item.status == 'active':
                 active_modules.append(payload)
             else:
@@ -2936,18 +2934,10 @@ def apply_to_job(request, job_id):
 
 
 # ==========================================
-# JADA AI ASSISTANT (OpenRouter dual-model)
+# JADA AI ASSISTANT (OpenRouter cascade)
 # ==========================================
 
-import requests as http_requests
-
-OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
-
-# Model routing: casual → Llama, technical → DeepSeek
-JADA_MODELS = {
-    "casual": "meta-llama/llama-3.1-8b-instruct:free",
-    "technical": "deepseek/deepseek-r1:free",
-}
+from .openrouter_client import chat_completions_cascade, OpenRouterError
 
 JADA_SYSTEM_PROMPT = (
     "You are JADA — a friendly, proactive AI career coach for aspiring developers. "
@@ -2955,8 +2945,74 @@ JADA_SYSTEM_PROMPT = (
     "Reference the user's current module and progress when possible. "
     "If a question is vague, ask a clarifying question. "
     "Use code blocks with language tags when showing code. "
-    "Never make up URLs or resources."
+    "Never make up URLs or resources.\n\n"
+    "FORMATTING RULES (you are rendering in a chat bubble with markdown support):\n"
+    "- Use ### for section headings (never # or ##, they are too large).\n"
+    "- Use **bold** for emphasis and key terms.\n"
+    "- Use - for bullet lists, 1. for numbered steps.\n"
+    "- Keep tables simple and small (max 3-4 columns). Prefer bullet lists over tables when possible.\n"
+    "- Use short paragraphs (2-3 sentences max per paragraph).\n"
+    "- Separate sections with a blank line, never use --- horizontal rules.\n"
+    "- When asking the user to choose between options, write 'Choose one:' on its own line "
+    "followed by a numbered list like:\n"
+    "Choose one:\n"
+    "1. First option\n"
+    "2. Second option\n"
+    "3. Third option\n"
 )
+
+# Cascade models per complexity — fast free models first, heavier for technical
+JADA_CASUAL_CASCADE = [
+    "openrouter/aurora-alpha",
+    "stepfun/step-3.5-flash:free",
+    "nvidia/nemotron-3-nano-30b-a3b:free",
+]
+JADA_TECHNICAL_CASCADE = [
+    "openrouter/aurora-alpha",
+    "stepfun/step-3.5-flash:free",
+    "nvidia/nemotron-3-nano-30b-a3b:free",
+]
+
+
+# Allowed models that users can select in the chat UI
+JADA_ALLOWED_MODELS = {
+    'auto',
+    'openrouter/aurora-alpha',
+    'stepfun/step-3.5-flash:free',
+    'nvidia/nemotron-3-nano-30b-a3b:free',
+    'gemini',
+}
+
+
+def _extract_options(reply: str):
+    """Detect 'Choose one:' (or similar) + numbered list at the end of a reply.
+
+    Returns (options_list, clean_reply).  options_list is [] when no pattern found.
+    clean_reply has the option block removed so the frontend can render it
+    as interactive buttons instead.
+    """
+    import re
+    # Match trigger phrase followed by numbered list items
+    trigger = r'(?:Choose one|Pick an option|Select one|Which would you prefer)[:\s]*'
+    pattern = re.compile(
+        r'(?P<before>[\s\S]*?)'
+        rf'(?:{trigger})\s*\n'
+        r'(?P<opts>(?:\s*\d+\.\s+.+\n?){2,})'
+        r'\s*$',
+        re.IGNORECASE,
+    )
+    m = pattern.match(reply)
+    if m:
+        before = m.group('before').rstrip()
+        opts_raw = m.group('opts')
+        options = [
+            re.sub(r'^\s*\d+\.\s+', '', line).strip()
+            for line in opts_raw.strip().splitlines()
+            if line.strip()
+        ]
+        if options:
+            return options, before
+    return [], reply
 
 
 def _classify_complexity(message: str) -> str:
@@ -2971,14 +3027,120 @@ def _classify_complexity(message: str) -> str:
     return "technical" if any(kw in msg_lower for kw in technical_keywords) else "casual"
 
 
+def _generate_suggestions(user_message: str, reply: str, module=None):
+    """Generate 2-4 contextual follow-up question suggestions based on the conversation."""
+    suggestions = []
+
+    # Module-aware suggestions
+    if module:
+        label = module.label or "this module"
+        status = module.status or "active"
+
+        if status == "active":
+            suggestions.extend([
+                f"What are the key concepts in {label}?",
+                "What project should I build for this module?",
+                "Quiz me on what I've learned so far",
+            ])
+        elif status == "completed":
+            suggestions.extend([
+                "What should I learn next?",
+                "How can I improve my project score?",
+                f"Give me advanced tips for {label}",
+            ])
+    else:
+        suggestions.extend([
+            "What should I focus on today?",
+            "How's my overall progress?",
+            "Recommend a project for me",
+        ])
+
+    # Context-reactive suggestions based on reply content
+    reply_lower = reply.lower() if reply else ""
+    reactive = []
+    if "project" in reply_lower or "build" in reply_lower:
+        reactive.append("Help me plan this project step by step")
+    if "resource" in reply_lower or "learn" in reply_lower:
+        reactive.append("What resources do you recommend?")
+    if any(w in reply_lower for w in ["code", "function", "class", "```"]):
+        reactive.append("Can you explain this code further?")
+    if "quiz" in reply_lower or "test" in reply_lower:
+        reactive.append("Quiz me on this topic")
+
+    # Merge: reactive first (more relevant), then module-based, cap at 4
+    combined = reactive + [s for s in suggestions if s not in reactive]
+    return combined[:4]
+
+
+def _build_jada_context(user, module):
+    """Build rich context block for JADA's system prompt including lesson progress."""
+    parts = []
+
+    if module:
+        parts.append(
+            f"User is working on module: {module.label} — {module.description}. "
+            f"Status: {module.status}."
+        )
+
+        # Lesson progress for this module
+        lp_qs = LessonProgress.objects.filter(user=user, roadmap_item=module)
+        done = lp_qs.filter(is_completed=True).count()
+        total = lp_qs.count()
+        if total:
+            parts.append(f"Lesson progress: {done}/{total} lessons completed in this module.")
+            # List incomplete lessons so JADA can nudge
+            incomplete = lp_qs.filter(is_completed=False).values_list('lesson_title', flat=True)[:5]
+            if incomplete:
+                parts.append(f"Remaining lessons: {', '.join(incomplete)}.")
+        else:
+            # Use lesson_outline count from resources
+            outline = (module.resources or {}).get('lesson_outline') or []
+            if outline:
+                parts.append(f"Module has {len(outline)} lessons (none started yet).")
+
+        # Quiz info
+        quiz = getattr(module, 'quiz', None)
+        if quiz:
+            parts.append(
+                f"Module quiz: {'Passed' if quiz.passed else 'Not passed'} "
+                f"(score: {quiz.score}, attempts: {quiz.attempts})."
+            )
+
+        # Project submission
+        if module.project_submission_link:
+            parts.append(f"Project submitted: {module.project_submission_link}")
+        else:
+            parts.append("Project: Not submitted yet.")
+
+        # Tech debt
+        debts = UserTechDebt.objects.filter(user=user, resolved=False)[:3]
+        if debts:
+            topics = ', '.join(d.topic for d in debts)
+            parts.append(f"Skipped topics to revisit: {topics}.")
+
+        # Recent resource clicks
+        clicks = ResourceClick.objects.filter(user=user, module=module).order_by('-clicked_at')[:3]
+        if clicks:
+            titles = ', '.join(c.title[:40] for c in clicks if c.title)
+            if titles:
+                parts.append(f"Recently viewed resources: {titles}.")
+
+    # Global progress
+    completed_count = UserRoadmapItem.objects.filter(user=user, status='completed').count()
+    total_count = UserRoadmapItem.objects.filter(user=user).count()
+    if total_count:
+        parts.append(f"Overall progress: {completed_count}/{total_count} modules completed.")
+
+    return "\n".join(parts)
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def jada_chat(request):
     """
-    Send a message to JADA. Routes to Llama 3.1 (casual) or DeepSeek-R1 (technical).
-    Body: { message, conversation_id? (optional), mode? }
+    Send a message to JADA. Uses cascade model routing.
+    Body: { message, conversation_id?, mode?, module_id?, preferred_model? }
     """
-    import os
     user = request.user
     message = request.data.get('message', '').strip()
 
@@ -2989,6 +3151,10 @@ def jada_chat(request):
 
     mode = request.data.get('mode', 'general')
     conversation_id = request.data.get('conversation_id')
+    module_id = request.data.get('module_id')
+    preferred_model = request.data.get('preferred_model', 'auto')
+    if preferred_model not in JADA_ALLOWED_MODELS:
+        preferred_model = 'auto'
 
     # Get or create conversation
     conversation = None
@@ -2996,91 +3162,145 @@ def jada_chat(request):
         conversation = JadaConversation.objects.filter(id=conversation_id, user=user).first()
 
     if not conversation:
-        # Attach current active module for context
-        active_module = UserRoadmapItem.objects.filter(user=user, status='active').first()
+        # Resolve module context
+        context_module = None
+        if module_id:
+            context_module = UserRoadmapItem.objects.filter(id=module_id, user=user).first()
+        if not context_module:
+            context_module = UserRoadmapItem.objects.filter(user=user, status='active').first()
+
         conversation = JadaConversation.objects.create(
             user=user,
-            context_module=active_module,
+            context_module=context_module,
             mode=mode,
         )
+    elif module_id:
+        # Update module context if explicitly provided on existing conversation
+        new_mod = UserRoadmapItem.objects.filter(id=module_id, user=user).first()
+        if new_mod and new_mod != conversation.context_module:
+            conversation.context_module = new_mod
+            conversation.save(update_fields=['context_module'])
 
     # Build message history (last 20 messages for context window)
     history = list(conversation.messages.order_by('-created_at')[:20])
     history.reverse()
 
-    messages = [{"role": "system", "content": JADA_SYSTEM_PROMPT}]
+    messages_payload = [{"role": "system", "content": JADA_SYSTEM_PROMPT}]
 
-    # Add user context
-    active_module = conversation.context_module
-    if active_module:
-        messages.append({
-            "role": "system",
-            "content": f"User is working on: {active_module.label} — {active_module.description}. Status: {active_module.status}."
-        })
-
-    completed_count = UserRoadmapItem.objects.filter(user=user, status='completed').count()
-    total_count = UserRoadmapItem.objects.filter(user=user).count()
-    if total_count:
-        messages.append({
-            "role": "system",
-            "content": f"Progress: {completed_count}/{total_count} modules completed."
-        })
+    # Rich context injection
+    ctx = _build_jada_context(user, conversation.context_module)
+    if ctx:
+        messages_payload.append({"role": "system", "content": ctx})
 
     for msg in history:
-        messages.append({"role": "user" if msg.role == "user" else "assistant", "content": msg.content})
-    messages.append({"role": "user", "content": message})
-
-    # Route to appropriate model
-    complexity = _classify_complexity(message)
-    model = JADA_MODELS[complexity]
-
-    api_key = os.environ.get('OPENROUTER_API_KEY', '')
-    if not api_key:
-        # Graceful fallback when API key is missing
-        fallback = "I'm having trouble connecting right now. Please try again in a moment!"
-        JadaMessage.objects.create(conversation=conversation, role='user', content=message)
-        JadaMessage.objects.create(conversation=conversation, role='jada', content=fallback, model_used='fallback')
-        return Response({
-            "reply": fallback,
-            "conversation_id": conversation.id,
-            "model_used": "fallback",
+        messages_payload.append({
+            "role": "user" if msg.role == "user" else "assistant",
+            "content": msg.content,
         })
+    messages_payload.append({"role": "user", "content": message})
 
-    try:
-        resp = http_requests.post(
-            OPENROUTER_API_URL,
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-                "HTTP-Referer": os.environ.get('SITE_URL', 'https://whatsnext.dev'),
-            },
-            json={
-                "model": model,
-                "messages": messages,
-                "max_tokens": 1024,
-                "temperature": 0.7,
-            },
-            timeout=30,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        reply = data["choices"][0]["message"]["content"]
-        model_used = data.get("model", model)
-    except Exception as e:
-        print(f"[JADA] OpenRouter error: {e}")
-        reply = "Sorry, I couldn't process that right now. Try rephrasing or ask again shortly."
-        model_used = "error"
+    # Route to appropriate model cascade
+    complexity = _classify_complexity(message)
+    model_cascade = list(JADA_TECHNICAL_CASCADE if complexity == "technical" else JADA_CASUAL_CASCADE)
 
-    # Persist messages
+    # User-selected model: 'gemini' goes direct, specific model gets priority in cascade
+    use_gemini_direct = preferred_model == 'gemini'
+    if preferred_model and preferred_model not in ('auto', 'gemini'):
+        # Put the user's preferred model first, then fall back to the normal cascade
+        if preferred_model in model_cascade:
+            model_cascade.remove(preferred_model)
+        model_cascade.insert(0, preferred_model)
+
+    if use_gemini_direct:
+        try:
+            from .ai_logic import _call_gemini_text
+            reply = _call_gemini_text(
+                "\n".join(m["content"] for m in messages_payload),
+                temperature=0.7,
+                timeout=(5, 30),
+            )
+            model_used = "gemini"
+        except Exception as e2:
+            print(f"[JADA] Gemini direct failed: {e2}, falling back to cascade")
+            try:
+                reply, model_used = chat_completions_cascade(
+                    messages=messages_payload, models=model_cascade,
+                    temperature=0.7, max_tokens=1024, timeout=45,
+                )
+            except OpenRouterError:
+                reply = "Sorry, I couldn't process that right now. Try rephrasing or ask again shortly."
+                model_used = "error"
+    else:
+        try:
+            reply, model_used = chat_completions_cascade(
+                messages=messages_payload,
+                models=model_cascade,
+                temperature=0.7,
+                max_tokens=1024,
+                timeout=45,
+            )
+        except OpenRouterError:
+            # Ultimate fallback: Gemini
+            try:
+                from .ai_logic import _call_gemini_text
+                reply = _call_gemini_text(
+                    "\n".join(m["content"] for m in messages_payload),
+                    temperature=0.7,
+                    timeout=(5, 30),
+                )
+                model_used = "gemini-fallback"
+            except Exception as e2:
+                print(f"[JADA] All models failed: {e2}")
+                reply = "Sorry, I couldn't process that right now. Try rephrasing or ask again shortly."
+                model_used = "error"
+
+    # Extract interactive options from reply (if any)
+    options, clean_reply = _extract_options(reply)
+
+    # Persist messages (store the full reply with options text)
     JadaMessage.objects.create(conversation=conversation, role='user', content=message)
     JadaMessage.objects.create(conversation=conversation, role='jada', content=reply, model_used=model_used)
 
+    # Generate contextual follow-up suggestions
+    suggestions = _generate_suggestions(message, reply, conversation.context_module)
+
     return Response({
-        "reply": reply,
+        "reply": clean_reply,
         "conversation_id": conversation.id,
         "model_used": model_used,
         "complexity": complexity,
+        "module_id": conversation.context_module_id,
+        "module_label": conversation.context_module.label if conversation.context_module else None,
+        "suggestions": suggestions,
+        "options": options,
     })
+
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def jada_switch_context(request, conversation_id):
+    """Switch the module context for a Jada conversation."""
+    convo = get_object_or_404(JadaConversation, id=conversation_id, user=request.user)
+    module_id = request.data.get('module_id')
+
+    if module_id:
+        mod = UserRoadmapItem.objects.filter(id=module_id, user=request.user).first()
+        if not mod:
+            return Response({"error": "Module not found"}, status=404)
+        convo.context_module = mod
+        convo.save(update_fields=['context_module'])
+
+        # Inject a system message so the conversation history reflects the switch
+        JadaMessage.objects.create(
+            conversation=convo, role='system',
+            content=f"[Context switched to module: {mod.label}]",
+        )
+        return Response({
+            "module_id": mod.id,
+            "module_label": mod.label,
+        })
+
+    return Response({"error": "module_id is required"}, status=400)
 
 
 @api_view(['GET'])
@@ -3315,3 +3535,223 @@ def track_resource_click(request):
     )
 
     return Response({"tracked": True})
+
+
+# ==========================================
+# LESSON PROGRESS & QUIZ GATES
+# ==========================================
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_lesson_progress(request, item_id):
+    """Return all LessonProgress rows for a module so the frontend can render checkmarks."""
+    item = get_object_or_404(UserRoadmapItem, id=item_id, user=request.user)
+    rows = LessonProgress.objects.filter(user=request.user, roadmap_item=item)
+    return Response([
+        {
+            "lesson_id": lp.lesson_id,
+            "lesson_title": lp.lesson_title,
+            "is_completed": lp.is_completed,
+            "quiz_passed": lp.quiz_passed,
+            "quiz_score": lp.quiz_score,
+            "quiz_attempts": lp.quiz_attempts,
+            "confidence_rating": lp.confidence_rating,
+            "xp_awarded": lp.xp_awarded,
+            "time_spent_seconds": lp.time_spent_seconds,
+            "completed_at": lp.completed_at,
+        }
+        for lp in rows
+    ])
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def start_lesson_quiz(request, item_id, lesson_id):
+    """
+    Generate (or return cached) 5-question MCQ for a specific lesson.
+    Creates LessonProgress row if needed.
+    """
+    user = request.user
+    item = get_object_or_404(UserRoadmapItem, id=item_id, user=user)
+
+    # Resolve lesson metadata from lesson_data or lesson_outline
+    lesson_title = ""
+    lesson_desc = ""
+    lessons_list = item.lesson_data if isinstance(item.lesson_data, list) else []
+    if not lessons_list:
+        lessons_list = (item.resources or {}).get('lesson_outline') or []
+
+    for les in lessons_list:
+        lid = les.get('id') or f"lesson_{les.get('order', 0)}"
+        if str(lid) == str(lesson_id):
+            lesson_title = les.get('title', '')
+            lesson_desc = les.get('description', '')
+            break
+
+    if not lesson_title:
+        lesson_title = f"Lesson {lesson_id}"
+
+    lp, created = LessonProgress.objects.get_or_create(
+        user=user, roadmap_item=item, lesson_id=str(lesson_id),
+        defaults={"lesson_title": lesson_title},
+    )
+
+    # Return cached quiz if exists and has questions
+    if lp.quiz_questions and len(lp.quiz_questions) >= 1:
+        # Strip correct answers for the frontend
+        safe_qs = [
+            {"question": q["question"], "options": q["options"]}
+            for q in lp.quiz_questions
+        ]
+        return Response({
+            "lesson_id": lp.lesson_id,
+            "lesson_title": lp.lesson_title,
+            "questions": safe_qs,
+            "already_passed": lp.quiz_passed,
+            "attempts": lp.quiz_attempts,
+        })
+
+    # Generate quiz
+    quiz_data = generate_lesson_quiz(item.label, lesson_title, lesson_desc)
+    lp.quiz_questions = quiz_data
+    lp.lesson_title = lesson_title
+    lp.save(update_fields=['quiz_questions', 'lesson_title'])
+
+    safe_qs = [
+        {"question": q["question"], "options": q["options"]}
+        for q in quiz_data
+    ]
+    return Response({
+        "lesson_id": lp.lesson_id,
+        "lesson_title": lp.lesson_title,
+        "questions": safe_qs,
+        "already_passed": lp.quiz_passed,
+        "attempts": lp.quiz_attempts,
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def submit_lesson_quiz(request, item_id, lesson_id):
+    """
+    Submit answers for a lesson quiz. ≥70% = pass.
+    Awards 20 XP, logs activity, marks lesson complete.
+    """
+    user = request.user
+    item = get_object_or_404(UserRoadmapItem, id=item_id, user=user)
+
+    lp = LessonProgress.objects.filter(
+        user=user, roadmap_item=item, lesson_id=str(lesson_id)
+    ).first()
+    if not lp or not lp.quiz_questions:
+        return Response({"error": "Quiz not started. Call start-quiz first."}, status=400)
+
+    user_answers = request.data.get('answers', [])
+    time_spent = request.data.get('time_spent_seconds', 0)
+
+    if not isinstance(user_answers, list) or len(user_answers) != len(lp.quiz_questions):
+        return Response({
+            "error": f"Expected {len(lp.quiz_questions)} answers, got {len(user_answers) if isinstance(user_answers, list) else 0}"
+        }, status=400)
+
+    # Score
+    correct_count = 0
+    results = []
+    for i, question in enumerate(lp.quiz_questions):
+        user_answer = user_answers[i]
+        is_correct = user_answer == question.get("correct")
+        if is_correct:
+            correct_count += 1
+        results.append({
+            "question": question["question"],
+            "your_answer": user_answer,
+            "correct_answer": question["correct"],
+            "is_correct": is_correct,
+            "explanation": question.get("explanation", ""),
+        })
+
+    score = int((correct_count / len(lp.quiz_questions)) * 100)
+    passed = score >= 70
+
+    lp.quiz_answers = user_answers
+    lp.quiz_score = score
+    lp.quiz_attempts += 1
+    lp.time_spent_seconds = max(lp.time_spent_seconds, int(time_spent) if time_spent else 0)
+
+    xp_awarded = 0
+    if passed and not lp.quiz_passed:
+        lp.quiz_passed = True
+        lp.is_completed = True
+        lp.completed_at = timezone.now()
+        xp_awarded = 20
+        lp.xp_awarded = xp_awarded
+
+        # Award XP
+        user.community_xp = (user.community_xp or 0) + xp_awarded
+        user.save(update_fields=['community_xp'])
+
+        # Log activity for streak
+        today = datetime.now().date()
+        activity, _ = UserActivity.objects.get_or_create(user=user, date=today)
+        activity.count += 1
+        activity.save()
+
+        # Check if ALL lessons in this module are now complete
+        outline = item.lesson_data if isinstance(item.lesson_data, list) else []
+        if not outline:
+            outline = (item.resources or {}).get('lesson_outline') or []
+        total_lessons = len(outline)
+        completed_lessons = LessonProgress.objects.filter(
+            user=user, roadmap_item=item, is_completed=True
+        ).count()
+
+        all_done = total_lessons > 0 and completed_lessons >= total_lessons
+    else:
+        all_done = False
+
+    lp.save()
+
+    # Regenerate quiz on fail so next attempt has different questions
+    if not passed:
+        lesson_desc = ""
+        lessons_list = item.lesson_data if isinstance(item.lesson_data, list) else []
+        if not lessons_list:
+            lessons_list = (item.resources or {}).get('lesson_outline') or []
+        for les in lessons_list:
+            lid = les.get('id') or f"lesson_{les.get('order', 0)}"
+            if str(lid) == str(lesson_id):
+                lesson_desc = les.get('description', '')
+                break
+        new_quiz = generate_lesson_quiz(item.label, lp.lesson_title, lesson_desc)
+        lp.quiz_questions = new_quiz
+        lp.save(update_fields=['quiz_questions'])
+
+    return Response({
+        "score": score,
+        "passed": passed,
+        "results": results,
+        "attempts": lp.quiz_attempts,
+        "xp_awarded": xp_awarded,
+        "all_lessons_complete": all_done,
+        "time_warning": time_spent and int(time_spent) < 30,
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def update_lesson_confidence(request, item_id, lesson_id):
+    """Save self-assessed confidence rating for a lesson."""
+    user = request.user
+    item = get_object_or_404(UserRoadmapItem, id=item_id, user=user)
+    rating = request.data.get('confidence_rating')
+    if rating is None or not isinstance(rating, int) or not (0 <= rating <= 100):
+        return Response({"error": "confidence_rating must be 0-100"}, status=400)
+
+    lp, _ = LessonProgress.objects.get_or_create(
+        user=user, roadmap_item=item, lesson_id=str(lesson_id),
+        defaults={"lesson_title": f"Lesson {lesson_id}"},
+    )
+    lp.confidence_rating = rating
+    lp.save(update_fields=['confidence_rating'])
+
+    return Response({"lesson_id": lesson_id, "confidence_rating": rating})

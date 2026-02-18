@@ -497,3 +497,128 @@ def generate_quiz(module_label, description):
                 "explanation": f"{module_label} is primarily used for building applications."
             }
         ]
+
+
+def generate_lesson_quiz(module_label: str, lesson_title: str, lesson_description: str = ""):
+    """
+    Generate a 5-question MCQ quiz scoped to a single lesson.
+    Used as a gate before a lesson can be marked complete.
+    Cascade → Gemini fallback, same pattern as generate_quiz().
+    """
+    prompt = f"""
+    Create a 5-question multiple choice quiz for this specific lesson:
+
+    Module: {module_label}
+    Lesson: {lesson_title}
+    Lesson description: {lesson_description or 'N/A'}
+
+    Requirements:
+    - 5 questions testing practical understanding of THIS SPECIFIC LESSON topic only
+    - 4 options per question (A, B, C, D)
+    - Mix of conceptual and practical questions
+    - Include brief explanations for correct answers
+    - Questions should be clear and unambiguous
+    - Focus on key concepts a learner should know after studying this lesson
+    - Make questions slightly different each time (vary wording, examples, order)
+
+    Return ONLY valid JSON in this exact format (no markdown, no code blocks):
+    [
+      {{
+        "question": "Question text here?",
+        "options": ["Option A", "Option B", "Option C", "Option D"],
+        "correct": 0,
+        "explanation": "Why this is correct"
+      }}
+    ]
+    """
+
+    try:
+        try:
+            raw_text, _ = chat_completions_cascade(
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.6,
+                max_tokens=1400,
+                timeout=60,
+            )
+        except OpenRouterError as e:
+            print(f"Lesson quiz OpenRouter failed, falling back to Gemini: {e}")
+            raw_text = _call_gemini_text(prompt, temperature=0.6, timeout=(10, 60))
+
+        raw_text = raw_text.strip()
+        if raw_text.startswith('```'):
+            raw_text = raw_text.split('\n', 1)[1]
+            raw_text = raw_text.rsplit('```', 1)[0]
+        raw_text = raw_text.strip()
+
+        quiz_data = json.loads(raw_text)
+
+        # Validate structure
+        if not isinstance(quiz_data, list) or len(quiz_data) == 0:
+            raise ValueError("Quiz data is not a non-empty list")
+
+        for q in quiz_data:
+            if not all(k in q for k in ('question', 'options', 'correct', 'explanation')):
+                raise ValueError(f"Missing required keys in question: {q}")
+
+        return quiz_data[:5]  # cap at 5
+
+    except Exception as e:
+        print(f"Lesson Quiz Generation Error: {e}")
+        # Hardcoded fallback so the user isn't blocked
+        return [
+            {
+                "question": f"What is the primary focus of the lesson '{lesson_title}'?",
+                "options": [
+                    f"Understanding {lesson_title} concepts",
+                    "Database administration",
+                    "Network security fundamentals",
+                    "Mobile app deployment",
+                ],
+                "correct": 0,
+                "explanation": f"This lesson focuses on {lesson_title} within {module_label}.",
+            },
+            {
+                "question": f"Which best describes a key concept from '{lesson_title}'?",
+                "options": [
+                    "A practical skill taught in this lesson",
+                    "An unrelated historical fact",
+                    "A deprecated technology",
+                    "A hardware specification",
+                ],
+                "correct": 0,
+                "explanation": "The lesson teaches practical, relevant skills.",
+            },
+            {
+                "question": f"After completing '{lesson_title}', you should be able to:",
+                "options": [
+                    f"Apply {lesson_title} concepts in real projects",
+                    "Write a complete operating system",
+                    "Design physical circuit boards",
+                    "Manage an enterprise data center",
+                ],
+                "correct": 0,
+                "explanation": "Lessons focus on applicable, project-ready knowledge.",
+            },
+            {
+                "question": f"How does '{lesson_title}' relate to {module_label}?",
+                "options": [
+                    f"It builds foundational knowledge for {module_label}",
+                    "It is completely unrelated",
+                    "It only covers advanced topics",
+                    "It replaces the need for practice",
+                ],
+                "correct": 0,
+                "explanation": f"Each lesson builds toward mastery of {module_label}.",
+            },
+            {
+                "question": "What is the best approach to mastering this lesson's content?",
+                "options": [
+                    "Study the resources and practice hands-on",
+                    "Memorize definitions without context",
+                    "Skip to the next module immediately",
+                    "Only read the title of each resource",
+                ],
+                "correct": 0,
+                "explanation": "Hands-on practice reinforces theoretical knowledge.",
+            },
+        ]

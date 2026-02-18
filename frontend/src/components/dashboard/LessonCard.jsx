@@ -1,18 +1,23 @@
 import React, { useState } from 'react';
-import { ChevronDown, ChevronUp, CheckCircle, Circle, ExternalLink, PlayCircle, BookOpen, FileText } from 'lucide-react';
+import { ChevronDown, ChevronUp, CheckCircle, Circle, ExternalLink, PlayCircle, BookOpen, FileText, Bot } from 'lucide-react';
 import { Lock } from 'lucide-react';
 import { usePremium } from '../../premium/PremiumContext';
+import { useJada } from '../../jada/JadaContext';
+import { updateLessonConfidence } from '../../api';
 
 export default function LessonCard({ 
   lesson, 
   isCompleted, 
   onToggleComplete, 
   confidenceRating, 
-  onConfidenceChange 
+  onConfidenceChange,
+  itemId,
+  onQuizRequest,
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const { status, checkPremiumAccess } = usePremium();
   const isPremium = status?.is_premium;
+  const jada = useJada();
 
   const getPhaseColor = (phase) => {
     if (phase === 1) return '#58a6ff'; // Cyan for Foundations
@@ -46,9 +51,15 @@ export default function LessonCard({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onToggleComplete();
+              if (isCompleted) return; // Already done
+              if (onQuizRequest) {
+                onQuizRequest(lesson.id, lesson.title);
+              } else {
+                onToggleComplete();
+              }
             }}
             style={styles.checkbox}
+            aria-label={isCompleted ? 'Lesson completed' : 'Take quiz to complete lesson'}
           >
             {isCompleted ? (
               <CheckCircle size={20} color="#238636" />
@@ -213,7 +224,12 @@ export default function LessonCard({
                 {confidenceLevels.map((level) => (
                   <button
                     key={level.value}
-                    onClick={() => onConfidenceChange(level.value)}
+                    onClick={() => {
+                      onConfidenceChange(level.value);
+                      if (itemId) {
+                        updateLessonConfidence(itemId, lesson.id, level.value).catch(() => {});
+                      }
+                    }}
                     style={{
                       ...styles.confidenceButton,
                       background: confidenceRating === level.value 
@@ -233,6 +249,15 @@ export default function LessonCard({
               </div>
             </div>
           )}
+
+          {/* Ask Jada about this lesson */}
+          <button
+            onClick={() => jada.openChat(itemId || null)}
+            style={styles.askJadaBtn}
+          >
+            <Bot size={14} />
+            Ask Jada about this lesson
+          </button>
 
           {/* Completion Timestamp */}
           {isCompleted && lesson.completed_at && (
@@ -352,5 +377,22 @@ const styles = {
     fontFamily: 'JetBrains Mono',
     cursor: 'pointer',
     transition: 'all 0.2s'
+  },
+  askJadaBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    marginTop: '16px',
+    padding: '8px 12px',
+    background: 'rgba(6, 182, 212, 0.08)',
+    border: '1px solid rgba(6, 182, 212, 0.2)',
+    borderRadius: '8px',
+    color: '#06b6d4',
+    fontSize: '12px',
+    fontFamily: 'JetBrains Mono',
+    cursor: 'pointer',
+    transition: 'all 0.15s',
+    width: '100%',
+    justifyContent: 'center',
   }
 };

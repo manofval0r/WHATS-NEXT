@@ -92,6 +92,13 @@ urlpatterns = [
     path('api/jada/chat/', views.jada_chat, name='jada_chat'),
     path('api/jada/conversations/', views.jada_conversations, name='jada_conversations'),
     path('api/jada/conversations/<int:conversation_id>/', views.jada_conversation_detail, name='jada_conversation_detail'),
+    path('api/jada/conversations/<int:conversation_id>/context/', views.jada_switch_context, name='jada_switch_context'),
+
+    # --- LESSON PROGRESS & QUIZ GATES ---
+    path('api/modules/<int:item_id>/lesson-progress/', views.get_lesson_progress, name='get_lesson_progress'),
+    path('api/modules/<int:item_id>/lessons/<str:lesson_id>/start-quiz/', views.start_lesson_quiz, name='start_lesson_quiz'),
+    path('api/modules/<int:item_id>/lessons/<str:lesson_id>/submit-quiz/', views.submit_lesson_quiz, name='submit_lesson_quiz'),
+    path('api/modules/<int:item_id>/lessons/<str:lesson_id>/confidence/', views.update_lesson_confidence, name='update_lesson_confidence'),
 
     # --- SOCIAL: FOLLOWING ---
     path('api/social/follow/', views.follow_user, name='follow_user'),

@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { emitJadaEvent, onJadaEvent } from './jadaEvents';
+import { jadaChat as jadaChatApi, jadaConversationDetail, jadaSwitchContext as jadaSwitchContextApi } from '../api';
 
 const JadaContext = createContext(null);
 
@@ -13,15 +14,12 @@ function routeProfileForPathname(pathname) {
   if (pathname === '/') {
     return { anchor: 'right', sizePx: 148 };
   }
-
   if (pathname.startsWith('/dashboard') || pathname.startsWith('/roadmap') || pathname.startsWith('/module')) {
     return { anchor: 'left', sizePx: 132 };
   }
-
   if (pathname.startsWith('/community') || pathname.startsWith('/resources')) {
     return { anchor: 'right', sizePx: 124 };
   }
-
   return DEFAULT_ROUTE_PROFILE;
 }
 
@@ -32,57 +30,61 @@ function clamp(n, min, max) {
 export function JadaProvider({ children }) {
   const location = useLocation();
 
-  const [mode, setMode] = useState('idle'); // idle | thinking | success | error | celebrate
-  const [speech, setSpeech] = useState(null); // { text, tone }
+  const [mode, setMode] = useState('idle');
+  const [speech, setSpeech] = useState(null);
   const [anchor, setAnchor] = useState(DEFAULT_ROUTE_PROFILE.anchor);
   const [sizePx, setSizePx] = useState(DEFAULT_ROUTE_PROFILE.sizePx);
 
   const pendingRequestsRef = useRef(new Set());
   const thinkingDelayRef = useRef(null);
-
   const fullscreenOverlayCountRef = useRef(0);
   const [isHidden, setIsHidden] = useState(false);
 
+  /* ── Chat state ──────────────────────────────────────────────── */
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [activeConversationId, setActiveConversationId] = useState(null);
+  const [contextModuleId, setContextModuleId] = useState(null);
+  const [contextModuleLabel, setContextModuleLabel] = useState(null);
+  const [isTyping, setIsTyping] = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
+  const [preferredModel, setPreferredModel] = useState('auto');
+  const [lastOptions, setLastOptions] = useState([]);
+
+  /* ── Route-based avatar positioning ──────────────────────────── */
   useEffect(() => {
     const profile = routeProfileForPathname(location.pathname);
     setAnchor(profile.anchor);
-
-    // Slightly shrink on small screens.
-    const isSmall = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
+    const isSmall = typeof window !== 'undefined' && window.matchMedia?.('(max-width: 768px)').matches;
     setSizePx(isSmall ? clamp(profile.sizePx - 18, 92, 150) : profile.sizePx);
 
-    // Landing gets a little greeting.
     if (location.pathname === '/') {
       setSpeech({ text: 'Build your next move — I\'ll guide you.', tone: 'warm' });
       setMode('idle');
     }
   }, [location.pathname]);
 
+  /* ── Event bus listeners ─────────────────────────────────────── */
   useEffect(() => {
     const offStart = onJadaEvent('request:start', ({ id, hint }) => {
       if (!id) return;
       pendingRequestsRef.current.add(id);
-
-      // Don’t instantly flip to thinking (avoids flicker on fast requests).
       if (!thinkingDelayRef.current) {
         thinkingDelayRef.current = window.setTimeout(() => {
           thinkingDelayRef.current = null;
           if (pendingRequestsRef.current.size > 0) setMode('thinking');
         }, 250);
       }
-
       if (hint?.text) setSpeech({ text: hint.text, tone: hint.tone || 'neutral' });
     });
 
     const offEnd = onJadaEvent('request:end', ({ id, ok }) => {
       if (id) pendingRequestsRef.current.delete(id);
-
       if (pendingRequestsRef.current.size === 0) {
         if (thinkingDelayRef.current) {
           window.clearTimeout(thinkingDelayRef.current);
           thinkingDelayRef.current = null;
         }
-
         if (ok === false) {
           setMode('error');
           setSpeech({ text: 'That didn\'t land. Want to try again?', tone: 'error' });
@@ -101,63 +103,116 @@ export function JadaProvider({ children }) {
       setSpeech({ text, tone: tone || 'neutral' });
     });
 
-    return () => {
-      offStart();
-      offEnd();
-      offSpeak();
-    };
+    return () => { offStart(); offEnd(); offSpeak(); };
   }, []);
 
-  const api = useMemo(() => {
-    return {
-      mode,
-      speech,
-      anchor,
-      sizePx,
-      isHidden,
+  /* ── Chat methods ────────────────────────────────────────────── */
 
-      setSpeech: (text, tone = 'neutral') => {
-        setSpeech(text ? { text, tone } : null);
-      },
+  const openChat = useCallback(async (moduleId = null) => {
+    setIsChatOpen(true);
+    if (moduleId) setContextModuleId(moduleId);
 
-      nudge: (text, tone = 'neutral') => emitJadaEvent('speech', { text, tone }),
+    if (activeConversationId) {
+      try {
+        const res = await jadaConversationDetail(activeConversationId);
+        setChatMessages(
+          (res.data.messages || [])
+            .filter((m) => m.role !== 'system')
+            .map((m) => ({ role: m.role === 'jada' ? 'assistant' : m.role, content: m.content, created_at: m.created_at }))
+        );
+        if (res.data.module) setContextModuleLabel(res.data.module);
+      } catch { /* fresh chat */ }
+    }
+  }, [activeConversationId]);
 
-      setMode: (nextMode) => setMode(nextMode),
+  const closeChat = useCallback(() => setIsChatOpen(false), []);
 
-      celebrate: (text = 'Nice.') => {
-        setMode('celebrate');
-        setSpeech({ text, tone: 'success' });
-        window.setTimeout(() => setMode('idle'), 1200);
-      },
+  const sendMessage = useCallback(async (text) => {
+    if (!text.trim()) return;
+    setChatMessages((prev) => [...prev, { role: 'user', content: text, created_at: new Date().toISOString() }]);
+    setIsTyping(true);
+    setSuggestions([]);
+    setLastOptions([]);
 
-      acquireFullscreenOverlay: () => {
-        fullscreenOverlayCountRef.current += 1;
-        setIsHidden(true);
+    try {
+      const res = await jadaChatApi(text, activeConversationId, 'general', contextModuleId, preferredModel);
+      const d = res.data;
+      if (d.conversation_id && d.conversation_id !== activeConversationId) setActiveConversationId(d.conversation_id);
+      if (d.module_label) setContextModuleLabel(d.module_label);
+      if (d.module_id) setContextModuleId(d.module_id);
+      setChatMessages((prev) => [...prev, { role: 'assistant', content: d.reply, created_at: new Date().toISOString() }]);
+      if (d.suggestions && d.suggestions.length > 0) setSuggestions(d.suggestions);
+      if (d.options && d.options.length > 0) setLastOptions(d.options);
+    } catch {
+      setChatMessages((prev) => [...prev, { role: 'assistant', content: "Sorry, I couldn't connect. Try again shortly.", created_at: new Date().toISOString() }]);
+    } finally {
+      setIsTyping(false);
+    }
+  }, [activeConversationId, contextModuleId, preferredModel]);
 
-        let released = false;
-        return () => {
-          if (released) return;
-          released = true;
-          fullscreenOverlayCountRef.current = Math.max(0, fullscreenOverlayCountRef.current - 1);
-          if (fullscreenOverlayCountRef.current === 0) setIsHidden(false);
-        };
-      },
+  const switchModule = useCallback(async (moduleId, moduleLabel = null) => {
+    setContextModuleId(moduleId);
+    if (moduleLabel) setContextModuleLabel(moduleLabel);
+    if (activeConversationId && moduleId) {
+      try {
+        const res = await jadaSwitchContextApi(activeConversationId, moduleId);
+        if (res.data.module_label) setContextModuleLabel(res.data.module_label);
+        setChatMessages((prev) => [...prev, { role: 'system', content: `Context switched to: ${res.data.module_label || moduleLabel}`, created_at: new Date().toISOString() }]);
+      } catch { /* silent */ }
+    }
+  }, [activeConversationId]);
 
-      // For simple toggles (not reference-counted).
-      setHidden: (hidden) => {
-        fullscreenOverlayCountRef.current = hidden ? Math.max(1, fullscreenOverlayCountRef.current) : 0;
-        setIsHidden(hidden);
-      },
-    };
-  }, [anchor, isHidden, mode, sizePx, speech]);
+  const startNewChat = useCallback(() => {
+    setActiveConversationId(null);
+    setChatMessages([]);
+    setSuggestions([]);
+    setLastOptions([]);
+  }, []);
+
+  /* ── Exposed API ─────────────────────────────────────────────── */
+
+  const api = useMemo(() => ({
+    mode, speech, anchor, sizePx, isHidden,
+
+    // Chat state
+    isChatOpen, chatMessages, activeConversationId, contextModuleId, contextModuleLabel, isTyping, suggestions, preferredModel, lastOptions,
+
+    // Chat methods
+    openChat, closeChat, sendMessage, switchModule, startNewChat, setPreferredModel, setLastOptions,
+
+    setSpeech: (text, tone = 'neutral') => setSpeech(text ? { text, tone } : null),
+    nudge: (text, tone = 'neutral') => emitJadaEvent('speech', { text, tone }),
+    setMode: (nextMode) => setMode(nextMode),
+
+    celebrate: (text = 'Nice.') => {
+      setMode('celebrate');
+      setSpeech({ text, tone: 'success' });
+      window.setTimeout(() => setMode('idle'), 1200);
+    },
+
+    acquireFullscreenOverlay: () => {
+      fullscreenOverlayCountRef.current += 1;
+      setIsHidden(true);
+      let released = false;
+      return () => {
+        if (released) return;
+        released = true;
+        fullscreenOverlayCountRef.current = Math.max(0, fullscreenOverlayCountRef.current - 1);
+        if (fullscreenOverlayCountRef.current === 0) setIsHidden(false);
+      };
+    },
+
+    setHidden: (hidden) => {
+      fullscreenOverlayCountRef.current = hidden ? Math.max(1, fullscreenOverlayCountRef.current) : 0;
+      setIsHidden(hidden);
+    },
+  }), [anchor, isHidden, mode, sizePx, speech, isChatOpen, chatMessages, activeConversationId, contextModuleId, contextModuleLabel, isTyping, preferredModel, lastOptions, openChat, closeChat, sendMessage, switchModule, startNewChat]);
 
   return <JadaContext.Provider value={api}>{children}</JadaContext.Provider>;
 }
 
 export function useJada() {
   const ctx = useContext(JadaContext);
-  if (!ctx) {
-    throw new Error('useJada must be used within <JadaProvider>');
-  }
+  if (!ctx) throw new Error('useJada must be used within <JadaProvider>');
   return ctx;
 }

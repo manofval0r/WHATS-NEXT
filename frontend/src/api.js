@@ -70,10 +70,21 @@ export const suggestRole = (course, role) =>
   api.post('/api/roles/suggest/', { course, chosen_role: role });
 
 // JADA AI
-export const jadaChat = (message, conversationId = null, mode = 'general') =>
-  api.post('/api/jada/chat/', { message, conversation_id: conversationId, mode });
+export const jadaChat = (message, conversationId = null, mode = 'general', moduleId = null, preferredModel = 'auto') =>
+  api.post('/api/jada/chat/', { message, conversation_id: conversationId, mode, module_id: moduleId, preferred_model: preferredModel });
 export const jadaConversations = () => api.get('/api/jada/conversations/');
 export const jadaConversationDetail = (id) => api.get(`/api/jada/conversations/${id}/`);
+export const jadaSwitchContext = (conversationId, moduleId) =>
+  api.patch(`/api/jada/conversations/${conversationId}/context/`, { module_id: moduleId });
+
+// Lesson Progress & Quiz Gates
+export const getLessonProgress = (itemId) => api.get(`/api/modules/${itemId}/lesson-progress/`);
+export const startLessonQuiz = (itemId, lessonId) =>
+  api.post(`/api/modules/${itemId}/lessons/${lessonId}/start-quiz/`);
+export const submitLessonQuiz = (itemId, lessonId, answers, timeSpent = 0) =>
+  api.post(`/api/modules/${itemId}/lessons/${lessonId}/submit-quiz/`, { answers, time_spent_seconds: timeSpent });
+export const updateLessonConfidence = (itemId, lessonId, rating) =>
+  api.post(`/api/modules/${itemId}/lessons/${lessonId}/confidence/`, { confidence_rating: rating });
 
 // Social / Following
 export const followUser = (userId) => api.post('/api/social/follow/', { user_id: userId });
