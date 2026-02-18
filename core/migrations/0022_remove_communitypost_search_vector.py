@@ -10,8 +10,6 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RemoveField(
-            model_name='communitypost',
-            name='search_vector',
-        ),
+        # search_vector was removed from 0018 before ever being applied;
+        # this migration is kept as a no-op to preserve the dependency chain.
     ]

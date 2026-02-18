@@ -84,11 +84,6 @@ class Migration(migrations.Migration):
         migrations.DeleteModel(
             name='JobPosting',
         ),
-        migrations.AddField(
-            model_name='communitypost',
-            name='search_vector',
-            field=models.GeneratedField(db_persist=False, expression=django.db.models.expressions.CombinedExpression(django.db.models.expressions.CombinedExpression(models.F('title'), '+', models.Value(' ')), '+', models.F('content')), output_field=models.TextField()),
-        ),
         migrations.AddIndex(
             model_name='savedresource',
             index=models.Index(fields=['user', '-saved_at'], name='core_savedr_user_id_cba630_idx'),
