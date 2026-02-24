@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { GoeyToaster } from 'goey-toast';
 import Landing from './Landing';
 import AuthPage from './AuthPage';
 import ProfilePage from './ProfilePage';
@@ -61,6 +62,7 @@ export default function App() {
       <Router>
         <JadaProvider>
           <JadaOverlay />
+          <GoeyToaster position="bottom-right" theme="dark" />
           <Routes>
           {/* Public Route - Landing Page */}
           <Route path="/" element={<LandingRoute />} />

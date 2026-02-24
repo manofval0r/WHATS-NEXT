@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import api from './api';
+import api, { jadaClaimGuest } from './api';
+import { getGuestSessionId } from './jada/JadaGuestBubble';
 import { usePostHogApp } from './PostHogProvider';
 
 export default function AuthCallback() {
@@ -36,6 +37,13 @@ export default function AuthCallback() {
                         target_career: profile.target_career || '',
                     });
                     capture('user_signed_up', { method: 'oauth' });
+
+                    // Claim any guest JADA conversations
+                    const guestSid = getGuestSessionId();
+                    if (guestSid) {
+                        jadaClaimGuest(guestSid).catch(() => {});
+                        sessionStorage.removeItem('jada_guest_session');
+                    }
 
                     // Always send to onboarding — the wizard has a skip-guard
                     // that will redirect to /dashboard if user already has a career

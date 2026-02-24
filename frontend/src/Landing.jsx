@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { BookOpen, ChevronRight, Github, Zap, Brain, TrendingUp, Users, Award, CheckCircle, ArrowRight, MessageSquare, Sparkles, MousePointer2 } from 'lucide-react';
 import { motion, useInView } from 'framer-motion';
 import Button from './components/common/Button';
+import JadaGuestBubble from './jada/JadaGuestBubble';
 import './Landing.css';
 
 // Typewriter Hook
@@ -754,6 +755,9 @@ export default function Landing() {
                 </div>
            </div>
       </footer>
+
+      {/* JADA Guest Chat Bubble */}
+      <JadaGuestBubble />
     </div>
   );
 }

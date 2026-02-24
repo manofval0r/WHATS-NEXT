@@ -32,6 +32,13 @@ class User(AbstractUser):
     # Using a seed avoids avatars changing when the username changes.
     avatar_seed = models.UUIDField(default=uuid.uuid4, editable=False)
 
+    # Persistent avatar URL — stored once so it never regenerates.
+    avatar_url = models.URLField(
+        blank=True,
+        default='',
+        help_text='Persisted DiceBear avatar URL. Set once from avatar_seed.'
+    )
+
     # Username change cooldown tracking.
     last_username_change_at = models.DateTimeField(null=True, blank=True)
     university_course_raw = models.CharField(max_length=255, blank=True, help_text="User's input (e.g. 'Bsc Acctng')")
@@ -711,7 +718,15 @@ class JadaConversation(models.Model):
     A chat session between a user and JADA.
     Stores context so JADA can remember technical debt, progress, etc.
     """
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='jada_conversations')
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='jada_conversations',
+        null=True, blank=True,
+        help_text='Null for guest (pre-signup) conversations'
+    )
+    session_id = models.UUIDField(
+        null=True, blank=True, db_index=True,
+        help_text='Anonymous session ID for guest conversations'
+    )
     context_module = models.ForeignKey(
         UserRoadmapItem, on_delete=models.SET_NULL, null=True, blank=True,
         help_text='Module context for this conversation'
@@ -724,6 +739,7 @@ class JadaConversation(models.Model):
             ('review', 'Code Review'),
             ('manager', 'Manager Mode'),
             ('architect', 'Architect Mode'),
+            ('consultant', 'Career Consultant'),
         ]
     )
     started_at = models.DateTimeField(auto_now_add=True)
@@ -733,7 +749,8 @@ class JadaConversation(models.Model):
         ordering = ['-last_message_at']
 
     def __str__(self):
-        return f"JADA chat: {self.user.username} ({self.mode})"
+        name = self.user.username if self.user else f'guest-{self.session_id}'
+        return f"JADA chat: {name} ({self.mode})"
 
 
 class JadaMessage(models.Model):

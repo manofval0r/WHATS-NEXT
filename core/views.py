@@ -21,8 +21,24 @@ from datetime import datetime, timedelta
 from django.db import transaction
 
 from django.utils import timezone
-from django.db.models import Count
+from django.db.models import Count, F
+from django.db.models.functions import Greatest
 import re
+
+
+# ==========================================
+# AVATAR PERSISTENCE HELPER
+# ==========================================
+
+def ensure_avatar_url(user):
+    """Ensure the user has a persistent avatar_url. Set it once from avatar_seed."""
+    if user.avatar_url:
+        return user.avatar_url
+    seed = str(user.avatar_seed) if user.avatar_seed else user.username
+    url = f"https://api.dicebear.com/7.x/identicon/svg?seed={seed}"
+    User.objects.filter(pk=user.pk).update(avatar_url=url)
+    user.avatar_url = url
+    return url
 
 
 # ==========================================
@@ -371,12 +387,33 @@ def complete_onboarding(request):
 
     # Load role template from catalog
     template = get_role_template(role_key)
-    if not template:
+    custom_niche = request.data.get('custom_niche', '').strip()
+
+    # If role is 'custom' or not found in catalog, generate dynamically via AI
+    is_custom_role = role_key == 'custom' or (not template and custom_niche)
+    if is_custom_role:
+        if not custom_niche and niche:
+            custom_niche = niche
+        if not custom_niche:
+            return Response({"error": "Please provide a career description for custom roles"}, status=400)
+    elif not template:
         return Response({"error": f"Role '{role_key}' is not available yet"}, status=400)
 
     try:
+        # Determine the role title and module data
+        if is_custom_role:
+            role_title = custom_niche.title()
+            # Generate custom roadmap via AI
+            from .ai_logic import generate_detailed_roadmap
+            modules = generate_detailed_roadmap(custom_niche, university_course, budget)
+            if not modules or len(modules) == 0:
+                return Response({"error": "Failed to generate a custom roadmap. Please try a different role."}, status=500)
+        else:
+            role_title = template["title"]
+            modules = template["modules"]
+
         # Update user profile
-        user.target_career = template["title"]
+        user.target_career = role_title
         user.university_course_raw = university_course
         user.budget_preference = budget
         if gender:
@@ -387,10 +424,9 @@ def complete_onboarding(request):
             user.current_level = level_map[level]
         user.save()
 
-        # Clear existing roadmap and load from template
+        # Clear existing roadmap and load modules
         UserRoadmapItem.objects.filter(user=user).delete()
 
-        modules = template["modules"]
         created_items = []
         for i, module_data in enumerate(modules):
             item_status = 'active' if i == 0 else 'locked'
@@ -413,21 +449,23 @@ def complete_onboarding(request):
             )
             created_items.append(item)
 
-        print(f"[ONBOARDING] Loaded {len(created_items)} modules from '{role_key}' template for {user.username}")
+        source = 'ai-generated' if is_custom_role else role_key
+        print(f"[ONBOARDING] Loaded {len(created_items)} modules from '{source}' for {user.username}")
 
         # PostHog: track onboarding completion
         ph_capture(user, 'onboarding_completed', {
-            'role': role_key,
-            'role_title': template['title'],
+            'role': role_key if not is_custom_role else 'custom',
+            'role_title': role_title,
             'level': level,
             'module_count': len(created_items),
+            'is_custom': is_custom_role,
         })
 
         return Response({
             "message": "Onboarding complete! Roadmap loaded.",
             "modules_created": len(created_items),
-            "role": role_key,
-            "role_title": template["title"],
+            "role": role_key if not is_custom_role else 'custom',
+            "role_title": role_title,
         }, status=200)
 
     except Exception as e:
@@ -1633,15 +1671,13 @@ class CommunityPostViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
-        author = self.request.user
-        author.community_xp = (author.community_xp or 0) + 10
-        author.save(update_fields=['community_xp'])
+        User.objects.filter(pk=self.request.user.pk).update(community_xp=F('community_xp') + 10)
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
-        # Increment view count
-        instance.view_count += 1
-        instance.save()
+        # Atomic view count increment
+        CommunityPost.objects.filter(pk=instance.pk).update(view_count=F('view_count') + 1)
+        instance.refresh_from_db()
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
 
@@ -1654,14 +1690,14 @@ class CommunityPostViewSet(viewsets.ModelViewSet):
             vote = PostVote.objects.get(user=user, post=post)
             # Toggle vote (remove if exists)
             vote.delete()
-            post.upvotes = max(0, post.upvotes - 1)
+            CommunityPost.objects.filter(pk=post.pk).update(upvotes=Greatest(F('upvotes') - 1, 0))
             voted = False
         except PostVote.DoesNotExist:
             PostVote.objects.create(user=user, post=post, vote_type='post')
-            post.upvotes += 1
+            CommunityPost.objects.filter(pk=post.pk).update(upvotes=F('upvotes') + 1)
             voted = True
             
-        post.save()
+        post.refresh_from_db()
         return Response({'upvotes': post.upvotes, 'voted': voted})
 
     @action(detail=True, methods=['post'], url_path='mark-solved')
@@ -1694,13 +1730,9 @@ class CommunityReplyViewSet(viewsets.ModelViewSet):
         post = get_object_or_404(CommunityPost, id=post_id)
         serializer.save(author=self.request.user, post=post)
         
-        # Update reply count on post
-        post.reply_count += 1
-        post.save()
-
-        author = self.request.user
-        author.community_xp = (author.community_xp or 0) + 5
-        author.save(update_fields=['community_xp'])
+        # Atomic reply count and XP increment
+        CommunityPost.objects.filter(pk=post.pk).update(reply_count=F('reply_count') + 1)
+        User.objects.filter(pk=self.request.user.pk).update(community_xp=F('community_xp') + 5)
 
     @action(detail=True, methods=['post'])
     def upvote(self, request, pk=None):
@@ -1710,14 +1742,14 @@ class CommunityReplyViewSet(viewsets.ModelViewSet):
         try:
             vote = PostVote.objects.get(user=user, reply=reply)
             vote.delete()
-            reply.upvotes = max(0, reply.upvotes - 1)
+            CommunityReply.objects.filter(pk=reply.pk).update(upvotes=Greatest(F('upvotes') - 1, 0))
             voted = False
         except PostVote.DoesNotExist:
             PostVote.objects.create(user=user, reply=reply, vote_type='reply')
-            reply.upvotes += 1
+            CommunityReply.objects.filter(pk=reply.pk).update(upvotes=F('upvotes') + 1)
             voted = True
             
-        reply.save()
+        reply.refresh_from_db()
         return Response({'upvotes': reply.upvotes, 'voted': voted})
 
     @action(detail=True, methods=['post'])
@@ -1876,8 +1908,7 @@ def verify_project(request, item_id):
     else:
         # New vote - award rep if upvote
         if vote_type == 'up':
-            item.user.reputation_score += 10
-            item.user.save()
+            User.objects.filter(pk=item.user_id).update(reputation_score=F('reputation_score') + 10)
 
     # Recalculate counts
     upvotes = item.reviews.filter(vote_type='up').count()
@@ -1905,6 +1936,7 @@ def update_settings(request):
             "username": user.username,
             "gender": getattr(user, 'gender', 'unspecified'),
             "avatar_seed": str(getattr(user, 'avatar_seed', '')) if getattr(user, 'avatar_seed', None) else None,
+            "avatar_url": ensure_avatar_url(user),
             "last_username_change_at": user.last_username_change_at.isoformat() if getattr(user, 'last_username_change_at', None) else None,
             "budget_preference": user.budget_preference,
             "profile_visibility": getattr(user, 'profile_visibility', 'public'),
@@ -2041,8 +2073,8 @@ def track_cv_export(request):
             "plan_tier": user.plan_tier
         }, status=403)
 
-    user.cv_exports_count += 1
-    user.save(update_fields=['cv_exports_count'])
+    User.objects.filter(pk=user.pk).update(cv_exports_count=F('cv_exports_count') + 1)
+    user.refresh_from_db()
 
     remaining = max(FREE_CV_EXPORT_LIMIT - user.cv_exports_count, 0)
     return Response({
@@ -2940,10 +2972,12 @@ def apply_to_job(request, job_id):
 from .openrouter_client import chat_completions_cascade, OpenRouterError
 
 JADA_SYSTEM_PROMPT = (
-    "You are JADA — a friendly, proactive AI career coach for aspiring developers. "
+    "You are JADA — a friendly, confident AI career coach for aspiring developers. "
     "Keep answers concise (under 200 words unless asked for detail). "
     "Reference the user's current module and progress when possible. "
-    "If a question is vague, ask a clarifying question. "
+    "Be decisive — give clear recommendations rather than asking follow-up questions. "
+    "Only ask a question when you genuinely need information you cannot infer. "
+    "Default to giving actionable advice, not asking what the user wants. "
     "Use code blocks with language tags when showing code. "
     "Never make up URLs or resources.\n\n"
     "FORMATTING RULES (you are rendering in a chat bubble with markdown support):\n"
@@ -2953,7 +2987,8 @@ JADA_SYSTEM_PROMPT = (
     "- Keep tables simple and small (max 3-4 columns). Prefer bullet lists over tables when possible.\n"
     "- Use short paragraphs (2-3 sentences max per paragraph).\n"
     "- Separate sections with a blank line, never use --- horizontal rules.\n\n"
-    "INTERACTIVE QUESTION FORMAT — use these EXACT markers on their own line:\n"
+    "INTERACTIVE QUESTION FORMAT — use these markers ONLY when you need the user to make a real choice:\n"
+    "Do NOT use interactive markers for rhetorical questions or when you can make the decision yourself.\n"
     "When you want the user to pick ONE option, write:\n"
     "[SINGLE_SELECT]\n"
     "Question text here\n"
@@ -2966,7 +3001,7 @@ JADA_SYSTEM_PROMPT = (
     "For true/false questions, write:\n"
     "[TRUE_FALSE]\n"
     "Statement to evaluate here\n\n"
-    "QUIZ FORMAT — when giving a quiz with multiple questions, use:\n"
+    "QUIZ FORMAT — when the user explicitly asks for a quiz, use:\n"
     "[QUIZ_START] Quiz Title Here\n"
     "[QUIZ_Q1]\n"
     "[SINGLE_SELECT]\n"
@@ -2977,9 +3012,38 @@ JADA_SYSTEM_PROMPT = (
     "[TRUE_FALSE]\n"
     "Statement\n"
     "[QUIZ_END]\n\n"
-    "IMPORTANT: Use these markers whenever asking questions or giving quizzes. "
-    "Always include at least 2 options for select questions. "
-    "For quizzes, include 3-5 questions. Each quiz question MUST have a type marker.\n"
+    "Only use quiz format when the user asks for a quiz or assessment. "
+    "For regular questions, default to giving answers, not asking more questions.\n"
+)
+
+# Career Consultant system prompt — used for guest and onboarding conversations
+CONSULTANT_SYSTEM_PROMPT = (
+    "You are JADA — an expert AI Career Consultant helping people discover the perfect tech career path. "
+    "You are warm, insightful, and decisive. You listen carefully, then give confident recommendations.\n\n"
+    "YOUR APPROACH:\n"
+    "1. Start with a brief, friendly greeting and ask ONE focused question about the user's background "
+    "   (e.g., what they studied, what interests them, any coding experience).\n"
+    "2. Based on their answer, ask ONE more question to narrow down (e.g., do they prefer building things "
+    "   people see, working with data, or solving infrastructure problems?).\n"
+    "3. After 2-3 exchanges maximum, give a CONFIDENT recommendation with a specific career path.\n"
+    "4. Do NOT keep asking questions endlessly. Be decisive after gathering minimal context.\n\n"
+    "RECOMMENDATION FORMAT (use after gathering enough info):\n"
+    "[CAREER_RECOMMENDATION]\n"
+    "### Your Recommended Path: {Role Name}\n"
+    "**Why this fits you**: 2-3 sentences explaining the match.\n"
+    "**What you'll learn**: Key technologies and skills.\n"
+    "**Career outlook**: Salary range and demand level.\n"
+    "**Time to job-ready**: Estimated months.\n\n"
+    "IMPORTANT RULES:\n"
+    "- You are NOT limited to predefined roles. Recommend ANY tech career that fits "
+    "  (e.g., AI Prompt Engineer, Cloud Security Analyst, Blockchain Developer, Technical Writer, "
+    "  Data Engineer, DevRel, QA Automation, etc.).\n"
+    "- If the user's background suggests a non-standard path, recommend it confidently.\n"
+    "- Always explain WHY the path fits their specific background and interests.\n"
+    "- If someone has no tech background, suggest beginner-friendly paths and explain the transition.\n"
+    "- Keep answers concise. Max 3 questions before recommending.\n"
+    "- Use the same formatting rules as general JADA (###, **bold**, bullet lists, short paragraphs).\n"
+    "- After recommending, offer: 'Want me to generate a personalized roadmap for this path?'\n"
 )
 
 # Cascade models per complexity — fast free models first, heavier for technical
@@ -3315,13 +3379,17 @@ def _build_jada_context(user, module):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def jada_chat(request):
     """
     Send a message to JADA. Uses cascade model routing.
-    Body: { message, conversation_id?, mode?, module_id?, preferred_model? }
+    Supports both authenticated users and guest sessions.
+    Body: { message, conversation_id?, mode?, module_id?, preferred_model?, session_id? }
     """
-    user = request.user
+    import uuid as _uuid
+
+    user = request.user if request.user.is_authenticated else None
+    is_guest = user is None
     message = request.data.get('message', '').strip()
 
     if not message:
@@ -3333,28 +3401,52 @@ def jada_chat(request):
     conversation_id = request.data.get('conversation_id')
     module_id = request.data.get('module_id')
     preferred_model = request.data.get('preferred_model', 'auto')
+    session_id = request.data.get('session_id')
     if preferred_model not in JADA_ALLOWED_MODELS:
         preferred_model = 'auto'
+
+    # Guests must use consultant mode and provide a session_id
+    if is_guest:
+        mode = 'consultant'
+        if not session_id:
+            session_id = str(_uuid.uuid4())
+        # Rate-limit guests: max 20 messages per session
+        if conversation_id:
+            msg_count = JadaMessage.objects.filter(
+                conversation_id=conversation_id, role='user'
+            ).count()
+            if msg_count >= 20:
+                return Response({
+                    "error": "Guest message limit reached. Sign up to continue chatting with JADA!",
+                    "limit_reached": True,
+                }, status=429)
 
     # Get or create conversation
     conversation = None
     if conversation_id:
-        conversation = JadaConversation.objects.filter(id=conversation_id, user=user).first()
+        if is_guest:
+            conversation = JadaConversation.objects.filter(
+                id=conversation_id, session_id=session_id, user__isnull=True
+            ).first()
+        else:
+            conversation = JadaConversation.objects.filter(id=conversation_id, user=user).first()
 
     if not conversation:
-        # Resolve module context
+        # Resolve module context (only for authenticated users)
         context_module = None
-        if module_id:
-            context_module = UserRoadmapItem.objects.filter(id=module_id, user=user).first()
-        if not context_module:
-            context_module = UserRoadmapItem.objects.filter(user=user, status='active').first()
+        if not is_guest:
+            if module_id:
+                context_module = UserRoadmapItem.objects.filter(id=module_id, user=user).first()
+            if not context_module:
+                context_module = UserRoadmapItem.objects.filter(user=user, status='active').first()
 
         conversation = JadaConversation.objects.create(
             user=user,
+            session_id=session_id if is_guest else None,
             context_module=context_module,
             mode=mode,
         )
-    elif module_id:
+    elif module_id and not is_guest:
         # Update module context if explicitly provided on existing conversation
         new_mod = UserRoadmapItem.objects.filter(id=module_id, user=user).first()
         if new_mod and new_mod != conversation.context_module:
@@ -3365,12 +3457,15 @@ def jada_chat(request):
     history = list(conversation.messages.order_by('-created_at')[:20])
     history.reverse()
 
-    messages_payload = [{"role": "system", "content": JADA_SYSTEM_PROMPT}]
+    # Select system prompt based on mode
+    system_prompt = CONSULTANT_SYSTEM_PROMPT if mode == 'consultant' else JADA_SYSTEM_PROMPT
+    messages_payload = [{"role": "system", "content": system_prompt}]
 
-    # Rich context injection
-    ctx = _build_jada_context(user, conversation.context_module)
-    if ctx:
-        messages_payload.append({"role": "system", "content": ctx})
+    # Rich context injection (only for authenticated users with roadmap data)
+    if not is_guest:
+        ctx = _build_jada_context(user, conversation.context_module)
+        if ctx:
+            messages_payload.append({"role": "system", "content": ctx})
 
     for msg in history:
         messages_payload.append({
@@ -3448,6 +3543,7 @@ def jada_chat(request):
     return Response({
         "reply": clean_reply,
         "conversation_id": conversation.id,
+        "session_id": conversation.session_id,
         "model_used": model_used,
         "complexity": complexity,
         "module_id": conversation.context_module_id,
@@ -3483,6 +3579,25 @@ def jada_switch_context(request, conversation_id):
         })
 
     return Response({"error": "module_id is required"}, status=400)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def jada_claim_guest(request):
+    """
+    Claim guest conversations after signup/login.
+    Links all conversations from a guest session_id to the authenticated user.
+    Body: { session_id }
+    """
+    session_id = request.data.get('session_id')
+    if not session_id:
+        return Response({"error": "session_id is required"}, status=400)
+
+    claimed = JadaConversation.objects.filter(
+        session_id=session_id, user__isnull=True
+    ).update(user=request.user)
+
+    return Response({"claimed": claimed})
 
 
 @api_view(['GET'])

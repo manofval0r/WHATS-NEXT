@@ -131,7 +131,7 @@ cp .env.example .env
 Edit `.env` and add your API keys and settings:
 ```
 DJANGO_SECRET_KEY=your-secret-key-here
-DEBUG=True
+DEBUG=False
 ALLOWED_HOSTS=localhost,127.0.0.1
 GEMINI_API_KEY=your-gemini-api-key
 YOUTUBE_API_KEY=your-youtube-api-key

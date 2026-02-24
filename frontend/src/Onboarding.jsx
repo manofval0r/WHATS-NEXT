@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Cpu, Code, Globe, Database, Zap, Sparkles, Layout, Server, Smartphone, BarChart3, PencilLine, Shield, Palette, ChevronRight, ArrowLeft } from 'lucide-react';
-import api from './api';
+import { Cpu, Code, Globe, Database, Zap, Sparkles, Layout, Server, Smartphone, BarChart3, PencilLine, Shield, Palette, ChevronRight, ArrowLeft, MessageCircle, Send, X } from 'lucide-react';
+import api, { jadaChat } from './api';
 import { usePostHogApp } from './PostHogProvider';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import './Onboarding.css';
 
 const STEPS = ['Role', 'Experience', 'Profile', 'Building...'];
@@ -27,6 +29,43 @@ export default function Onboarding() {
   const contentRef = useRef(null);
   const calibratingRef = useRef(false);
   const { capture, identify } = usePostHogApp();
+
+  // JADA consultant panel state
+  const [jadaOpen, setJadaOpen] = useState(false);
+  const [jadaMsgs, setJadaMsgs] = useState([
+    { role: 'jada', content: "Hey! I'm JADA. Tell me about your background — what you studied, what interests you, any coding experience — and I'll recommend the perfect career path for you!" },
+  ]);
+  const [jadaInput, setJadaInput] = useState('');
+  const [jadaLoading, setJadaLoading] = useState(false);
+  const [jadaConvoId, setJadaConvoId] = useState(null);
+  const jadaScrollRef = useRef(null);
+  const jadaInputRef = useRef(null);
+
+  const sendJadaMsg = useCallback(async () => {
+    const text = jadaInput.trim();
+    if (!text || jadaLoading) return;
+    setJadaInput('');
+    setJadaMsgs(prev => [...prev, { role: 'user', content: text }]);
+    setJadaLoading(true);
+    try {
+      const res = await jadaChat(text, jadaConvoId, 'consultant');
+      const data = res.data;
+      if (!jadaConvoId && data.conversation_id) setJadaConvoId(data.conversation_id);
+      setJadaMsgs(prev => [...prev, { role: 'jada', content: data.reply }]);
+    } catch {
+      setJadaMsgs(prev => [...prev, { role: 'jada', content: "Sorry, I'm having trouble right now. Try again in a moment!" }]);
+    } finally {
+      setJadaLoading(false);
+    }
+  }, [jadaInput, jadaLoading, jadaConvoId]);
+
+  useEffect(() => {
+    if (jadaScrollRef.current) jadaScrollRef.current.scrollTop = jadaScrollRef.current.scrollHeight;
+  }, [jadaMsgs, jadaLoading]);
+
+  useEffect(() => {
+    if (jadaOpen && jadaInputRef.current) setTimeout(() => jadaInputRef.current?.focus(), 300);
+  }, [jadaOpen]);
 
   const [form, setForm] = useState({
     role: null,
@@ -101,7 +140,8 @@ export default function Onboarding() {
     setError(null);
     try {
       await api.post('/api/complete-onboarding/', {
-        role: form.role === 'other' ? (form.other_career_path || '').trim() : form.role,
+        role: form.role === 'other' ? 'custom' : form.role,
+        custom_niche: form.role === 'other' ? (form.other_career_path || '').trim() : undefined,
         university_course: form.university_course || 'Self-taught',
         budget: form.budget,
         gender: form.gender,
@@ -169,6 +209,15 @@ export default function Onboarding() {
                 <span className="field-hint">Keep it under 100 characters.</span>
               </div>
             )}
+
+            <button
+              className="jada-consult-trigger"
+              type="button"
+              onClick={() => setJadaOpen(true)}
+            >
+              <MessageCircle size={16} />
+              Not sure? Ask JADA for career advice
+            </button>
           </>
         );
 
@@ -240,7 +289,7 @@ export default function Onboarding() {
   };
 
   return (
-    <div className="onboarding-container">
+    <div className={`onboarding-container ${jadaOpen ? 'jada-panel-open' : ''}`}>
       <div className="onboarding-card">
         {error && <div className="onboarding-error">{error}</div>}
 
@@ -275,6 +324,56 @@ export default function Onboarding() {
           </div>
         )}
       </div>
+
+      {/* JADA Consultant Side Panel */}
+      {jadaOpen && (
+        <div className="jada-consult-panel">
+          <div className="jada-consult-header">
+            <div className="jada-consult-header-info">
+              <Sparkles size={18} />
+              <span>JADA Career Consultant</span>
+            </div>
+            <button className="jada-consult-close" onClick={() => setJadaOpen(false)}>
+              <X size={16} />
+            </button>
+          </div>
+
+          <div className="jada-consult-messages" ref={jadaScrollRef}>
+            {jadaMsgs.map((msg, i) => (
+              <div key={i} className={`jcm ${msg.role}`}>
+                {msg.role === 'jada' && (
+                  <div className="jcm-avatar"><Sparkles size={11} /></div>
+                )}
+                <div className="jcm-bubble">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                </div>
+              </div>
+            ))}
+            {jadaLoading && (
+              <div className="jcm jada">
+                <div className="jcm-avatar"><Sparkles size={11} /></div>
+                <div className="jcm-bubble typing"><span /><span /><span /></div>
+              </div>
+            )}
+          </div>
+
+          <div className="jada-consult-input">
+            <input
+              ref={jadaInputRef}
+              type="text"
+              placeholder="Tell me about your background..."
+              value={jadaInput}
+              onChange={e => setJadaInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.stopPropagation(); sendJadaMsg(); } }}
+              disabled={jadaLoading}
+              maxLength={2000}
+            />
+            <button onClick={sendJadaMsg} disabled={!jadaInput.trim() || jadaLoading}>
+              <Send size={15} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

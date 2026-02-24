@@ -72,6 +72,15 @@ export const suggestRole = (course, role) =>
 // JADA AI
 export const jadaChat = (message, conversationId = null, mode = 'general', moduleId = null, preferredModel = 'auto') =>
   api.post('/api/jada/chat/', { message, conversation_id: conversationId, mode, module_id: moduleId, preferred_model: preferredModel });
+export const jadaChatGuest = (message, sessionId, conversationId = null) =>
+  axios.post(`${API_BASE_URL}/api/jada/chat/`, {
+    message,
+    session_id: sessionId,
+    conversation_id: conversationId,
+    mode: 'consultant',
+  }, { headers: { 'Content-Type': 'application/json' }, timeout: 70000 });
+export const jadaClaimGuest = (sessionId) =>
+  api.post('/api/jada/claim-guest/', { session_id: sessionId });
 export const jadaConversations = () => api.get('/api/jada/conversations/');
 export const jadaConversationDetail = (id) => api.get(`/api/jada/conversations/${id}/`);
 export const jadaSwitchContext = (conversationId, moduleId) =>

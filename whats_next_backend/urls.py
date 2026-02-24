@@ -90,6 +90,7 @@ urlpatterns = [
 
     # --- JADA AI ASSISTANT ---
     path('api/jada/chat/', views.jada_chat, name='jada_chat'),
+    path('api/jada/claim-guest/', views.jada_claim_guest, name='jada_claim_guest'),
     path('api/jada/conversations/', views.jada_conversations, name='jada_conversations'),
     path('api/jada/conversations/<int:conversation_id>/', views.jada_conversation_detail, name='jada_conversation_detail'),
     path('api/jada/conversations/<int:conversation_id>/context/', views.jada_switch_context, name='jada_switch_context'),
