@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api, { jadaClaimGuest } from './api';
-import { getGuestSessionId } from './jada/JadaGuestBubble';
+import { getGuestSessionId, clearGuestSessionId } from './jada/guestSession';
 import { usePostHogApp } from './PostHogProvider';
+import { toast } from './toast';
 
 export default function AuthCallback() {
     const navigate = useNavigate();
@@ -42,8 +43,10 @@ export default function AuthCallback() {
                     const guestSid = getGuestSessionId();
                     if (guestSid) {
                         jadaClaimGuest(guestSid).catch(() => {});
-                        sessionStorage.removeItem('jada_guest_session');
+                        clearGuestSessionId();
                     }
+
+                    toast.success('Signed in successfully!');
 
                     // Always send to onboarding — the wizard has a skip-guard
                     // that will redirect to /dashboard if user already has a career

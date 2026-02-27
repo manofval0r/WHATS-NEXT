@@ -5,7 +5,7 @@ import AuthPage from './AuthPage';
 import ProfilePage from './ProfilePage';
 
 import Dashboard from './Dashboard';
-import Onboarding from './Onboarding'; // Added import
+import Onboarding from './Onboarding';
 import Profile from './Profile';
 import Settings from './Settings';
 import Community from './Community';
@@ -24,7 +24,6 @@ import { JadaProvider } from './jada/JadaContext';
 import JadaOverlay from './jada/JadaOverlay';
 
 
-// Wrapper to check if user is logged in
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem('access_token');
   if (!token) {

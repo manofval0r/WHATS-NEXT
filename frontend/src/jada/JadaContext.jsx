@@ -1,7 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { emitJadaEvent, onJadaEvent } from './jadaEvents';
-import { jadaChat as jadaChatApi, jadaConversationDetail, jadaSwitchContext as jadaSwitchContextApi } from '../api';
+import { jadaChat as jadaChatApi, jadaChatGuest as jadaChatGuestApi, jadaConversationDetail, jadaSwitchContext as jadaSwitchContextApi } from '../api';
+import { getOrCreateGuestSessionId } from './guestSession';
 
 const JadaContext = createContext(null);
 
@@ -52,6 +53,7 @@ export function JadaProvider({ children }) {
   const [lastInteractive, setLastInteractive] = useState(null);
   const [activeQuiz, setActiveQuiz] = useState(null);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isGuest, setIsGuest] = useState(false);
 
   /* ── Route-based avatar positioning ──────────────────────────── */
   useEffect(() => {
@@ -111,8 +113,19 @@ export function JadaProvider({ children }) {
   /* ── Chat methods ────────────────────────────────────────────── */
 
   const openChat = useCallback(async (moduleId = null) => {
+    const token = typeof window !== 'undefined' ? window.localStorage?.getItem('access_token') : null;
+    const nextIsGuest = !token;
+    setIsGuest(nextIsGuest);
+
     setIsChatOpen(true);
-    if (moduleId) setContextModuleId(moduleId);
+    if (nextIsGuest) {
+      setContextModuleId(null);
+      setContextModuleLabel(null);
+    } else if (moduleId) {
+      setContextModuleId(moduleId);
+    }
+
+    if (nextIsGuest) return;
 
     if (activeConversationId) {
       try {
@@ -140,7 +153,14 @@ export function JadaProvider({ children }) {
     setActiveQuiz(null);
 
     try {
-      const res = await jadaChatApi(text, activeConversationId, 'general', contextModuleId, preferredModel);
+      const token = typeof window !== 'undefined' ? window.localStorage?.getItem('access_token') : null;
+      const nextIsGuest = !token;
+      if (nextIsGuest !== isGuest) setIsGuest(nextIsGuest);
+
+      const res = nextIsGuest
+        ? await jadaChatGuestApi(text, getOrCreateGuestSessionId(), activeConversationId, preferredModel)
+        : await jadaChatApi(text, activeConversationId, 'general', contextModuleId, preferredModel);
+
       const d = res.data;
       if (d.conversation_id && d.conversation_id !== activeConversationId) setActiveConversationId(d.conversation_id);
       if (d.module_label) setContextModuleLabel(d.module_label);
@@ -154,9 +174,10 @@ export function JadaProvider({ children }) {
     } finally {
       setIsTyping(false);
     }
-  }, [activeConversationId, contextModuleId, preferredModel]);
+  }, [activeConversationId, contextModuleId, preferredModel, isGuest]);
 
   const switchModule = useCallback(async (moduleId, moduleLabel = null) => {
+    if (isGuest) return;
     setContextModuleId(moduleId);
     if (moduleLabel) setContextModuleLabel(moduleLabel);
     if (activeConversationId && moduleId) {
@@ -166,7 +187,7 @@ export function JadaProvider({ children }) {
         setChatMessages((prev) => [...prev, { role: 'system', content: `Context switched to: ${res.data.module_label || moduleLabel}`, created_at: new Date().toISOString() }]);
       } catch { /* silent */ }
     }
-  }, [activeConversationId]);
+  }, [activeConversationId, isGuest]);
 
   const startNewChat = useCallback(() => {
     setActiveConversationId(null);
@@ -182,7 +203,7 @@ export function JadaProvider({ children }) {
     mode, speech, anchor, sizePx, isHidden,
 
     // Chat state
-    isChatOpen, chatMessages, activeConversationId, contextModuleId, contextModuleLabel, isTyping, suggestions, preferredModel,
+    isChatOpen, chatMessages, activeConversationId, contextModuleId, contextModuleLabel, isTyping, suggestions, preferredModel, isGuest,
     lastInteractive, activeQuiz, isExpanded,
 
     // Chat methods
@@ -215,7 +236,7 @@ export function JadaProvider({ children }) {
       fullscreenOverlayCountRef.current = hidden ? Math.max(1, fullscreenOverlayCountRef.current) : 0;
       setIsHidden(hidden);
     },
-  }), [anchor, isHidden, mode, sizePx, speech, isChatOpen, chatMessages, activeConversationId, contextModuleId, contextModuleLabel, isTyping, preferredModel, lastInteractive, activeQuiz, isExpanded, openChat, closeChat, sendMessage, switchModule, startNewChat, toggleExpand]);
+  }), [anchor, isHidden, mode, sizePx, speech, isChatOpen, chatMessages, activeConversationId, contextModuleId, contextModuleLabel, isTyping, preferredModel, isGuest, lastInteractive, activeQuiz, isExpanded, openChat, closeChat, sendMessage, switchModule, startNewChat, toggleExpand]);
 
   return <JadaContext.Provider value={api}>{children}</JadaContext.Provider>;
 }

@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import api, { jadaClaimGuest } from './api';
-import { getGuestSessionId } from './jada/JadaGuestBubble';
+import { getGuestSessionId, clearGuestSessionId } from './jada/guestSession';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { toast } from './toast';
 import { User, Lock, Mail, ArrowRight, Zap, Github, Chrome, AlertCircle, Eye, EyeOff, Code2, Check, X } from 'lucide-react';
 import { usePostHogApp } from './PostHogProvider';
 import './Auth.css';
@@ -166,7 +167,7 @@ export default function AuthPage() {
     const guestSid = getGuestSessionId();
     if (guestSid) {
       jadaClaimGuest(guestSid).catch(() => {});
-      sessionStorage.removeItem('jada_guest_session');
+      clearGuestSessionId();
     }
 
     // PostHog: identify user + capture event
@@ -176,8 +177,10 @@ export default function AuthPage() {
       if (p?.id) identify(p.id, { username: p.username, email: p.email, plan_tier: p.plan_tier || 'FREE', target_career: p.target_career || '' });
       if (redirectTo === '/onboarding') {
         capture('user_signed_up', { method: 'email' });
+        toast.success('Account created! Let\'s set up your roadmap.');
       } else {
         capture('user_logged_in', { method: 'email' });
+        toast.success('Welcome back!');
       }
     } catch (_) { /* best-effort */ }
 

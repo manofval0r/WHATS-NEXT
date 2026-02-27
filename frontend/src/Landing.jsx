@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { BookOpen, ChevronRight, Github, Zap, Brain, TrendingUp, Users, Award, CheckCircle, ArrowRight, MessageSquare, Sparkles, MousePointer2 } from 'lucide-react';
 import { motion, useInView } from 'framer-motion';
 import Button from './components/common/Button';
-import JadaGuestBubble from './jada/JadaGuestBubble';
 import './Landing.css';
 
 // Typewriter Hook
@@ -280,7 +279,7 @@ export default function Landing() {
             <a href="#feedback" onClick={(e) => scrollToSection(e, '#feedback')}>Feedback</a>
           </div>
           <div className="nav-actions">
-            <a href="/login" className="nav-login">Log In</a>
+            <a href="/login" className="nav-login" onClick={(e) => { e.preventDefault(); navigate('/login'); }}>Log In</a>
             <Button variant="primary" className="nav-cta" onClick={() => navigate('/signup')} size="sm">Get Started</Button>
           </div>
         </div>
@@ -348,7 +347,7 @@ export default function Landing() {
               <MousePointer2 size={48} strokeWidth={1.5} />
             </motion.div>
             
-            <a href="/signup" className="btn-primary-cta">
+            <a href="/signup" className="btn-primary-cta" onClick={(e) => { e.preventDefault(); navigate('/signup'); }}>
               Let's Go !!!
               <ArrowRight size={20} className="cta-arrow" />
             </a>
@@ -540,7 +539,7 @@ export default function Landing() {
                         <span className="stat-label">Of Learning</span>
                       </div>
                     </div>
-                    <a href="/signup" className="result-cta">Start This Journey →</a>
+                    <a href="/signup" className="result-cta" onClick={(e) => { e.preventDefault(); navigate('/signup'); }}>Start This Journey →</a>
                   </motion.div>
                 )}
               </div>
@@ -669,7 +668,7 @@ export default function Landing() {
               Your feedback shapes what we build next.
             </p>
             <div className="feedback-cta-group">
-              <a href="/signup" className="feedback-btn-primary">
+              <a href="/signup" className="feedback-btn-primary" onClick={(e) => { e.preventDefault(); navigate('/signup'); }}>
                 Try It Free & Tell Us What You Think
               </a>
               <a href="mailto:feedback@whatsnext.dev" className="feedback-btn-secondary">
@@ -725,7 +724,7 @@ export default function Landing() {
                         <a href="#how-it-works" onClick={(e) => scrollToSection(e, '#how-it-works')}>How it Works</a>
                         <a href="#features" onClick={(e) => scrollToSection(e, '#features')}>Features</a>
                         <a href="#feedback" onClick={(e) => scrollToSection(e, '#feedback')}>Feedback</a>
-                        <a href="/login">Login</a>
+                        <a href="/login" onClick={(e) => { e.preventDefault(); navigate('/login'); }}>Login</a>
                     </div>
                 </div>
 
@@ -756,8 +755,6 @@ export default function Landing() {
            </div>
       </footer>
 
-      {/* JADA Guest Chat Bubble */}
-      <JadaGuestBubble />
     </div>
   );
 }

@@ -103,7 +103,7 @@ export default function JadaChatSheet() {
     isChatOpen, closeChat, chatMessages, isTyping,
     sendMessage, contextModuleLabel, contextModuleId, startNewChat, suggestions,
     preferredModel, setPreferredModel, lastInteractive, setLastInteractive,
-    activeQuiz, switchModule, isExpanded, toggleExpand,
+    activeQuiz, switchModule, isExpanded, toggleExpand, isGuest,
   } = useJada();
 
   const [input, setInput] = useState('');
@@ -114,6 +114,7 @@ export default function JadaChatSheet() {
 
   /* ── Fetch modules once when chat opens ──────────────── */
   useEffect(() => {
+    if (isGuest) return;
     if (isChatOpen && modules === null) {
       api.post('/api/my-roadmap/', {}, { timeout: 15000 })
         .then((res) => {
@@ -128,7 +129,11 @@ export default function JadaChatSheet() {
         })
         .catch(() => setModules([]));
     }
-  }, [isChatOpen, modules]);
+  }, [isChatOpen, modules, isGuest]);
+
+  useEffect(() => {
+    if (isGuest && showModulePicker) setShowModulePicker(false);
+  }, [isGuest, showModulePicker]);
 
   /* ── Auto-scroll to bottom on new messages ───────────── */
   useEffect(() => {
@@ -204,15 +209,17 @@ export default function JadaChatSheet() {
           </div>
           <div className="jada-chat-header-info">
             <div className="jada-chat-header-title">JADA</div>
-            <button
-              className="jada-chat-module-pill"
-              onClick={() => setShowModulePicker((p) => !p)}
-              title="Switch module context"
-            >
-              <Sparkles size={10} />
-              <span>{contextModuleLabel || 'Select module'}</span>
-              <ChevronDown size={10} style={{ opacity: 0.6 }} />
-            </button>
+            {!isGuest && (
+              <button
+                className="jada-chat-module-pill"
+                onClick={() => setShowModulePicker((p) => !p)}
+                title="Switch module context"
+              >
+                <Sparkles size={10} />
+                <span>{contextModuleLabel || 'Select module'}</span>
+                <ChevronDown size={10} style={{ opacity: 0.6 }} />
+              </button>
+            )}
           </div>
           <div className="jada-chat-header-actions">
             <button
@@ -244,7 +251,7 @@ export default function JadaChatSheet() {
 
         {/* ── Module Picker Dropdown ───────────────────── */}
         <AnimatePresence>
-          {showModulePicker && (
+          {showModulePicker && !isGuest && (
             <motion.div
               className="jada-module-dropdown"
               initial={{ opacity: 0, y: -8 }}
