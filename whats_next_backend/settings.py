@@ -24,7 +24,7 @@ else:
         raise ValueError('DJANGO_SECRET_KEY environment variable is not set. This is required for security in production.')
     SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,whats-next-oxdf.onrender.com').split(',')
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,whats-next-backend.onrender.com').split(',')
 
 # Automatically add Render URL to ALLOWED_HOSTS
 if 'RENDER_EXTERNAL_URL' in os.environ:
@@ -157,7 +157,6 @@ CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "https://whats-next-1.onrender.com",
     "https://whats-next-ate2.onrender.com",
 ]
 
@@ -244,7 +243,7 @@ SOCIALACCOUNT_PROVIDERS = {
 
 # Redirects
 LOGIN_REDIRECT_URL = '/api/auth/social/success/'
-LOGOUT_REDIRECT_URL = 'https://whats-next-1.onrender.com'
+LOGOUT_REDIRECT_URL = 'https://whats-next-ate2.onrender.com'
 
 # PostHog Analytics
 POSTHOG_API_KEY = os.environ.get('POSTHOG_API_KEY', '')
