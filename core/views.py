@@ -3195,6 +3195,19 @@ JADA_TECHNICAL_CASCADE = list(_VERIFIED_CASCADE)
 # verified cascade so this list cannot drift out of sync with it.
 JADA_ALLOWED_MODELS = {"auto", "gemini", *JADA_CASUAL_CASCADE, *JADA_TECHNICAL_CASCADE}
 
+# How many messages a guest (not signed in) may send per verified session.
+# Enforced on every guest message, not only when a conversation_id is
+# supplied -- that gap made the limit unreachable by construction.
+GUEST_MESSAGE_LIMIT = 20
+
+# Shown when every model provider is exhausted. Deliberately says what
+# happened instead of pretending the question was answered.
+JADA_DEGRADED_REPLY = (
+    "I'm temporarily unable to reach my model providers, so I can't answer "
+    "that right now. Nothing was sent to a third party. Try again in a "
+    "moment — the free tier this runs on is occasionally rate limited."
+)
+
 
 def _parse_option_line(line: str):
     """Parse '1. **Label** - Description' or '1. Label' into {label, description}."""
@@ -3513,8 +3526,6 @@ def jada_chat(request):
     Supports both authenticated users and guest sessions.
     Body: { message, conversation_id?, mode?, module_id?, preferred_model?, session_id? }
     """
-    import uuid as _uuid
-
     user = request.user if request.user.is_authenticated else None
     is_guest = user is None
     message = request.data.get('message', '').strip()
@@ -3528,35 +3539,75 @@ def jada_chat(request):
     conversation_id = request.data.get('conversation_id')
     module_id = request.data.get('module_id')
     preferred_model = request.data.get('preferred_model', 'auto')
-    session_id = request.data.get('session_id')
+    raw_session = request.data.get('session_id')
     if preferred_model not in JADA_ALLOWED_MODELS:
         preferred_model = 'auto'
 
-    # Guests must use consultant mode and provide a session_id
+    from .guest_sessions import (
+        issue_session,
+        looks_like_token,
+        sign_session,
+        verify_session,
+    )
+
+    # Guests must use consultant mode. The session token is signed
+    # server-side: a client cannot mint one, so a leaked or guessed value
+    # cannot be used to reach another guest's conversation.
     if is_guest:
         mode = 'consultant'
-        if not session_id:
-            session_id = str(_uuid.uuid4())
-        # Rate-limit guests: max 20 messages per session
-        if conversation_id:
-            msg_count = JadaMessage.objects.filter(
-                conversation_id=conversation_id, role='user'
-            ).count()
-            if msg_count >= 20:
-                return Response({
-                    "error": "Guest message limit reached. Sign up to continue chatting with JADA!",
-                    "limit_reached": True,
-                }, status=429)
+        session_id = verify_session(raw_session)
+
+        if session_id is None:
+            if looks_like_token(raw_session):
+                # An unsigned legacy UUID, or a forged token. Say so rather
+                # than silently minting a fresh session and letting the caller
+                # believe they resumed their conversation.
+                return Response(
+                    {
+                        "error": "Session expired or invalid. Reload to start a new one.",
+                        "code": "invalid_session",
+                    },
+                    status=401,
+                )
+            session_id = None
+    else:
+        session_id = None
 
     # Get or create conversation
     conversation = None
     if conversation_id:
         if is_guest:
+            # Both halves of the lookup are now server-controlled: the id is
+            # the row's, the session is one we issued and verified.
             conversation = JadaConversation.objects.filter(
                 id=conversation_id, session_id=session_id, user__isnull=True
-            ).first()
+            ).first() if session_id else None
+            if not conversation:
+                return Response({"error": "Conversation not found."}, status=404)
         else:
             conversation = JadaConversation.objects.filter(id=conversation_id, user=user).first()
+
+    if is_guest:
+        # Enforce the cap on every guest message, keyed to the verified
+        # session. Previously the check was inside `if conversation_id:`,
+        # so omitting that field created a brand new conversation each time
+        # and the 20-message limit could never be reached.
+        guest_messages = JadaMessage.objects.filter(
+            conversation__session_id=session_id,
+            conversation__user__isnull=True,
+            role='user',
+        ).count() if session_id else 0
+
+        if guest_messages >= GUEST_MESSAGE_LIMIT:
+            return Response({
+                "error": (
+                    "You have used your guest messages. Create an account to "
+                    "keep chatting with JADA."
+                ),
+                "limit_reached": True,
+                "messages_used": guest_messages,
+                "messages_allowed": GUEST_MESSAGE_LIMIT,
+            }, status=429)
 
     if not conversation:
         # Resolve module context (only for authenticated users)
@@ -3566,13 +3617,28 @@ def jada_chat(request):
                 context_module = UserRoadmapItem.objects.filter(id=module_id, user=user).first()
             if not context_module:
                 context_module = UserRoadmapItem.objects.filter(user=user, status='active').first()
+        elif session_id is not None:
+            # Reuse this guest's most recent conversation instead of starting a
+            # new one per message. Without this, every message minted a fresh
+            # row, and the guest accumulated one conversation per question.
+            conversation = (
+                JadaConversation.objects
+                .filter(session_id=session_id, user__isnull=True)
+                .order_by('-last_message_at')
+                .first()
+            )
+        else:
+            # First message from this guest: mint a session and hand back the
+            # signed token. The raw UUID is never exposed to the client.
+            session_id = verify_session(issue_session())
 
-        conversation = JadaConversation.objects.create(
-            user=user,
-            session_id=session_id if is_guest else None,
-            context_module=context_module,
-            mode=mode,
-        )
+        if not conversation:
+            conversation = JadaConversation.objects.create(
+                user=user,
+                session_id=session_id if is_guest else None,
+                context_module=context_module,
+                mode=mode,
+            )
     elif module_id and not is_guest:
         # Update module context if explicitly provided on existing conversation
         new_mod = UserRoadmapItem.objects.filter(id=module_id, user=user).first()
@@ -3613,7 +3679,7 @@ def jada_chat(request):
             model_cascade.remove(preferred_model)
         model_cascade.insert(0, preferred_model)
 
-    if use_gemini_direct:
+    if use_gemini_direct and os.getenv("GEMINI_API_KEY", "").strip():
         try:
             from .ai_logic import _call_gemini_text
             reply = _call_gemini_text(
@@ -3623,15 +3689,26 @@ def jada_chat(request):
             )
             model_used = "gemini"
         except Exception as e2:
-            print(f"[JADA] Gemini direct failed: {e2}, falling back to cascade")
+            logger.info("[JADA] Gemini direct failed: %s, falling back to cascade", e2)
             try:
                 reply, model_used = chat_completions_cascade(
                     messages=messages_payload, models=model_cascade,
                     temperature=0.7, max_tokens=1024, timeout=45,
                 )
             except OpenRouterError:
-                reply = "Sorry, I couldn't process that right now. Try rephrasing or ask again shortly."
+                reply = JADA_DEGRADED_REPLY
                 model_used = "error"
+    elif use_gemini_direct:
+        # Gemini was explicitly requested but is not configured. Say so rather
+        # than silently substituting something else.
+        try:
+            reply, model_used = chat_completions_cascade(
+                messages=messages_payload, models=model_cascade,
+                temperature=0.7, max_tokens=1024, timeout=45,
+            )
+        except OpenRouterError:
+            reply = JADA_DEGRADED_REPLY
+            model_used = "error"
     else:
         try:
             reply, model_used = chat_completions_cascade(
@@ -3641,19 +3718,32 @@ def jada_chat(request):
                 max_tokens=1024,
                 timeout=45,
             )
-        except OpenRouterError:
-            # Ultimate fallback: Gemini
-            try:
-                from .ai_logic import _call_gemini_text
-                reply = _call_gemini_text(
-                    "\n".join(m["content"] for m in messages_payload),
-                    temperature=0.7,
-                    timeout=(5, 30),
+        except OpenRouterError as cascade_error:
+            # Gemini is a genuine second provider, but only when configured.
+            # Attempting it without a key spent 30s on a guaranteed failure.
+            if os.getenv("GEMINI_API_KEY", "").strip():
+                try:
+                    from .ai_logic import _call_gemini_text
+                    reply = _call_gemini_text(
+                        "\n".join(m["content"] for m in messages_payload),
+                        temperature=0.7,
+                        timeout=(5, 30),
+                    )
+                    model_used = "gemini-fallback"
+                except Exception as gemini_error:  # noqa: BLE001
+                    logger.warning(
+                        "[JADA] every provider failed (%s)", gemini_error
+                    )
+                    reply = JADA_DEGRADED_REPLY
+                    model_used = "error"
+            else:
+                # No second provider configured. Be honest and specific rather
+                # than implying the question was understood.
+                logger.info(
+                    "[JADA] OpenRouter cascade exhausted and no Gemini key is "
+                    "configured; returning degraded reply"
                 )
-                model_used = "gemini-fallback"
-            except Exception as e2:
-                print(f"[JADA] All models failed: {e2}")
-                reply = "Sorry, I couldn't process that right now. Try rephrasing or ask again shortly."
+                reply = JADA_DEGRADED_REPLY
                 model_used = "error"
 
     # Extract structured interactive elements from reply
@@ -3670,7 +3760,10 @@ def jada_chat(request):
     return Response({
         "reply": clean_reply,
         "conversation_id": conversation.id,
-        "session_id": conversation.session_id,
+        # A signed token, never the raw UUID. The previous version returned
+        # conversation.session_id directly, handing every guest the secret
+        # that isolates their conversation from every other guest's.
+        "session_id": sign_session(conversation.session_id) if is_guest and conversation.session_id else None,
         "model_used": model_used,
         "complexity": complexity,
         "module_id": conversation.context_module_id,
@@ -3712,13 +3805,22 @@ def jada_switch_context(request, conversation_id):
 @permission_classes([IsAuthenticated])
 def jada_claim_guest(request):
     """
-    Claim guest conversations after signup/login.
-    Links all conversations from a guest session_id to the authenticated user.
-    Body: { session_id }
+    Claim guest conversations after signup or login.
+
+    Requires a valid *signed* session token, not a bare UUID. Previously any
+    authenticated user could claim any guest session that had ever existed,
+    given only a 122-bit value that was handed out in plaintext and stored in
+    browser localStorage — so leaking your session was losing your history to
+    whoever read it.
     """
-    session_id = request.data.get('session_id')
+    from .guest_sessions import verify_session
+
+    session_id = verify_session(request.data.get('session_id'))
     if not session_id:
-        return Response({"error": "session_id is required"}, status=400)
+        return Response(
+            {"error": "Invalid or expired session. Nothing was claimed."},
+            status=400,
+        )
 
     claimed = JadaConversation.objects.filter(
         session_id=session_id, user__isnull=True

@@ -163,12 +163,26 @@ class QuizCreationTests(TestCase):
         self.assertEqual(quiz.questions, [])
 
     def test_quiz_endpoint_does_not_500(self):
-        """The call must not raise; generation may fall back offline."""
-        try:
+        """
+        The call must not raise. Generation is stubbed so the test asserts
+        the endpoint's behaviour rather than OpenRouter's availability.
+        """
+        from unittest import mock
+
+        with mock.patch(
+            "core.ai_logic.generate_quiz",
+            return_value=[
+                {
+                    "question": "What does git stage?",
+                    "options": ["Commits", "Stages", "Tags"],
+                    "correct": 1,
+                    "explanation": "Staging is the index.",
+                }
+            ],
+        ):
             res = self.client.get(f"/api/quiz/{self.item.id}/")
-        except Exception as exc:  # noqa: BLE001 - that is the point of the test
-            self.fail(f"quiz endpoint raised {type(exc).__name__}: {exc}")
-        self.assertIn(res.status_code, (200, 400, 502, 503))
+
+        self.assertIn(res.status_code, (200, 400))
 
 
 class CertificateIdTests(TestCase):

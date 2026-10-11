@@ -6,6 +6,7 @@ Nothing here falls back to a hardcoded credential in production.
 """
 
 import os
+import sys
 from pathlib import Path
 from datetime import timedelta
 
@@ -181,6 +182,14 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
+
+# PBKDF2 is deliberately slow, which is correct for production and ruinous
+# for a test suite: almost every test creates a user, and the suite was
+# spending ~90 seconds almost entirely hashing passwords. A cheap hasher is
+# used only while tests are running. Password *validation* above is
+# unchanged, so the rules being tested still hold.
+if "test" in sys.argv:
+    PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 
 # ==============================================================
 # I18N / TIME
