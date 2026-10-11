@@ -2452,15 +2452,17 @@ def update_username(request):
     user = request.user
     new_username = (request.data.get('username') or '').strip()
 
-    if not new_username:
-        return Response({"error": "Username is required"}, status=400)
-
     if new_username == user.username:
         return Response({"message": "Username unchanged", "username": user.username})
 
-    # Basic sanity bounds (Django also enforces max length at DB level)
-    if len(new_username) > 150:
-        return Response({"error": "Username is too long"}, status=400)
+    # Same rules as registration. Previously this path enforced only a
+    # 150-char cap and case-sensitive uniqueness, so a user could claim
+    # "Alice" over an existing "alice", and could set a username containing
+    # quotes or semicolons that later broke the Content-Disposition header
+    # of the portfolio export.
+    ok, reason = _validate_username(new_username, exclude_user=user)
+    if not ok:
+        return Response({"error": reason}, status=400)
 
     cooldown = timedelta(days=20)
     last_changed = getattr(user, 'last_username_change_at', None)
@@ -2472,8 +2474,8 @@ def update_username(request):
                 "next_allowed_at": next_allowed.isoformat(),
             }, status=400)
 
-    if User.objects.filter(username=new_username).exclude(id=user.id).exists():
-        return Response({"error": "That username is already taken"}, status=400)
+    # Uniqueness is already enforced case-insensitively by
+    # _validate_username above; do not re-check it case-sensitively here.
 
     user.username = new_username
     user.last_username_change_at = timezone.now()
