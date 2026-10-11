@@ -30,13 +30,8 @@ see exactly why it ranked what it did.
 
 import re
 
-from django.core.cache import cache
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-
-from core.models import UserRoadmapItem
-from core.news_logic import fetch_jobs_multi
+from .models import UserRoadmapItem
+from .news_logic import fetch_jobs_multi
 
 # How long a fetched-and-scored job list stays warm. The upstream feeds
 # update on the order of hours; this is an hour, not a day.
@@ -218,66 +213,43 @@ _PRETTY = {
 }
 
 
-@api_view(["GET"])
-@permission_classes([IsAuthenticated])
-def match_jobs(request):
+def rank_jobs_for(user, *, limit: int = 40) -> list:
     """
-    GET /api/jobs/match/
+    Fetch the live feed and rank it against one user's completed modules.
 
-    Ranks the live job feed against the user's completed roadmap modules.
-    Read-only. Nothing is persisted.
+    Pure enough to test without a request. The HTTP shell lives in
+    ``core/api/jobs.py``.
+
+    Returns ``(ranked, meta)`` where meta carries the user's skill profile
+    so the caller can report what the ranking was based on.
     """
-    try:
-        limit = min(int(request.query_params.get("limit", 12)), 30)
-        offset = max(int(request.query_params.get("offset", 0)), 0)
-    except (TypeError, ValueError):
-        return Response({"error": "limit and offset must be integers."}, status=400)
+    target_career = (user.target_career or "").strip()
+    user_skills, completed_labels = _user_skill_profile(user)
 
-    target_career = (request.user.target_career or "").strip()
-    user_skills, completed_labels = _user_skill_profile(request.user)
-
-    # No roadmap yet: say so plainly rather than returning an arbitrary feed.
     if not completed_labels:
-        return Response({
-            "matches": [],
-            "total": 0,
-            "offset": offset,
-            "has_more": False,
+        return [], {
             "completed_modules": 0,
             "skills": [],
-            "message": (
-                "Complete a module and this will rank live openings against it. "
-                "Matching is based on what you have actually finished, not on "
-                "what you have planned."
-            ),
-        })
+            "target_career": target_career,
+        }
 
-    # Cache per user: the feed is global, the ranking is not.
-    cache_key = f"jobmatch:{request.user.pk}"
-    ranked = cache.get(cache_key)
-    if ranked is None:
-        jobs = fetch_jobs_multi(
-            completed_labels + [target_career] if target_career else completed_labels,
-            career_title=target_career,
-            limit=40,
-        )
-        ranked = [_score_job(job, user_skills, target_career) for job in jobs]
-        ranked.sort(key=lambda j: (-j["match_score"], j.get("published_ts", "")))
-        cache.set(cache_key, ranked, JOB_MATCH_CACHE_TTL)
+    keywords = list(completed_labels)
+    if target_career:
+        keywords.append(target_career)
 
-    page = ranked[offset:offset + limit]
+    jobs = fetch_jobs_multi(keywords, career_title=target_career, limit=limit)
+    ranked = [_score_job(job, user_skills, target_career) for job in jobs]
+    ranked.sort(key=lambda j: (-j["match_score"], j.get("published_ts", "")))
 
-    return Response({
-        "matches": page,
-        "total": len(ranked),
-        "offset": offset,
-        "has_more": offset + limit < len(ranked),
+    return ranked, {
         "completed_modules": len(completed_labels),
         "skills": sorted(_PRETTY.get(s, s) for s in user_skills),
-        # Shown in the UI so the ranking's basis is visible, not hidden.
-        "method": (
-            "Score = 70% coverage of the skills detected in the posting, plus 15 "
-            "if the title matches your target role, plus 10 if the source lists "
-            "it as entry-level. Only completed modules count as evidence."
-        ),
-    })
+        "target_career": target_career,
+    }
+
+
+MATCH_METHOD = (
+    "Score = 70% coverage of the skills detected in the posting, plus 15 if "
+    "the title matches your target role, plus 10 if the source lists it as "
+    "entry-level. Only completed modules count as evidence."
+)

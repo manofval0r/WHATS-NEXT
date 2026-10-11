@@ -43,7 +43,7 @@ def stub_llm():
     rate-limited tier: slow, non-deterministic, and exercising OpenRouter's
     quota rather than the code under test.
     """
-    return mock.patch("core.views.chat_completions_cascade", return_value=(
+    return mock.patch("core.api.jada.chat_completions_cascade", return_value=(
         "Here is a short answer about that.", "stub-model",
     ))
 
