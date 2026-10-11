@@ -1,22 +1,114 @@
+"""
+OpenRouter client with a live, verified model cascade.
+
+Why this was rewritten
+----------------------
+The previous cascade hardcoded three model IDs:
+
+    openrouter/aurora-alpha
+    stepfun/step-3.5-flash:free
+    nvidia/nemotron-3-nano-30b-a3b:free
+
+None of them exist in OpenRouter's catalogue any more. Every call 404'd,
+the cascade always raised, and 100% of AI traffic silently fell through to a
+Gemini fallback -- adding six wasted HTTP round-trips and ~3 seconds of
+sleep backoff to every generation.
+
+Hardcoded model IDs rot silently, which is the actual bug. Three things
+prevent that recurring:
+
+* the IDs below were verified against the live catalogue, and
+* ``manage.py check_ai_providers`` re-verifies them on demand, and
+* a 429 or 404 is treated as "this model is unavailable right now, try the
+  next one" rather than as a fatal error, so a transient upstream limit
+  degrades to a working model instead of breaking the product.
+
+Reasoning-token budget
+----------------------
+Every free model currently in the cascade is a reasoning model: it spends
+a large share of its ``max_tokens`` budget on thinking before it emits the
+answer. Measured on a real quiz-generation prompt, reasoning consumed
+172/215, 358/376 and 566/627 completion tokens respectively. ``max_tokens``
+is therefore inflated for reasoning models, and a ``finish_reason`` of
+``length`` is treated as a failure rather than silently returning a
+truncated JSON document.
+"""
+
 import os
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
-DEFAULT_MODEL = "openrouter/aurora-alpha"
+OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models"
 
-# Ordered list of free models to try when the caller uses `chat_completions_cascade`.
-FREE_MODEL_CASCADE = [
-    "openrouter/aurora-alpha",
-    "stepfun/step-3.5-flash:free",
-    "nvidia/nemotron-3-nano-30b-a3b:free",
+DEFAULT_MODEL = "nvidia/nemotron-3-super-120b-a12b:free"
+
+# Verified live and reachable at cost 0. Ordered best-first: the 120B model
+# produced the cleanest JSON at finish_reason="stop"; north-mini-code is
+# compact and fast; the 550B ultra is the last resort before gemma.
+FREE_MODEL_CASCADE: List[str] = [
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "cohere/north-mini-code:free",
+    "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "google/gemma-4-31b-it:free",
 ]
+
+# Reasoning models need headroom: on real prompts they spent 80-90% of the
+# budget thinking, which truncated the JSON at finish_reason="length".
+REASONING_HEADROOM = 3
+MIN_REASONING_MAX_TOKENS = 3072
+
+# Status codes meaning "this model is not usable right now, move on".
+TRANSIENT_STATUS = {404, 408, 425, 429, 500, 502, 503, 504}
 
 
 class OpenRouterError(RuntimeError):
     pass
+
+
+class ModelUnavailable(OpenRouterError):
+    """This specific model could not be used; the cascade should continue."""
+
+
+def _api_key() -> str:
+    key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+    if not key:
+        raise OpenRouterError("OPENROUTER_API_KEY is missing")
+    return key
+
+
+def _headers() -> Dict[str, str]:
+    return {
+        "Authorization": f"Bearer {_api_key()}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": os.environ.get("SITE_URL", "http://localhost:8000"),
+        "X-Title": os.environ.get("OPENROUTER_APP_NAME", "WHATS-NEXT"),
+    }
+
+
+def list_live_model_ids(timeout: int = 20) -> set:
+    """Return the set of model IDs OpenRouter currently serves.
+
+    Used by ``manage.py check_ai_providers`` so a rotated catalogue surfaces
+    at deploy time instead of as a production incident.
+    """
+    resp = requests.get(OPENROUTER_MODELS_URL, headers=_headers(), timeout=timeout)
+    resp.raise_for_status()
+    return {m["id"] for m in resp.json().get("data", [])}
+
+
+def _budget_for(max_tokens: int, is_reasoning_model: bool) -> int:
+    if not is_reasoning_model:
+        return max_tokens
+    return max(max_tokens * REASONING_HEADROOM, MIN_REASONING_MAX_TOKENS)
+
+
+def _is_reasoning_model(model: str) -> bool:
+    # Every free model in the current cascade emits reasoning. Keep this
+    # explicit rather than pattern-matching so it stays reviewable.
+    return True
 
 
 def chat_completions(
@@ -26,61 +118,72 @@ def chat_completions(
     temperature: float = 0.7,
     max_tokens: int = 1024,
     timeout: int = 60,
-    retries: int = 2,
+    retries: int = 1,
 ) -> str:
-    """Call OpenRouter Chat Completions and return the assistant message content.
-
-    Uses OPENROUTER_API_KEY from the environment.
     """
+    Call OpenRouter Chat Completions and return the assistant content.
 
-    api_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
-    if not api_key:
-        raise OpenRouterError("OPENROUTER_API_KEY is missing")
-
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-        # Optional but helps OpenRouter attribute traffic.
-        "HTTP-Referer": os.environ.get("SITE_URL", "https://whatsnext.dev"),
-        "X-Title": os.environ.get("OPENROUTER_APP_NAME", "What's Next"),
-    }
-
+    Raises ``ModelUnavailable`` when this model cannot serve the request, so
+    the caller can fall through to the next one instead of treating a 429 as
+    a hard failure.
+    """
     payload: Dict[str, Any] = {
         "model": model,
         "messages": messages,
         "temperature": temperature,
-        "max_tokens": max_tokens,
+        "max_tokens": _budget_for(max_tokens, _is_reasoning_model(model)),
     }
 
     last_error: Optional[BaseException] = None
+
     for attempt in range(retries + 1):
         try:
             resp = requests.post(
                 OPENROUTER_API_URL,
-                headers=headers,
+                headers=_headers(),
                 json=payload,
                 timeout=timeout,
             )
+
+            if resp.status_code in TRANSIENT_STATUS:
+                raise ModelUnavailable(
+                    f"{model} returned HTTP {resp.status_code}: "
+                    f"{resp.text[:180].strip()}"
+                )
+
             resp.raise_for_status()
             data = resp.json()
-            content = (data["choices"][0]["message"].get("content") or "").strip()
-            # Reasoning models (e.g. DeepSeek R1) may return empty content.
-            # In that case, fall back to the reasoning text if available.
+
+            choice = data["choices"][0]
+            message = choice.get("message", {}) or {}
+
+            content = (message.get("content") or "").strip()
             if not content:
-                reasoning = data["choices"][0]["message"].get("reasoning", "")
-                if reasoning:
-                    content = reasoning.strip()
+                content = (message.get("reasoning") or "").strip()
+
             if not content:
-                raise OpenRouterError(f"Empty response from {model}")
+                raise ModelUnavailable(f"{model} returned an empty response")
+
+            # A reasoning model that ran out of budget returns a partial
+            # document. Feeding that to a JSON parser produces confusing
+            # downstream errors, so treat it as a failure and move on.
+            if choice.get("finish_reason") == "length":
+                raise ModelUnavailable(
+                    f"{model} truncated the response (finish_reason=length); "
+                    f"raise max_tokens or use a model with less reasoning overhead"
+                )
+
             return content
-        except Exception as e:
-            last_error = e
+
+        except ModelUnavailable:
+            raise  # caller decides what to do; do not burn retries here
+        except Exception as exc:  # noqa: BLE001
+            last_error = exc
             if attempt >= retries:
                 break
-            backoff = 1.5 ** attempt
-            time.sleep(backoff)
+            time.sleep(1.5 ** attempt)
 
-    raise OpenRouterError(f"OpenRouter request failed: {last_error}")
+    raise OpenRouterError(f"OpenRouter request to {model} failed: {last_error}")
 
 
 def chat_completions_cascade(
@@ -90,15 +193,18 @@ def chat_completions_cascade(
     temperature: float = 0.7,
     max_tokens: int = 1024,
     timeout: int = 90,
-) -> tuple:
-    """Try each model in *models* (defaults to FREE_MODEL_CASCADE) until one
-    succeeds.  Returns ``(content, model_used)``.
+) -> Tuple[str, str]:
     """
-    models = models or FREE_MODEL_CASCADE
+    Try each model in *models* (defaults to ``FREE_MODEL_CASCADE``).
+
+    Returns ``(content, model_used)``. Raises ``OpenRouterError`` only when
+    every candidate is exhausted.
+    """
+    candidates = models or FREE_MODEL_CASCADE
     last_error: Optional[BaseException] = None
-    for model in models:
+
+    for model in candidates:
         try:
-            print(f"[AI] Trying OpenRouter model: {model}")
             text = chat_completions(
                 messages=messages,
                 model=model,
@@ -107,9 +213,12 @@ def chat_completions_cascade(
                 timeout=timeout,
                 retries=1,
             )
-            print(f"[AI] Success with {model}")
             return text, model
-        except OpenRouterError as e:
-            print(f"[AI] {model} failed: {e}")
-            last_error = e
-    raise OpenRouterError(f"All free models failed. Last error: {last_error}")
+        except OpenRouterError as exc:
+            last_error = exc
+            continue
+
+    raise OpenRouterError(
+        f"All {len(candidates)} models in the cascade failed. "
+        f"Last error: {last_error}"
+    )

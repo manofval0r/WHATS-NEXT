@@ -2994,27 +2994,27 @@ CONSULTANT_SYSTEM_PROMPT = (
     "- After recommending, offer: 'Want me to generate a personalized roadmap for this path?'\n"
 )
 
-# Cascade models per complexity — fast free models first, heavier for technical
-JADA_CASUAL_CASCADE = [
-    "openrouter/aurora-alpha",
-    "stepfun/step-3.5-flash:free",
-    "nvidia/nemotron-3-nano-30b-a3b:free",
-]
-JADA_TECHNICAL_CASCADE = [
-    "openrouter/aurora-alpha",
-    "stepfun/step-3.5-flash:free",
-    "nvidia/nemotron-3-nano-30b-a3b:free",
+# Cascade models per complexity.
+#
+# Both cascades previously listed the same three model IDs, all of which had
+# been removed from OpenRouter's catalogue, so the "complexity routing" in
+# _classify_complexity had no observable effect on model selection at all --
+# it selected between two identical lists of dead models.
+#
+# Now the casual list leads with the smaller, faster model and the technical
+# list leads with the large one, so the classifier actually routes.
+from core.openrouter_client import FREE_MODEL_CASCADE as _VERIFIED_CASCADE
+
+JADA_CASUAL_CASCADE = ["cohere/north-mini-code:free"] + [
+    m for m in _VERIFIED_CASCADE if m != "cohere/north-mini-code:free"
 ]
 
+JADA_TECHNICAL_CASCADE = list(_VERIFIED_CASCADE)
 
-# Allowed models that users can select in the chat UI
-JADA_ALLOWED_MODELS = {
-    'auto',
-    'openrouter/aurora-alpha',
-    'stepfun/step-3.5-flash:free',
-    'nvidia/nemotron-3-nano-30b-a3b:free',
-    'gemini',
-}
+
+# Models the user may explicitly pick in the chat UI. Derived from the
+# verified cascade so this list cannot drift out of sync with it.
+JADA_ALLOWED_MODELS = {"auto", "gemini", *JADA_CASUAL_CASCADE, *JADA_TECHNICAL_CASCADE}
 
 
 def _parse_option_line(line: str):
