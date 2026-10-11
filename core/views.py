@@ -1,3 +1,6 @@
+import logging
+import re
+
 from rest_framework import generics
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
@@ -23,6 +26,9 @@ from django.db import transaction
 
 from django.utils import timezone
 from django.db.models import Count, F, IntegerField, Q, Value, Case, When
+from django.db.models.functions import Coalesce
+
+logger = logging.getLogger(__name__)
 from django.db.models.functions import Greatest
 import re
 
@@ -977,11 +983,13 @@ def submit_project(request, node_id):
             next_node.save()
             next_data = {"id": str(next_node.id), "status": "active"}
         
-        # Log activity for streak
-        today = datetime.now().date()
-        activity, _ = UserActivity.objects.get_or_create(user=user, date=today)
-        activity.count += 1
-        activity.save()
+        # Log activity for streak (atomic — see core/activity.py)
+        record_activity(user)
+
+        # Award XP through the ledger rather than recomputing from counters.
+        # Keyed on the item id, so resubmitting the same project pays once.
+        xp_award(user, "project_verified", reference=str(node.id))
+        xp_award(user, "module_completed", reference=str(node.id))
 
         award_badges(user)
         
@@ -1354,8 +1362,12 @@ def get_user_profile(request):
                     current_streak += 1
                     check_date -= timedelta(days=1)
 
-        # XP: computed score until a dedicated XP ledger exists
-        xp = (completed_count * 500) + (total_activities_year * 15) + (posts_count * 40) + (replies_count * 15) + (reviews_given * 10)
+        # XP comes from the ledger, the same source /api/analytics/ reads.
+        # The two endpoints previously used different formulas
+        # (this one counted posts/replies/reviews directly; analytics added
+        # User.community_xp), so the same user saw two totals for the same
+        # person on two screens of the same app.
+        xp_summary = xp_module.breakdown(user)
 
         # Activity visibility defaults
         visibility = getattr(user, 'activity_visibility', {}) or {}
@@ -1455,7 +1467,10 @@ def get_user_profile(request):
             "stats": {
                 "completed": completed_count,
                 "total": total_count,
-                "xp": xp,
+                "xp": xp_summary["total"],
+                "learning_xp": xp_summary["learning"],
+                "community_xp": xp_summary["community"],
+                "xp_by_reason": xp_summary["by_reason"],
                 "streak": current_streak,
                 "longest_streak": longest_streak,
                 "total_activities_year": total_activities_year,
@@ -1538,36 +1553,69 @@ def export_portfolio_html(request):
 @permission_classes([IsAuthenticated])
 def pivot_career(request):
     """
-    Handles switching careers while preserving relevant progress.
+    Switch career, preserving work that genuinely carries over.
+
+    Previously this set ``target_career``, deleted every active and locked
+    module, and left the comment "Logic to preserve relevant modules would go
+    here" -- then reported ``kept_modules: N`` while keeping only finished
+    rows. Because ``get_my_roadmap`` short-circuits on
+    ``existing_items.exists()``, the user was stranded on a one-node roadmap
+    with no active module and nothing left to unlock.
+
+    Now the overlap is computed and the roadmap is rebuilt, and the response
+    names the specific modules that carried over and the specific gaps.
     """
+    from .pivot import apply_pivot
+
     user = request.user
-    new_career = request.data.get('new_career')
-    
+    new_career = (request.data.get("new_career") or "").strip()
+
     if not new_career:
         return Response({"error": "New career target is required"}, status=400)
 
-    try:
-        with transaction.atomic():
-            completed_labels = list(
-                UserRoadmapItem.objects.filter(user=user, status='completed')
-                .values_list('label', flat=True)
-            )
-            
-            user.target_career = new_career
-            user.save()
-            
-            # Logic to preserve relevant modules would go here
-            # For now, we just reset the roadmap but keep history
-            UserRoadmapItem.objects.filter(user=user, status='active').delete()
-            UserRoadmapItem.objects.filter(user=user, status='locked').delete()
-            
-            return Response({
-                "message": f"Career pivoted to {new_career}. Generating new roadmap...",
-                "kept_modules": len(completed_labels)
-            })
+    # Accept either a catalog key ("devops") or the display title, because
+    # the UI sends whatever it has to hand.
+    role_key = _resolve_role_key(new_career)
+    if not role_key:
+        return Response(
+            {"error": f"Unknown career target: {new_career!r}"}, status=400
+        )
 
-    except Exception as e:
-        return Response({"error": str(e)}, status=500)
+    try:
+        transfer = apply_pivot(user, role_key)
+    except ValueError as exc:
+        return Response({"error": str(exc)}, status=400)
+    except Exception:  # noqa: BLE001 - never leak internals to the client
+        logger.exception("career pivot failed for user %s", user.pk)
+        return Response({"error": "Could not switch career. Nothing was changed."}, status=500)
+
+    return Response({
+        "message": f"Roadmap rebuilt for {transfer.to_role}.",
+        "from_role": transfer.from_role,
+        "to_role": transfer.to_role,
+        "overlap_percent": round(transfer.overlap * 100),
+        # Named, not a bare count, so the number is inspectable.
+        "carried_modules": transfer.carried_labels,
+        "gap_modules": transfer.gap_labels,
+        "kept_modules": len(transfer.carried_labels),
+    })
+
+
+def _resolve_role_key(value: str) -> str | None:
+    """Map a catalog key or a display title to a catalog key.
+
+    ``get_available_roles()`` returns a list of dicts with 'key' and 'title',
+    so both the frontend's key and its display label resolve here.
+    """
+    from .role_catalog import get_available_roles
+
+    wanted = value.strip().lower()
+    for role in get_available_roles():
+        key = str(role.get("key", "")).lower()
+        title = str(role.get("title", "")).strip().lower()
+        if wanted in (key, title):
+            return role.get("key")
+    return None
 
 
 # ==========================================
@@ -1579,6 +1627,10 @@ from rest_framework.decorators import action
 from .models import CommunityPost, CommunityReply, PostVote, PostTag
 from .serializers import CommunityPostSerializer, CommunityReplySerializer
 from .permissions import IsAuthorOrReadOnly
+from . import activity
+from . import xp as xp_module
+from .activity import record_activity, complete_daily_quiz, daily_quiz_completed
+from .xp import award as xp_award, total as xp_total
 
 class CommunityPostViewSet(viewsets.ModelViewSet):
     serializer_class = CommunityPostSerializer
@@ -1625,8 +1677,10 @@ class CommunityPostViewSet(viewsets.ModelViewSet):
         return queryset
 
     def perform_create(self, serializer):
-        serializer.save(author=self.request.user)
-        User.objects.filter(pk=self.request.user.pk).update(community_xp=F('community_xp') + 10)
+        post = serializer.save(author=self.request.user)
+        # Ledger, not a counter bump: the leaderboard now sorts a sum over
+        # events, so this is idempotent and visible in the breakdown.
+        xp_award(self.request.user, "community_post", reference=f"post:{post.id}")
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -1705,11 +1759,10 @@ class CommunityReplyViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         post_id = self.request.data.get('post')
         post = get_object_or_404(CommunityPost, id=post_id)
-        serializer.save(author=self.request.user, post=post)
+        reply = serializer.save(author=self.request.user, post=post)
 
-        # Atomic reply count and XP increment
         CommunityPost.objects.filter(pk=post.pk).update(reply_count=F('reply_count') + 1)
-        User.objects.filter(pk=self.request.user.pk).update(community_xp=F('community_xp') + 5)
+        xp_award(self.request.user, "community_reply", reference=f"reply:{reply.id}")
 
     @action(detail=True, methods=['post'])
     def upvote(self, request, pk=None):
@@ -1801,67 +1854,128 @@ def get_community_feed(request):
 @permission_classes([IsAuthenticated])
 def get_daily_quiz(request):
     """
-    Generates a daily practice quiz based on the user's active module.
-    Returns quiz_completed=True if already done today.
+    Today's practice quiz, based on the user's active module.
+
+    Cached per (user, day). Previously this called the LLM on *every* GET —
+    a refresh, a React re-mount, or the frontend's polling each paid for a
+    fresh generation, and at the 1000/hour user throttle that is up to 1,000
+    paid calls per hour per account.
     """
     from .ai_logic import generate_quiz
-    
+
     user = request.user
-    today = datetime.now().date()
-    
-    # Check if quiz was already completed today (count >= 1000 is our marker)
-    activity = UserActivity.objects.filter(user=user, date=today).first()
-    if activity and activity.count >= 1000:
+
+    if daily_quiz_completed(user):
         return Response({
             "quiz_completed": True,
-            "message": "You've already completed today's quiz!"
+            "message": "You have already completed today's quiz.",
         })
-    
-    # Find active module, or fallback to last completed
-    target_item = UserRoadmapItem.objects.filter(user=user, status='active').first()
+
+    # Find active module, or fall back to the most recently completed one.
+    target_item = (
+        UserRoadmapItem.objects.filter(user=user, status='active').first()
+        or UserRoadmapItem.objects.filter(user=user, status='completed').last()
+    )
+
     if not target_item:
-        target_item = UserRoadmapItem.objects.filter(user=user, status='completed').last()
-    
-    if not target_item:
-        return Response({"error": "No active roadmap found"}, status=404)
-        
-    # Generate fresh quiz
-    questions = generate_quiz(target_item.label, target_item.description)
-    
-    return Response({
-        "module": target_item.label,
-        "questions": questions,
-        "quiz_completed": False
-    })
+        return Response(
+            {"error": "Complete a module first — the daily quiz is drawn from your roadmap."},
+            status=404,
+        )
+
+    cache_key = f"dailyquiz:{user.pk}:{timezone.now().date().isoformat()}"
+    payload = django_cache.get(cache_key)
+
+    if payload is None:
+        questions = generate_quiz(target_item.label, target_item.description)
+        payload = {
+            "module": target_item.label,
+            "module_id": target_item.id,
+            "questions": questions,
+            "quiz_completed": False,
+        }
+        # Short TTL: the quiz is regenerable, the LLM call is not free.
+        django_cache.set(cache_key, payload, 21600)
+
+    return Response(payload)
+
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def submit_daily_quiz(request):
     """
-    Submit daily quiz results to update streak.
-    Marks quiz as completed for today (count = 1000+).
+    Grade today's quiz and extend the streak.
+
+    Actually grades now. Previously the endpoint read ``score`` off the
+    request into a local variable and never used it: the client hardcoded
+    ``{score: 100}`` with the comment "we just claim completion for the
+    streak", and any authenticated POST with an empty body completed it.
     """
     user = request.user
-    score = request.data.get('score', 0)
-    
-    today = datetime.now().date()
-    activity, created = UserActivity.objects.get_or_create(user=user, date=today)
-    
-    # Mark quiz as completed (1000+ means quiz done, <1000 means regular activity)
-    # This allows us to track both quiz completion AND regular activity
-    if activity.count < 1000:
-        activity.count = 1000  # Mark quiz completed
-    else:
-        # Already completed today, but we'll allow resubmission
-        pass
-    
-    activity.save()
+    answers = request.data.get("answers") or []
 
-    award_badges(user)
-    
+    if not isinstance(answers, list) or not answers:
+        return Response(
+            {"error": "Send the quiz answers as a list."}, status=400
+        )
+
+    cache_key = f"dailyquiz:{user.pk}:{timezone.now().date().isoformat()}"
+    payload = django_cache.get(cache_key)
+
+    if payload is None:
+        return Response(
+            {
+                "error": (
+                    "Today's quiz is no longer available. Reload to get a new one."
+                )
+            },
+            status=409,
+        )
+
+    questions = payload.get("questions") or []
+    if len(answers) != len(questions):
+        return Response(
+            {"error": f"Expected {len(questions)} answers, got {len(answers)}."},
+            status=400,
+        )
+
+    results = []
+    correct = 0
+    for index, question in enumerate(questions):
+        given = answers[index]
+        expected = question.get("correct")
+        is_correct = given == expected
+        correct += is_correct
+        results.append({
+            "question": question.get("question"),
+            "your_answer": given,
+            "correct_answer": expected,
+            "is_correct": is_correct,
+            "explanation": question.get("explanation", ""),
+        })
+
+    score = int(round((correct / len(questions)) * 100))
+    passed = score >= 70
+
+    # The streak requires passing, and the completion marker is its own
+    # column -- it used to be written into ``count`` as 1000, which was then
+    # summed as 1,000 real contributions and paid out 15,000 XP per click.
+    if passed:
+        complete_daily_quiz(user)
+        xp_award(user, "daily_quiz", reference=f"{timezone.now().date().isoformat()}")
+        award_badges(user)
+
     return Response({
-        "message": "Streak updated!", 
-        "streak_extended": True
+        "score": score,
+        "passed": passed,
+        "correct": correct,
+        "total": len(questions),
+        "results": results,
+        "quiz_completed": True,
+        "streak_extended": passed,
+        "message": (
+            "Streak extended." if passed else "Not passed today. Try again tomorrow."
+        ),
     })
 
 @api_view(['POST'])
@@ -2280,19 +2394,25 @@ def submit_quiz(request, item_id):
         quiz.completed_at = datetime.now()
         item.status = 'completed'
         item.save()
-        
+
         next_item = UserRoadmapItem.objects.filter(
             user=request.user,
             step_order=item.step_order + 1
         ).first()
-        if next_item:
+        # Only unlock a module that is still locked. The previous version set
+        # it to 'active' unconditionally, so re-taking an old quiz downgraded
+        # an already-completed module back to active and silently un-completed
+        # it -- verified by replaying module 0's quiz after finishing module 1.
+        if next_item and next_item.status == 'locked':
             next_item.status = 'active'
             next_item.save()
-        
-        today = datetime.now().date()
-        activity, _ = UserActivity.objects.get_or_create(user=request.user, date=today)
-        activity.count += 1
-        activity.save()
+
+        record_activity(request.user)
+
+        # Idempotent awards: keyed on the module id, so retaking the quiz
+        # does not pay out again.
+        xp_award(request.user, "quiz_passed", reference=str(item.id))
+        xp_award(request.user, "module_completed", reference=str(item.id))
 
         award_badges(request.user)
     
@@ -2810,19 +2930,24 @@ def get_analytics(request):
     completed_count = all_items.filter(status='completed').count()
     total_count = all_items.count()
 
-    # Weekly activity — UserActivity uses (date, count) not timestamp
-    week_ago_date = (now - timedelta(days=7)).date()
-    weekly_activities = UserActivity.objects.filter(user=user, date__gte=week_ago_date)
-    weekly_total = sum(a.count for a in weekly_activities)
+    # Weekly activity. One query, materialised into a dict — the previous
+    # version re-queried the same queryset once per day of the week, which
+    # cost 7 extra queries on the dashboard's hottest read path.
+    week_ago_date = (now - timedelta(days=6)).date()
+    activity_by_date = dict(
+        UserActivity.objects.filter(user=user, date__gte=week_ago_date).values_list(
+            "date", "count"
+        )
+    )
+    weekly_total = sum(activity_by_date.values())
 
     # Daily breakdown for the last 7 days
     weekly_breakdown = []
     for i in range(7):
         day = (now - timedelta(days=6 - i)).date()
-        act = weekly_activities.filter(date=day).first()
         weekly_breakdown.append({
             "date": day.isoformat(),
-            "count": act.count if act else 0,
+            "count": activity_by_date.get(day, 0),
         })
 
     # Quiz stats (last 30 days)
@@ -2840,20 +2965,23 @@ def get_analytics(request):
     ).order_by('-submitted_at')[:5]
 
     # Streak
-    current_streak = calculate_current_streak(user)
+    current_streak_value = activity.current_streak(user)
 
-    # XP (computed)
-    year_activities = UserActivity.objects.filter(user=user, date__gte=(now - timedelta(days=365)).date())
-    total_year = sum(a.count for a in year_activities)
-    xp = (completed_count * 500) + (total_year * 15) + (getattr(user, 'community_xp', 0))
+    # XP: read from the ledger, the same source the profile screen uses.
+    # Previously this recomputed it as
+    # completed*500 + activities*15 + community_xp, while get_user_profile
+    # used a different formula, so the same user saw two different totals on
+    # two screens of the same app.
+    xp_summary = xp_module.breakdown(user)
 
     return Response({
         "summary": {
-            "total_xp": xp,
-            "current_streak": current_streak,
+            "total_xp": xp_summary["total"],
+            "learning_xp": xp_summary["learning"],
+            "community_xp": xp_summary["community"],
+            "current_streak": current_streak_value,
             "completed_modules": completed_count,
             "total_modules": total_count,
-            "community_xp": getattr(user, 'community_xp', 0),
         },
         "weekly_activity_total": weekly_total,
         "quiz_stats": {
@@ -2875,21 +3003,45 @@ def get_analytics(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def community_leaderboard(request):
-    leaders = User.objects.annotate(
-        posts_count=Count('posts', distinct=True),
-        replies_count=Count('replies', distinct=True)
-    ).order_by('-community_xp', '-posts_count')[:10]
+    """
+    Community leaderboard.
+
+    Sorts on a sum over the XP ledger scoped to 'community', not on
+    User.community_xp. That column was written by lesson-quiz awards as well
+    as community actions, so a user who had never posted anything could
+    outrank genuine contributors just by grinding lessons.
+    """
+    leaders = (
+        User.objects.annotate(
+            community_xp_total=Coalesce(
+                Sum("xp_events__amount", filter=Q(xp_events__scope="community")),
+                Value(0),
+            ),
+            posts_count=Count("posts", distinct=True),
+            replies_count=Count("replies", distinct=True),
+        )
+        .filter(community_xp_total__gt=0)
+        .order_by("-community_xp_total", "-posts_count")
+        .values("username", "community_xp_total", "posts_count", "replies_count")[:10]
+    )
+
+    rows = list(leaders)
 
     return Response({
         "leaders": [
             {
-                "username": u.username,
-                "xp": getattr(u, 'community_xp', 0),
-                "posts": getattr(u, 'posts_count', 0),
-                "replies": getattr(u, 'replies_count', 0)
+                "rank": index + 1,
+                "username": row["username"],
+                "xp": row["community_xp_total"],
+                "posts": row["posts_count"],
+                "replies": row["replies_count"],
             }
-            for u in leaders
-        ]
+            for index, row in enumerate(rows)
+        ],
+        # The frontend offered a timeframe selector the backend never
+        # honoured, then rendered mock data when the shape did not match.
+        # There is one leaderboard and the response says so.
+        "timeframe": "all-time",
     })
 
 
@@ -3928,18 +4080,18 @@ def submit_lesson_quiz(request, item_id, lesson_id):
         lp.quiz_passed = True
         lp.is_completed = True
         lp.completed_at = timezone.now()
-        xp_awarded = 20
+
+        # Idempotent: keyed on (reason, lesson id), so a resubmitted quiz
+        # cannot pay twice. Previously this wrote straight into
+        # User.community_xp, which is the leaderboard's sort key -- so
+        # grinding lessons outranked actual community contribution.
+        xp_event = xp_award(
+            user, "lesson_completed", reference=f"{item.id}:{lesson_id}"
+        )
+        xp_awarded = xp_event.amount if xp_event else 0
         lp.xp_awarded = xp_awarded
 
-        # Award XP
-        user.community_xp = (user.community_xp or 0) + xp_awarded
-        user.save(update_fields=['community_xp'])
-
-        # Log activity for streak
-        today = datetime.now().date()
-        activity, _ = UserActivity.objects.get_or_create(user=user, date=today)
-        activity.count += 1
-        activity.save()
+        record_activity(user, reason="lesson")
 
         # Check if ALL lessons in this module are now complete
         outline = item.lesson_data if isinstance(item.lesson_data, list) else []
