@@ -6,7 +6,6 @@ import ProfilePage from './ProfilePage';
 
 import Dashboard from './Dashboard';
 import Onboarding from './Onboarding';
-import Profile from './Profile';
 import Settings from './Settings';
 import Community from './Community';
 import Leaderboard from './components/community/Leaderboard';

@@ -20,7 +20,7 @@ import {
   Zap,
 } from 'lucide-react';
 import './Profile.css';
-import html2pdf from 'html2pdf.js';
+import { toast } from './toast';
 import { usePremium } from './premium/PremiumContext';
 import { useIsMobile } from './hooks/useMediaQuery';
 
@@ -281,6 +281,12 @@ export default function ProfilePage() {
     if (!gate.allowed) return;
     const element = cvRef.current;
     if (!element) return;
+
+    // html2pdf pulls in html2canvas and jsPDF, about 745 KB combined. It was
+    // imported statically, so every visit to the profile page downloaded a
+    // PDF library that is only needed once the user actually clicks Export.
+    // Loaded on demand instead.
+    const { default: html2pdf } = await import('html2pdf.js');
     html2pdf().from(element).save();
   };
 
@@ -341,16 +347,25 @@ export default function ProfilePage() {
 
   const downloadCertificate = async (itemId) => {
     try {
-      const res = await api.get(`/api/certificate/${itemId}/generate/`, { responseType: 'blob' });
-      const url = window.URL.createObjectURL(new Blob([res.data]));
+      // POST, not GET. The endpoint is @api_view(['POST']) because issuing a
+      // certificate writes a row; a GET returned 405 Method Not Allowed on
+      // every single download attempt, so the button never worked.
+      const res = await api.post(`/api/certificate/${itemId}/generate/`, {}, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'text/html' }));
       const link = document.createElement('a');
       link.href = url;
       link.setAttribute('download', `certificate_${itemId}.html`);
       document.body.appendChild(link);
       link.click();
       link.remove();
-    } catch {
-      alert('Certificate download failed');
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      // Surface the real reason rather than a generic alert: the common
+      // cases are "not verified yet" and "no roadmap item with that id".
+      const msg = err?.response?.status === 404
+        ? 'That certificate could not be found.'
+        : 'Certificate download failed.';
+      toast.error?.(msg) ?? alert(msg);
     }
   };
 

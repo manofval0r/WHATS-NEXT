@@ -1,67 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import './tokens.css';
 
-/* ═══════════════════════════════════════════
-   FRIENDLY BUILDER — Design System
-   Inspired by FreeCodeCamp + Duolingo
-   Clean, motivating, professional.
-   ═══════════════════════════════════════════ */
-
-:root {
-  /* BACKGROUND */
-  --bg-dark: #1A1A2E;
-  --bg-surface: #16213E;
-  --bg-panel: #0F3460;
-  --bg-card: #16213E;
-  --bg-hover: #1F2A48;
-  --bg-image: none;
-  --panel-bg: #16213E;
-  --overlay-bg: rgba(26, 26, 46, 0.9);
-  --glass-blur: 10px;
-
-  /* TEXT */
-  --text-primary: #EDEDED;
-  --text-header: #EDEDED;
-  --text-main: #EDEDED;
-  --text-secondary: #A0A0B0;
-  --text-tertiary: #4E4E60;
-  --text-muted: #6E6E80;
-  --text-disabled: #4E4E60;
-
-  /* BORDERS */
-  --border-subtle: #2A2A40;
-  --border-active: #6C63FF;
-
-  /* BRAND COLORS */
-  --primary: #6C63FF;
-  --primary-light: #8B83FF;
-  --primary-bg: #1F1F35;
-  
-  --success: #29BC9B; 
-  --success-bg: rgba(41, 188, 155, 0.1);
-  --warning: #F59E0B;
-  --warning-bg: rgba(245, 158, 11, 0.1);
-  --danger: #EF4444;
-  --danger-bg: rgba(239, 68, 68, 0.1);
-  --streak: #EC4899;
-
-  /* Legacy aliases for compatibility */
-  --neon-cyan: var(--primary);
-  --neon-violet: var(--primary-light);
-  --neon-gold: var(--warning);
-  --neon-green: var(--success);
-  --neon-red: var(--danger);
-  --neon-magenta: var(--streak);
-  --neon-mint: var(--success);
-  --void-deep: var(--bg-dark);
-  --void-mid: var(--bg-surface);
-  --void-light: var(--bg-panel);
-  
-  --font-display: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
-  
-  --shadow-lg: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
-}
+/* Fonts are loaded from a <link> in index.html rather than an @import here.
+   An @import inside a bundled stylesheet blocks: the browser cannot discover
+   the font URL until it has already fetched and parsed this stylesheet,
+   which serialises the two requests. A <link> in the head is discovered
+   immediately and fetched in parallel. */
 
 /* ═══════════════════════════════════════════
    BASE

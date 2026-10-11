@@ -3,22 +3,44 @@
 
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
   <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+
+  <!-- Fonts.
+       Six display faces (Balthazar, Bokor, Caesar Dressing, Delius,
+       Fondamento, Germania One) were downloaded on every single page load
+       and referenced nowhere in src/ — a repo-wide grep for all six returns
+       zero matches. They were dead network payload.
+
+       These two are the ones actually used, via --font-sans and
+       --font-mono in src/tokens.css. Loaded here rather than with a CSS
+       @import because an @import inside a bundled stylesheet serialises
+       behind the stylesheet: the browser cannot discover the font URL until
+       the CSS has already been fetched and parsed. A <link> in the head is
+       discovered immediately and in parallel. -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
-    href="https://fonts.googleapis.com/css2?family=Balthazar&family=Bokor&family=Caesar+Dressing&family=Delius&family=Fondamento&family=Germania+One&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap"
     rel="stylesheet" />
 
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WHATS-NEXT — a personalized learning roadmap</title>
+  <meta
+    name="description"
+    content="Pick a role, get a module-by-module roadmap, build real projects and have them scored. Built as a portfolio piece." />
 
-  <!-- PWA Meta Tags -->
-  <meta name="theme-color" content="#00f2ff" />
-  <meta name="description" content="Career Roadmap Platform - Your personalized guide to tech success" />
+  <!-- Matches --bg-base in src/tokens.css. It was #00f2ff, a neon cyan
+       belonging to neither theme. -->
+  <meta name="theme-color" content="#0b0c0e" />
+  <meta id="theme-color-meta" name="theme-color" content="#0b0c0e" />
+
+  <meta property="og:title" content="WHATS-NEXT" />
+  <meta property="og:type" content="website" />
+  <meta name="color-scheme" content="dark" />
+
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
-
-  <title>What's Next</title>
 </head>
 
 <body>

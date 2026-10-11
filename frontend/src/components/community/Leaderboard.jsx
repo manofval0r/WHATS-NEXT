@@ -1,49 +1,52 @@
 import { useState, useEffect } from 'react';
 import api from '../../api';
-import { Trophy, Medal, Award, TrendingUp, Zap, Star } from 'lucide-react';
-
-const TIMEFRAMES = ['Weekly', 'Monthly', 'All-Time'];
+import { Trophy, Medal, TrendingUp, MessageSquare, MessageCircle } from 'lucide-react';
 
 export default function Leaderboard() {
-  const [timeframe, setTimeframe] = useState('Weekly');
   const [leaders, setLeaders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [userRank, setUserRank] = useState(null);
 
   useEffect(() => {
     fetchLeaderboard();
-  }, [timeframe]);
+    // The timeframe selector was removed: the backend has always served a
+    // single all-time board, so offering Weekly/Monthly implied a
+    // granularity that did not exist.
+  }, []);
 
   const fetchLeaderboard = async () => {
     setLoading(true);
+    setError(null);
     try {
-      const res = await api.get(`/api/leaderboard/?timeframe=${timeframe.toLowerCase()}`);
+      // The route is /api/community/leaderboard/. This requested
+      // /api/leaderboard/, which is not in the URL conf, so every load 404'd
+      // and fell through to the mock generator below -- which rendered ten
+      // randomly generated accounts with random XP as if they were real
+      // community members.
+      const res = await api.get('/api/community/leaderboard/');
       setLeaders(res.data.leaders || []);
-      setUserRank(res.data.user_rank || null);
+      setUserRank(res.data.user_rank ?? null);
     } catch (e) {
-      console.error(e);
-      // Mock data for development
-      setLeaders(generateMockLeaders());
+      // Show the failure. Inventing plausible-looking users here would be the
+      // worst possible bug on a portfolio piece: a reviewer sees a full
+      // leaderboard of strangers and concludes the product has users.
+      setLeaders([]);
+      setError(
+        e?.response?.status === 404
+          ? 'The leaderboard endpoint is not available.'
+          : 'Could not load the leaderboard. Check your connection and retry.'
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  const generateMockLeaders = () => {
-    return Array.from({ length: 10 }, (_, i) => ({
-      rank: i + 1,
-      username: `user_${i + 1}`,
-      xp: Math.floor(Math.random() * 5000) + 1000,
-      modules_completed: Math.floor(Math.random() * 50) + 5,
-      streak: Math.floor(Math.random() * 30) + 1
-    }));
-  };
-
   const getRankIcon = (rank) => {
-    if (rank === 1) return <Trophy size={24} color="#ffbe0b" />;
-    if (rank === 2) return <Medal size={24} color="#c0c0c0" />;
-    if (rank === 3) return <Medal size={24} color="#cd7f32" />;
-    return <span style={{ fontSize: '16px', fontFamily: 'JetBrains Mono', color: '#484f58' }}>#{rank}</span>;
+    if (rank === 1) return <Trophy size={24} color="#e0a33c" />;
+    if (rank === 2) return <Medal size={24} color="#a8aeb8" />;
+    if (rank === 3) return <Medal size={24} color="#b0764a" />;
+    return <span style={{ fontSize: '16px', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>#{rank}</span>;
   };
 
   return (
@@ -51,29 +54,12 @@ export default function Leaderboard() {
       {/* Header */}
       <div style={styles.header}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ width: '4px', height: '32px', background: 'var(--neon-cyan)', boxShadow: '0 0 10px var(--neon-cyan)' }}></div>
-          <h1 style={styles.title}>LEADERBOARD</h1>
+          <div style={{ width: '3px', height: '28px', background: 'var(--accent)' }} />
+          <h1 style={styles.title}>Community leaderboard</h1>
         </div>
-        <p style={styles.subtitle}>Top performers in the neural network</p>
-      </div>
-
-      {/* Timeframe Selector */}
-      <div style={styles.timeframeContainer}>
-        {TIMEFRAMES.map(tf => (
-          <button
-            key={tf}
-            onClick={() => setTimeframe(tf)}
-            style={{
-              ...styles.timeframeButton,
-              background: timeframe === tf ? 'rgba(0, 242, 255, 0.15)' : 'rgba(255, 255, 255, 0.03)',
-              color: timeframe === tf ? 'var(--neon-cyan)' : '#8b949e',
-              border: timeframe === tf ? '1px solid var(--neon-cyan)' : '1px solid transparent',
-              boxShadow: timeframe === tf ? '0 0 15px rgba(0, 242, 255, 0.2)' : 'none'
-            }}
-          >
-            {tf}
-          </button>
-        ))}
+        <p style={styles.subtitle}>
+          All-time community XP — earned by posting, replying and reviewing.
+        </p>
       </div>
 
       {/* User's Current Rank (if available) */}
@@ -101,18 +87,32 @@ export default function Leaderboard() {
 
       {/* Leaderboard List */}
       {loading ? (
+        <div style={styles.loading}>Loading rankings...</div>
+      ) : error ? (
+        <div style={styles.loading} role="alert">{error}</div>
+      ) : leaders.length === 0 ? (
+        /* An honest empty state. The previous version filled this space with
+           ten invented users, which reads as a populated product. */
         <div style={styles.loading}>
-          <span className="blink">{'>'}</span> LOADING_RANKINGS...
+          <div style={{ marginBottom: 8, color: 'var(--text-secondary)' }}>
+            Nobody has earned community XP yet.
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+            Post a question or reply to someone else to appear here.
+          </div>
         </div>
       ) : (
         <div style={styles.listContainer}>
           {leaders.map((leader, idx) => (
             <div
-              key={idx}
+              key={leader.username ?? idx}
               style={{
                 ...styles.leaderCard,
-                background: leader.rank <= 3 ? 'rgba(0, 242, 255, 0.05)' : 'rgba(22, 27, 34, 0.6)',
-                borderColor: leader.rank === 1 ? '#ffbe0b' : leader.rank === 2 ? '#c0c0c0' : leader.rank === 3 ? '#cd7f32' : '#30363d'
+                borderColor:
+                  leader.rank === 1 ? 'var(--warning)'
+                  : leader.rank === 2 ? 'var(--border-strong)'
+                  : leader.rank === 3 ? 'var(--border-strong)'
+                  : 'var(--border-subtle)'
               }}
             >
               {/* Rank Icon */}
@@ -120,22 +120,25 @@ export default function Leaderboard() {
                 {getRankIcon(leader.rank)}
               </div>
 
-              {/* User Info */}
+              {/* User Info. The backend returns username, xp, posts and
+                  replies — it never returned modules_completed or streak,
+                  so those two pills always rendered as "undefined modules"
+                  and "undefined day streak". */}
               <div style={{ flex: 1 }}>
                 <div style={styles.username}>{leader.username}</div>
                 <div style={styles.stats}>
-                  <span><Zap size={14} /> {leader.modules_completed} modules</span>
+                  <span><MessageSquare size={14} /> {leader.posts ?? 0} posts</span>
                   <span>•</span>
-                  <span><Star size={14} /> {leader.streak} day streak</span>
+                  <span><MessageCircle size={14} /> {leader.replies ?? 0} replies</span>
                 </div>
               </div>
 
               {/* XP */}
               <div style={styles.xpBadge}>
-                <div style={{ fontSize: '18px', fontWeight: 'bold', fontFamily: 'JetBrains Mono' }}>
+                <div style={{ fontSize: '18px', fontWeight: 'bold', fontFamily: 'var(--font-mono)' }}>
                   {leader.xp?.toLocaleString()}
                 </div>
-                <div style={{ fontSize: '10px', color: '#8b949e' }}>XP</div>
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>XP</div>
               </div>
             </div>
           ))}

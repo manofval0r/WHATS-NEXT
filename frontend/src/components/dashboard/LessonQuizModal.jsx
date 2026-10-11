@@ -51,30 +51,49 @@ export default function LessonQuizModal({ itemId, lessonId, lessonTitle, onClose
   const handleSubmit = useCallback(async () => {
     if (!questions) return;
     setSubmitting(true);
+    setError(null);
     try {
-      const res = await submitLessonQuiz(itemId, lessonId, answers);
+      // The backend requires a LIST and validates its length:
+      //   if not isinstance(user_answers, list) or
+      //      len(user_answers) != len(lp.quiz_questions): return 400
+      // This component stored answers as an object keyed by index, which
+      // serialised to {"0":2,"1":0} and failed that check on every single
+      // submission — a 100% failure rate, so no lesson could ever be
+      // completed and the 20 XP was unreachable.
+      const ordered = questions.map((_, i) => answers[i] ?? null);
+
+      const res = await submitLessonQuiz(itemId, lessonId, ordered);
       const d = res.data;
       setResult({
         passed: d.passed,
         score: d.score,
-        total: d.total,
+        total: d.correct !== undefined ? d.total : questions.length,
+        correct: d.correct,
         xp_awarded: d.xp_awarded,
-        explanations: d.explanations || [],
+        // The backend returns per-question detail in `results`, keyed by
+        // index. It has never returned an `explanations` array; the old
+        // code read that, so every question rendered as incorrect.
+        results: d.results || [],
       });
       if (d.passed) {
-        jada.celebrate('Quiz passed! +20 XP 🎉');
+        jada.celebrate('Quiz passed!');
         if (onPass) onPass();
       } else {
-        jada.nudge('Almost there — review and try again!', 'warm');
+        jada.nudge('Almost there — review and try again.', 'warm');
       }
-    } catch {
-      setError('Submission failed. Please try again.');
+    } catch (err) {
+      setError(
+        err?.response?.status === 400
+          ? 'The quiz could not be submitted. Reload and try again.'
+          : 'Submission failed. Please try again.'
+      );
     } finally {
       setSubmitting(false);
     }
   }, [questions, answers, itemId, lessonId, jada, onPass]);
 
-  const allAnswered = questions && Object.keys(answers).length === questions.length;
+  const allAnswered =
+    questions && questions.length > 0 && questions.every((_, i) => answers[i] !== undefined);
 
   return (
     <div
@@ -123,39 +142,47 @@ export default function LessonQuizModal({ itemId, lessonId, lessonTitle, onClose
                     <Award size={48} color="var(--neon-gold, #ffbe0b)" />
                     <h3 style={styles.resultTitle}>QUIZ PASSED</h3>
                     <p style={styles.resultSub}>
-                      {result.score}/{result.total} correct • +{result.xp_awarded || 20} XP
+                      {result.correct ?? 0}/{result.total} correct
+                      {result.passed && result.xp_awarded ? ` • +${result.xp_awarded} XP` : ''}
                     </p>
                   </>
                 ) : (
                   <>
-                    <XCircle size={48} color="var(--neon-red, #ef4444)" />
-                    <h3 style={{ ...styles.resultTitle, color: 'var(--neon-red, #ef4444)' }}>NOT YET</h3>
+                    <XCircle size={48} color="var(--danger)" />
+                    <h3 style={{ ...styles.resultTitle, color: 'var(--danger)' }}>NOT YET</h3>
                     <p style={styles.resultSub}>
-                      {result.score}/{result.total} correct — need {Math.ceil(result.total * 0.7)}+ to pass
+                      {result.correct ?? 0}/{result.total} correct — need {Math.ceil(result.total * 0.7)}+ to pass
                     </p>
                   </>
                 )}
               </div>
 
-              {/* Explanations */}
+              {/* Per-question breakdown.
+                  Read from `results`, which the backend actually returns
+                  ({question, your_answer, correct_answer, is_correct,
+                  explanation}, one entry per question in order).
+                  The old code read `result.explanations`, a field that has
+                  never existed on the response, so `explanation` was always
+                  undefined and every question rendered as a red X — including
+                  the ones the user had answered correctly. */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 24 }}>
                 {questions.map((q, i) => {
-                  const userAnswer = answers[i];
-                  const explanation = result.explanations[i];
-                  const isCorrect = explanation?.is_correct;
+                  const detail = result.results?.[i];
+                  const isCorrect = detail ? detail.is_correct : answers[i] === q?.correct;
+                  const explanation = detail?.explanation ?? q?.explanation;
                   return (
-                    <div key={i} style={{ ...styles.questionCard, borderColor: isCorrect ? 'rgba(57,211,83,0.3)' : 'rgba(239,68,68,0.3)' }}>
+                    <div key={i} style={{ ...styles.questionCard, borderColor: isCorrect ? 'var(--success-bg)' : 'var(--danger-bg)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                         {isCorrect
-                          ? <CheckCircle size={16} color="#39d353" />
-                          : <XCircle size={16} color="#ef4444" />
+                          ? <CheckCircle size={16} color="var(--success)" />
+                          : <XCircle size={16} color="var(--danger)" />
                         }
                         <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Q{i + 1}</span>
                       </div>
                       <p style={{ margin: 0, fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.5 }}>{q.question}</p>
-                      {!isCorrect && explanation?.explanation && (
+                      {!isCorrect && explanation && (
                         <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.4, fontStyle: 'italic' }}>
-                          {explanation.explanation}
+                          {explanation}
                         </p>
                       )}
                     </div>

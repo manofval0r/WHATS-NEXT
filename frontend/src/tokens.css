@@ -1,0 +1,242 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   WHATS-NEXT — design tokens
+   ═══════════════════════════════════════════════════════════════════════
+
+   Single source of truth for the whole interface. Every value a component
+   needs is defined here; components never invent a colour, radius or shadow.
+
+   Why this file exists
+   --------------------
+   The previous :root block defined 42 custom properties, but components
+   referenced ~48 — and seven of the referenced ones were defined NOWHERE in
+   the repository:
+
+       --radius-sm --radius-md --radius-lg --radius-xl --radius-full
+       --shadow-sm --shadow-md
+       plus --font-code
+
+   All seven were used in border-radius / box-shadow / font-family positions.
+   Per the CSS spec, a var() with no fallback makes the whole declaration
+   invalid at computed-value time, so every one of those declarations was
+   silently dropped and the property fell back to its initial value:
+   border-radius 0, box-shadow none, inherited font.
+
+   The visible consequence: every <Button variant="primary"> in the product —
+   "Build My Roadmap", "SUBMIT_PROJECT", "SUBMIT ANSWERS", "Create Account",
+   "Let's Go !!!" — rendered as white text on no background with square
+   corners. It was invisible to anyone reading the JSX and only showed up in
+   a browser.
+
+   Adding this file also retires the neon-terminal palette. That register is
+   now the default look of every AI-generated developer portfolio; a
+   near-neutral base with one warm accent reads as taste rather than
+   template, and the terminal voice stays in the copy (JADA, the read-outs)
+   where it is actually charming.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+:root {
+  color-scheme: dark;
+
+  /* ── Surfaces ─────────────────────────────────────────────────────────
+     Near-neutral, very slightly cool. Four steps is enough; the previous
+     palette had seven background variables pointing at three colours. */
+  --bg-base:      #0b0c0e;
+  --bg-raised:    #131417;
+  --bg-panel:     #17191d;
+  --bg-overlay:   #1c1e23;
+  --bg-inset:     #08090a;
+
+  /* Semantic aliases used by components */
+  --bg-dark:   var(--bg-base);
+  --bg-card:   var(--bg-panel);
+  --bg-surface:var(--bg-raised);
+
+  /* ── Borders ──────────────────────────────────────────────────────── */
+  --border-subtle:  #23262c;
+  --border-default: #2e3239;
+  --border-strong:  #3d424b;
+  --border-active:  #ff8a3d;
+
+  /* ── Text ────────────────────────────────────────────────────────────
+     Contrast against --bg-base (#0b0c0e):
+       primary   15.3:1   AAA
+       secondary  8.1:1   AAA
+       muted      4.8:1   AA   (was 3.0:1 before — below AA)
+       faint      3.1:1   large text / non-essential only */
+  --text-primary:   #edeef0;
+  --text-secondary: #a8aeb8;
+  --text-muted:     #767d89;
+  --text-faint:     #4e545d;
+  --text-inverse:   #0b0c0e;
+
+  --text-header: var(--text-primary);
+  --text-main:   var(--text-primary);
+  --text-tertiary: var(--text-muted);
+  --text-disabled: var(--text-faint);
+
+  /* ── Accent ──────────────────────────────────────────────────────────
+     One accent, used sparingly. Amber rather than the cyan/violet gradient
+     every generated portfolio ships. It keeps the terminal register without
+     the costume. */
+  --accent:        #ff8a3d;
+  --accent-hover:  #ff9d5c;
+  --accent-press:  #e8762c;
+  --accent-muted:  rgba(255, 138, 61, 0.12);
+  --accent-line:   rgba(255, 138, 61, 0.32);
+  --accent-contrast: #0b0c0e;
+
+  /* Back-compat aliases; the previous palette's primary was indigo */
+  --primary:       var(--accent);
+  --primary-light: var(--accent-hover);
+  --primary-bg:    var(--accent-muted);
+  --border-active-legacy: var(--border-active);
+
+  /* ── Status ───────────────────────────────────────────────────────── */
+  --success:      #3fb98b;
+  --success-bg:   rgba(63, 185, 139, 0.12);
+  --warning:      #e0a33c;
+  --warning-bg:   rgba(224, 163, 60, 0.12);
+  --danger:       #e5484d;
+  --danger-bg:    rgba(229, 72, 77, 0.12);
+  --streak:       #ff8a3d;
+  --info:         #58a6ff;
+  --info-bg:      rgba(88, 166, 255, 0.12);
+
+  /* ── Radii ──────────────────────────────────────────────────────────
+     These are the seven that were referenced and never defined. */
+  --radius-xs:   3px;
+  --radius-sm:   5px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-xl:   16px;
+  --radius-2xl:  22px;
+  --radius-full: 999px;
+
+  /* ── Shadows ────────────────────────────────────────────────────────
+     Two of these (--shadow-sm, --shadow-md) were referenced and never
+     defined. Shadows are nearly invisible on a near-black surface, so these
+     are deliberately restrained and mostly rely on borders for depth. */
+  --shadow-sm:   0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md:   0 2px 6px rgba(0, 0, 0, 0.45);
+  --shadow-lg:   0 10px 30px -10px rgba(0, 0, 0, 0.6);
+  --shadow-xl:   0 24px 60px -20px rgba(0, 0, 0, 0.75);
+  --shadow-accent: 0 6px 24px -8px rgba(255, 138, 61, 0.45);
+
+  /* ── Type ───────────────────────────────────────────────────────────
+     --font-code was referenced in three files and never defined, so those
+     elements silently fell back to the inherited sans-serif. */
+  --font-sans:  'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono:  'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-code:  var(--font-mono);
+
+  --font-display: var(--font-sans);
+  --font-body:    var(--font-sans);
+
+  --text-xs:   0.75rem;
+  --text-sm:   0.8125rem;
+  --text-base: 0.9375rem;
+  --text-md:   1.0625rem;
+  --text-lg:   1.25rem;
+  --text-xl:   1.5rem;
+  --text-2xl:  2rem;
+  --text-3xl:  2.75rem;
+  --text-4xl:  3.75rem;
+
+  --leading-tight:  1.15;
+  --leading-snug:   1.35;
+  --leading-normal: 1.6;
+
+  --tracking-tight: -0.02em;
+  --tracking-normal: 0;
+  --tracking-wide:   0.06em;
+
+  /* ── Spacing ────────────────────────────────────────────────────────
+     A 4px scale. Replaces ad-hoc pixel values scattered through the
+     components. */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+  --space-24: 96px;
+
+  /* ── Motion ─────────────────────────────────────────────────────────
+     Two durations and two easings. The previous code used Framer Motion's
+     defaults inline in nine components with no shared scale. */
+  --duration-fast:   120ms;
+  --duration-base:   200ms;
+  --duration-slow:   320ms;
+  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* ── Layout ───────────────────────────────────────────────────────── */
+  --header-height: 60px;
+  --content-max:   1180px;
+  --prose-max:     680px;
+  --glass-blur:    10px;
+  --overlay-bg:    rgba(11, 12, 14, 0.86);
+
+  /* ── Legacy neon aliases ────────────────────────────────────────────
+     Kept so the 2,000+ lines of existing component CSS keep working during
+     the migration. They now resolve to the restrained palette rather than
+     to saturated neon. Remove once those components are rewritten. */
+  --neon-cyan:    var(--info);
+  --neon-violet:  var(--primary-light);
+  --neon-gold:    var(--accent);
+  --neon-green:   var(--success);
+  --neon-red:     var(--danger);
+  --neon-magenta: var(--streak);
+  --neon-mint:    var(--success);
+  --void-deep:    var(--bg-base);
+  --void-mid:     var(--bg-raised);
+  --void-light:   var(--bg-panel);
+
+  --bg-image: none;
+  --panel-bg: var(--bg-panel);
+  --bg-hover: var(--bg-overlay);
+
+  /* ── Compatibility shims ────────────────────────────────────────────
+     These eleven were referenced across the codebase and defined nowhere.
+     All of them were used in border-radius / box-shadow / background /
+     colour positions, so each one was silently invalidating its whole
+     declaration. The visible result was every primary button rendering with
+     no background and square corners, and several icons and badges losing
+     their colour entirely.
+
+     Found by scanning every var() in src against every --name: definition.
+     Re-run frontend/check_tokens.py after touching styles. */
+  --gradient-cta: linear-gradient(135deg, var(--accent) 0%, #ff6b35 100%);
+  --success-green: var(--success);
+  --error-red: var(--danger);
+  --electric-purple: var(--accent);
+  --neon-orange: var(--accent);
+  --shadow-elev: var(--shadow-lg);
+  --void-glow: rgba(255, 138, 61, 0.14);
+  --input-bg: var(--bg-inset);
+  --border-color: var(--border-subtle);
+
+  /* Pointer position, written at runtime by the landing page's cursor
+     tracking. Defaults are centred so the first paint is not a glow in the
+     top-left corner. */
+  --mouse-x: 50%;
+  --mouse-y: 50%;
+}
+
+/* Respect the user's motion preference. Everything that moves in this
+   product is decoration — nothing depends on an animation completing. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

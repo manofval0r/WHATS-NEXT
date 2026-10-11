@@ -622,13 +622,18 @@ export default function Dashboard() {
           onClose={() => setSelectedNode(null)}
           onSubmitProject={handleSubmitProject}
           onMarkComplete={async (nodeId) => {
-            try {
-              await api.post(`/api/submit-project/${nodeId}/`, { link: 'completed' });
-              await fetchRoadmap();
-              setSelectedNode(null);
-            } catch (error) {
-              console.error('Mark complete error:', error);
-            }
+            // The backend validates the submission link and rejects anything
+            // that is not http(s)://... with a 400:
+            //   if not submission_link.startswith(('http://','https://')): 400
+            // This posted the literal string "completed" as the link, so the
+            // button silently did nothing on every tap.
+            //
+            // "Mark complete" is therefore no longer offered as a way to skip
+            // verification — a module is completed by submitting a real
+            // project, or by passing its lesson quiz. This handler now routes
+            // to the same submit flow the desktop panel uses.
+            setSelectedNode(null);
+            handleSubmitProject?.(nodeId);
           }}
         />
       )}

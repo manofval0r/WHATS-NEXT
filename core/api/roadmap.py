@@ -356,6 +356,25 @@ def get_my_roadmap(request):
                     "step_order": item.step_order,
                     "progress_percent": progress_percent,
                     "unlock_hint": unlock_hint,
+                    # ── Verification ──────────────────────────────────────
+                    # These four were missing from the node payload, so the
+                    # "submit your project" panel rendered against
+                    # ``data.verification_project`` -- a field that existed
+                    # nowhere in the backend -- and therefore NEVER RENDERED.
+                    # That made the entire Build & Verify step unreachable,
+                    # and with it every downstream feature: XP, streaks,
+                    # certificates, the portfolio and the CV, all of which
+                    # require a completed module, and only this endpoint can
+                    # produce one.
+                    #
+                    # Derived, not stored: a module requires a submission
+                    # exactly when the catalog gave it a project prompt.
+                    "verification_project": bool(item.project_prompt),
+                    "project_submission_link": item.project_submission_link,
+                    "github_score": item.github_score,
+                    "score_breakdown": item.score_breakdown,
+                    "verification_status": item.verification_status,
+                    "verification_count": item.verification_count,
                 },
             })
 

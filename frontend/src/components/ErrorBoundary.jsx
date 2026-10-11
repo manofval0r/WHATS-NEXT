@@ -33,7 +33,7 @@ class ErrorBoundary extends React.Component {
             <p className="text-text-secondary mb-4">
               We encountered an unexpected error. Please try refreshing the page.
             </p>
-            {process.env.NODE_ENV === 'development' && this.state.error && (
+            {import.meta.env.DEV && this.state.error && (
               <details className="text-left text-xs text-text-muted mb-4 bg-void-light p-3 rounded border border-neon-cyan/20">
                 <summary className="cursor-pointer font-semibold mb-2">Error Details (Dev Only)</summary>
                 <pre className="whitespace-pre-wrap break-words">{this.state.error.toString()}</pre>
