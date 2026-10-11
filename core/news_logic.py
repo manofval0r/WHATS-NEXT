@@ -148,6 +148,16 @@ def _flat_terms(keywords: list[str]) -> set[str]:
     return terms
 
 
+def _entry_summary(entry) -> str:
+    """Plain-text summary from an RSS entry, for skill matching."""
+    raw = getattr(entry, 'summary', '') or getattr(entry, 'description', '') or ''
+    if not raw:
+        return ''
+    # Feeds ship HTML fragments; strip tags and collapse whitespace.
+    text = re.sub(r'<[^>]+>', ' ', raw)
+    return re.sub(r'\s+', ' ', text).strip()[:600]
+
+
 def _fetch_wwr(keywords: list[str], limit: int = 15) -> list[dict]:
     """WeWorkRemotely RSS."""
     rss_url = 'https://weworkremotely.com/categories/remote-programming-jobs.rss'
@@ -169,6 +179,7 @@ def _fetch_wwr(keywords: list[str], limit: int = 15) -> list[dict]:
             'company': company,
             'link': entry.link,
             'is_hot': _is_entry_level(entry.title),
+            'description': _entry_summary(entry),
             'published': entry.published if hasattr(entry, 'published') else '',
             'published_ts': pub_dt.isoformat() if pub_dt else '',
             'source': 'WeWorkRemotely',
@@ -200,6 +211,7 @@ def _fetch_remotive(keywords: list[str], limit: int = 15) -> list[dict]:
             'company': company,
             'link': entry.link,
             'is_hot': _is_entry_level(entry.title),
+            'description': _entry_summary(entry),
             'published': entry.published if hasattr(entry, 'published') else '',
             'published_ts': pub_dt.isoformat() if pub_dt else '',
             'source': 'Remotive',
@@ -234,6 +246,7 @@ def _fetch_hn_jobs(keywords: list[str], limit: int = 10) -> list[dict]:
                     'company': company,
                     'link': hit.get('url') or f"https://news.ycombinator.com/item?id={hit.get('objectID', '')}",
                     'is_hot': _is_entry_level(title),
+                    'description': (hit.get('story_text') or '')[:600],
                     'published': hit.get('created_at', ''),
                     'published_ts': pub_dt.isoformat() if pub_dt else '',
                     'source': 'Hacker News',

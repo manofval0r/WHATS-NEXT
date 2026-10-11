@@ -16,12 +16,13 @@ from .youtube_logic import fetch_youtube_for_modules
 from .resource_queries import get_user_search_context
 from .posthog_client import ph_capture, ph_identify
 from django.core.cache import cache as django_cache
+from django.http import Http404
 from django.shortcuts import get_object_or_404
 from datetime import datetime, timedelta
 from django.db import transaction
 
 from django.utils import timezone
-from django.db.models import Count, F
+from django.db.models import Count, F, IntegerField, Q, Value, Case, When
 from django.db.models.functions import Greatest
 import re
 
@@ -44,19 +45,59 @@ def ensure_avatar_url(user):
 # ==========================================
 # 0. USERNAME AVAILABILITY CHECK
 # ==========================================
+# Single source of truth. Previously ``check_username`` enforced a 30-char
+# cap, a [A-Za-z0-9_] charset and case-insensitive uniqueness, while
+# ``update_username`` enforced only a 150-char cap and case-sensitive
+# uniqueness -- so a user could register as "alice", be told "Alice" was
+# available, then rename to "Alice" and impersonate them. Worse, the
+# charset was unchecked on rename and the username is interpolated into the
+# exported portfolio HTML and into a Content-Disposition header.
+
+USERNAME_MAX_LENGTH = 30
+USERNAME_MIN_LENGTH = 3
+USERNAME_PATTERN = re.compile(r'^[a-zA-Z0-9_]+$')
+
+# Characters that break a Content-Disposition filename or an HTML attribute.
+_USERNAME_HEADER_UNSAFE = re.compile(r'["\\;]')
+
+
+def _validate_username(candidate, exclude_user=None):
+    """
+    Validate a username against every rule the app enforces.
+
+    Returns ``(True, None)`` or ``(False, reason)``.
+    """
+    candidate = (candidate or '').strip()
+
+    if not candidate:
+        return False, "Username is required"
+    if len(candidate) < USERNAME_MIN_LENGTH:
+        return False, f"Username must be at least {USERNAME_MIN_LENGTH} characters"
+    if len(candidate) > USERNAME_MAX_LENGTH:
+        return False, f"Username must be {USERNAME_MAX_LENGTH} characters or fewer"
+    if not USERNAME_PATTERN.match(candidate):
+        return False, "Only letters, numbers, and underscores allowed"
+    if _USERNAME_HEADER_UNSAFE.search(candidate):
+        return False, "Username contains characters that are not allowed"
+
+    taken = User.objects.filter(username__iexact=candidate)
+    if exclude_user is not None:
+        taken = taken.exclude(pk=exclude_user.pk)
+    if taken.exists():
+        return False, "That username is already taken"
+
+    return True, None
+
+
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def check_username(request):
     """Return whether a username is available for registration."""
     q = request.query_params.get('q', '').strip()
-    if not q or len(q) < 3:
-        return Response({"available": False, "reason": "Username must be at least 3 characters"})
-    if len(q) > 30:
-        return Response({"available": False, "reason": "Username must be 30 characters or fewer"})
-    if not re.match(r'^[a-zA-Z0-9_]+$', q):
-        return Response({"available": False, "reason": "Only letters, numbers, and underscores allowed"})
-    taken = User.objects.filter(username__iexact=q).exists()
-    return Response({"available": not taken})
+    ok, reason = _validate_username(q)
+    if not ok:
+        return Response({"available": False, "reason": reason})
+    return Response({"available": True})
 
 
 # Offline fallback roadmaps used when AI is unavailable
@@ -1214,108 +1255,6 @@ def get_analytics_dashboard(request):
         "learning_level": user.current_level
     })
 
-# ==========================================
-# 7. EMPLOYER API (Job Listings & Matching)
-# ==========================================
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_job_listings(request):
-    """
-    Return job listings relevant to the user's career path with skill matching.
-    """
-    from .models import JobPosting, CandidateApplication
-    
-    user = request.user
-    career = user.target_career.lower() if user.target_career else ""
-    
-    # Get active job postings for early-level positions
-    jobs = JobPosting.objects.filter(
-        is_active=True,
-        level__in=['intern', 'entry', 'junior']
-    ).select_related('employer').order_by('-created_at')[:50]
-    
-    # Get user's completed modules (skills)
-    user_skills = set()
-    for item in UserRoadmapItem.objects.filter(user=user, status='completed'):
-        words = item.label.lower().split()
-        user_skills.update([w for w in words if len(w) > 2])
-    
-    # Calculate match scores and check for existing applications
-    job_listings = []
-    existing_applications = set(
-        CandidateApplication.objects.filter(candidate=user).values_list('job_posting_id', flat=True)
-    )
-    
-    for job in jobs:
-        # Simple skill match: count matching words
-        required_skills = [s.lower() for s in job.required_skills] if job.required_skills else []
-        matches = sum(1 for skill in required_skills if skill in user_skills)
-        match_score = round((matches / max(len(required_skills), 1)) * 100) if required_skills else 50
-        
-        # Filter: only show if career or skills partially match
-        if match_score >= 30 or career in job.title.lower():
-            job_listings.append({
-                "id": job.id,
-                "title": job.title,
-                "company": job.employer.company_name,
-                "level": job.get_level_display(),
-                "location": job.location,
-                "salary_range": job.salary_range or "Competitive",
-                "match_score": match_score,
-                "required_skills": required_skills[:8],
-                "is_applied": job.id in existing_applications,
-                "posted": job.created_at.strftime("%d %b")
-            })
-    
-    # Sort by match score
-    job_listings.sort(key=lambda x: x['match_score'], reverse=True)
-    
-    return Response(job_listings[:20])
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def apply_to_job(request, job_id):
-    """
-    Submit application to a job posting.
-    """
-    from .models import JobPosting, CandidateApplication
-    
-    user = request.user
-    
-    try:
-        job = JobPosting.objects.get(id=job_id, is_active=True)
-    except JobPosting.DoesNotExist:
-        return Response({"error": "Job not found"}, status=404)
-    
-    # Check for existing application
-    existing = CandidateApplication.objects.filter(candidate=user, job_posting=job).first()
-    if existing:
-        return Response({"error": "You've already applied to this job"}, status=400)
-    
-    # Calculate match score
-    user_skills = set()
-    for item in UserRoadmapItem.objects.filter(user=user, status='completed'):
-        words = item.label.lower().split()
-        user_skills.update([w for w in words if len(w) > 2])
-    
-    required_skills = [s.lower() for s in job.required_skills] if job.required_skills else []
-    matches = sum(1 for skill in required_skills if skill in user_skills)
-    match_score = round((matches / max(len(required_skills), 1)) * 100) if required_skills else 50
-    
-    # Create application
-    application = CandidateApplication.objects.create(
-        job_posting=job,
-        candidate=user,
-        match_score=match_score
-    )
-    
-    return Response({
-        "message": "Application submitted!",
-        "match_score": match_score,
-        "status": "applied"
-    })
-
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_user_profile(request):
@@ -1637,35 +1576,51 @@ def pivot_career(request):
 
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
-from django.db.models import Count, Q
 from .models import CommunityPost, CommunityReply, PostVote, PostTag
 from .serializers import CommunityPostSerializer, CommunityReplySerializer
+from .permissions import IsAuthorOrReadOnly
 
 class CommunityPostViewSet(viewsets.ModelViewSet):
     serializer_class = CommunityPostSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsAuthorOrReadOnly]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['title', 'content', 'tags__name']
     ordering_fields = ['created_at', 'upvotes', 'view_count']
 
+    #: Writes are scoped to the author's own posts. Without this,
+    #: ``get_queryset`` handed every post in the table to ``update`` and
+    #: ``destroy``, and any logged-in user could rewrite or delete anyone
+    #: else's post.
+    WRITE_ACTIONS = {'update', 'partial_update', 'destroy'}
+
     def get_queryset(self):
-        queryset = CommunityPost.objects.all().select_related('author', 'attached_module').prefetch_related('replies', 'tags')
-        
+        queryset = CommunityPost.objects.all().select_related(
+            'author', 'attached_module'
+        ).prefetch_related('replies', 'tags')
+
+        if self.action in self.WRITE_ACTIONS:
+            queryset = queryset.filter(author=self.request.user)
+
         # Filter by type
         post_type = self.request.query_params.get('type')
         if post_type:
             queryset = queryset.filter(post_type=post_type)
-            
+
         # Filter by module
         module_id = self.request.query_params.get('module_id')
         if module_id:
             queryset = queryset.filter(attached_module_id=module_id)
-            
+
+        # Filter by tag. ``tags`` is now a real M2M on the post, so this
+        # filter actually matches -- previously ``post.tags`` did not exist.
+        tag = self.request.query_params.get('tag')
+        if tag:
+            queryset = queryset.filter(tags__name=tag)
+
         # Filter by solved status
         solved = self.request.query_params.get('solved')
         if solved:
-            is_solved = solved.lower() == 'true'
-            queryset = queryset.filter(is_solved=is_solved)
+            queryset = queryset.filter(is_solved=solved.lower() == 'true')
 
         return queryset
 
@@ -1685,18 +1640,27 @@ class CommunityPostViewSet(viewsets.ModelViewSet):
     def upvote(self, request, pk=None):
         post = self.get_object()
         user = request.user
-        
-        try:
-            vote = PostVote.objects.get(user=user, post=post)
-            # Toggle vote (remove if exists)
-            vote.delete()
-            CommunityPost.objects.filter(pk=post.pk).update(upvotes=Greatest(F('upvotes') - 1, 0))
-            voted = False
-        except PostVote.DoesNotExist:
-            PostVote.objects.create(user=user, post=post, vote_type='post')
-            CommunityPost.objects.filter(pk=post.pk).update(upvotes=F('upvotes') + 1)
-            voted = True
-            
+
+        # The old get/delete/create sequence was three unsynchronised
+        # statements: two concurrent requests from the same user could both
+        # observe the vote, both delete, and both decrement -- leaving
+        # ``upvotes`` permanently one lower than the real vote count.
+        with transaction.atomic():
+            post = CommunityPost.objects.select_for_update().get(pk=post.pk)
+            existing = PostVote.objects.filter(user=user, post=post).first()
+            if existing:
+                existing.delete()
+                CommunityPost.objects.filter(pk=post.pk).update(
+                    upvotes=Greatest(F('upvotes') - 1, 0)
+                )
+                voted = False
+            else:
+                PostVote.objects.create(user=user, post=post, vote_type='post')
+                CommunityPost.objects.filter(pk=post.pk).update(
+                    upvotes=F('upvotes') + 1
+                )
+                voted = True
+
         post.refresh_from_db()
         return Response({'upvotes': post.upvotes, 'voted': voted})
 
@@ -1705,7 +1669,7 @@ class CommunityPostViewSet(viewsets.ModelViewSet):
         post = self.get_object()
         if post.author != request.user:
             return Response({'error': 'Only author can mark as solved'}, status=403)
-            
+
         post.is_solved = not post.is_solved
         post.save()
         return Response({'is_solved': post.is_solved})
@@ -1720,16 +1684,29 @@ class CommunityPostViewSet(viewsets.ModelViewSet):
 
 class CommunityReplyViewSet(viewsets.ModelViewSet):
     serializer_class = CommunityReplySerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsAuthorOrReadOnly]
+
+    WRITE_ACTIONS = {'update', 'partial_update', 'destroy'}
 
     def get_queryset(self):
-        return CommunityReply.objects.all().select_related('author')
+        queryset = CommunityReply.objects.all().select_related('author', 'post')
+
+        # Same defect as the post ViewSet: writes must be scoped to the
+        # author, or any authenticated user can edit or delete any reply.
+        if self.action in self.WRITE_ACTIONS:
+            queryset = queryset.filter(author=self.request.user)
+
+        post_id = self.request.query_params.get('post')
+        if post_id:
+            queryset = queryset.filter(post_id=post_id)
+
+        return queryset
 
     def perform_create(self, serializer):
         post_id = self.request.data.get('post')
         post = get_object_or_404(CommunityPost, id=post_id)
         serializer.save(author=self.request.user, post=post)
-        
+
         # Atomic reply count and XP increment
         CommunityPost.objects.filter(pk=post.pk).update(reply_count=F('reply_count') + 1)
         User.objects.filter(pk=self.request.user.pk).update(community_xp=F('community_xp') + 5)
@@ -1738,17 +1715,25 @@ class CommunityReplyViewSet(viewsets.ModelViewSet):
     def upvote(self, request, pk=None):
         reply = self.get_object()
         user = request.user
-        
-        try:
-            vote = PostVote.objects.get(user=user, reply=reply)
-            vote.delete()
-            CommunityReply.objects.filter(pk=reply.pk).update(upvotes=Greatest(F('upvotes') - 1, 0))
-            voted = False
-        except PostVote.DoesNotExist:
-            PostVote.objects.create(user=user, reply=reply, vote_type='reply')
-            CommunityReply.objects.filter(pk=reply.pk).update(upvotes=F('upvotes') + 1)
-            voted = True
-            
+
+        # Serialised against concurrent requests from the same user; see the
+        # equivalent comment on CommunityPostViewSet.upvote.
+        with transaction.atomic():
+            reply = CommunityReply.objects.select_for_update().get(pk=reply.pk)
+            existing = PostVote.objects.filter(user=user, reply=reply).first()
+            if existing:
+                existing.delete()
+                CommunityReply.objects.filter(pk=reply.pk).update(
+                    upvotes=Greatest(F('upvotes') - 1, 0)
+                )
+                voted = False
+            else:
+                PostVote.objects.create(user=user, reply=reply, vote_type='reply')
+                CommunityReply.objects.filter(pk=reply.pk).update(
+                    upvotes=F('upvotes') + 1
+                )
+                voted = True
+
         reply.refresh_from_db()
         return Response({'upvotes': reply.upvotes, 'voted': voted})
 
@@ -1757,19 +1742,17 @@ class CommunityReplyViewSet(viewsets.ModelViewSet):
         reply = self.get_object()
         if reply.post.author != request.user:
             return Response({'error': 'Only post author can accept answer'}, status=403)
-            
+
         # Toggle acceptance
         reply.is_accepted = not reply.is_accepted
         reply.save()
-        
+
         # If accepted, mark post as solved
         if reply.is_accepted:
             reply.post.is_solved = True
             reply.post.save()
-            
+
         return Response({'is_accepted': reply.is_accepted})
-
-
 
 
 @api_view(['GET'])
@@ -1779,18 +1762,28 @@ def get_community_feed(request):
     Returns recent project submissions from OTHER users.
     """
     user = request.user
-    
-    recent_subs = UserRoadmapItem.objects.filter(
-        status='completed',
-        project_submission_link__isnull=False
-    ).exclude(user=user).order_by('-submitted_at')[:20]
-    
+
+    recent_subs = (
+        UserRoadmapItem.objects
+        .filter(status='completed', project_submission_link__isnull=False)
+        .exclude(user=user)
+        .select_related('user')
+        .order_by('-submitted_at')[:20]
+    )
+
+    # One query for every vote this user has cast on the page, instead of one
+    # per row. The previous loop cost 1 + N + N queries.
+    my_votes = {
+        r.submission_id: r.vote_type
+        for r in ProjectReview.objects.filter(
+            submission__in=[item.id for item in recent_subs],
+            reviewer=user,
+        )
+    }
+
     feed_data = []
     for item in recent_subs:
-        # Check for existing vote
-        vote = ProjectReview.objects.filter(submission=item, reviewer=user).first()
-        user_vote = vote.vote_type if vote else None
-        
+        submitted = item.submitted_at or item.created_at
         feed_data.append({
             "id": item.id,
             "username": item.user.username,
@@ -1798,10 +1791,10 @@ def get_community_feed(request):
             "module": item.label,
             "link": item.project_submission_link,
             "verifications": item.verification_count,
-            "user_vote": user_vote,
-            "date": item.submitted_at.strftime("%d %b")
+            "user_vote": my_votes.get(item.id),
+            "date": submitted.strftime("%d %b") if submitted else "",
         })
-        
+
     return Response(feed_data)
 
 @api_view(['GET'])
@@ -1875,51 +1868,90 @@ def submit_daily_quiz(request):
 @permission_classes([IsAuthenticated])
 def verify_project(request, item_id):
     """
-    Toggle upvote/downvote on a project.
+    Toggle upvote/downvote on a submitted project.
+
+    Three defects fixed here:
+
+    1. **Unscoped target.** ``get_object_or_404(UserRoadmapItem, id=item_id)``
+       accepted any id, so a user could upvote a locked, never-submitted or
+       private module belonging to anyone -- inflating their reputation and
+       confirming that their roadmap exists.
+    2. **Unbounded reputation.** ``+10`` was granted on creation but never
+       withdrawn, so upvote -> toggle off -> upvote again paid out forever.
+       Two accounts could farm each other with no cap and no cooldown.
+    3. **Clobbering write.** ``item.save()`` wrote the whole row, including
+       a stale ``status``/``github_score`` read before the count query, so a
+       concurrent ``submit_project`` could be silently reverted.
     """
     user = request.user
-    item = get_object_or_404(UserRoadmapItem, id=item_id)
+
+    item = get_object_or_404(
+        UserRoadmapItem.objects.select_related('user'),
+        id=item_id,
+        status='completed',
+    )
+    if not item.project_submission_link:
+        raise Http404("No such project.")
+
+    # Respect the owner's privacy choice.
+    if item.user_id != user.pk and item.user.profile_visibility == 'private':
+        raise Http404("No such project.")
+
     vote_type = request.data.get('vote_type', 'up')
-    
-    if item.user == user:
-        return Response({"error": "Cannot verify your own work"}, status=400)
-        
     if vote_type not in ['up', 'down']:
         return Response({"error": "Invalid vote type"}, status=400)
 
-    review, created = ProjectReview.objects.get_or_create(
-        submission=item,
-        reviewer=user,
-        defaults={'vote_type': vote_type}
-    )
-    
-    action = 'created'
-    
-    if not created:
-        if review.vote_type == vote_type:
-            # Toggle off
-            review.delete()
-            action = 'removed'
-        else:
-            # Change vote
-            review.vote_type = vote_type
-            review.save()
-            action = 'changed'
-    else:
-        # New vote - award rep if upvote
-        if vote_type == 'up':
-            User.objects.filter(pk=item.user_id).update(reputation_score=F('reputation_score') + 10)
+    if item.user_id == user.pk:
+        return Response({"error": "Cannot verify your own work"}, status=400)
 
-    # Recalculate counts
-    upvotes = item.reviews.filter(vote_type='up').count()
-    downvotes = item.reviews.filter(vote_type='down').count()
-    item.verification_count = upvotes - downvotes
-    item.save()
-    
+    rep_delta = 0
+    action = 'created'
+
+    with transaction.atomic():
+        locked = UserRoadmapItem.objects.select_for_update().get(pk=item.pk)
+
+        review, created = ProjectReview.objects.get_or_create(
+            submission=locked,
+            reviewer=user,
+            defaults={'vote_type': vote_type},
+        )
+
+        if not created:
+            if review.vote_type == vote_type:
+                # Toggle off -- and claw the reputation back.
+                review.delete()
+                action = 'removed'
+                if vote_type == 'up':
+                    rep_delta = -10
+            else:
+                # Change vote -- settle the old one and pay the new one.
+                old = review.vote_type
+                review.vote_type = vote_type
+                review.save(update_fields=['vote_type'])
+                action = 'changed'
+                if old == 'up':
+                    rep_delta -= 10
+                if vote_type == 'up':
+                    rep_delta += 10
+        elif vote_type == 'up':
+            rep_delta = 10
+
+        if rep_delta:
+            User.objects.filter(pk=locked.user_id).update(
+                reputation_score=F('reputation_score') + rep_delta
+            )
+
+        # Recompute from the rows, then write only the counter -- not the
+        # whole row, so a concurrent submit_project is not reverted.
+        upvotes = ProjectReview.objects.filter(submission=locked, vote_type='up').count()
+        downvotes = ProjectReview.objects.filter(submission=locked, vote_type='down').count()
+        new_count = upvotes - downvotes
+        UserRoadmapItem.objects.filter(pk=locked.pk).update(verification_count=new_count)
+
     return Response({
-        "message": f"Vote {action}", 
-        "new_count": item.verification_count,
-        "user_vote": vote_type if action != 'removed' else None
+        "message": f"Vote {action}",
+        "new_count": new_count,
+        "user_vote": vote_type if action != 'removed' else None,
     })
 
 @api_view(['GET', 'POST'])
@@ -2278,11 +2310,45 @@ def submit_quiz(request, item_id):
 # COMMUNITY: COMMENTS & PROFILES
 # ==========================================
 
+def _get_commentable_project(user, project_id):
+    """
+    Resolve a roadmap item that the given user is allowed to comment on.
+
+    A module is commentable when it is the caller's own, or when its owner
+    has published it -- i.e. completed it, submitted a project, and not set
+    their profile to private. Anything else is invisible, and
+    ``get_object_or_404`` returns 404 rather than 403 so the endpoint does
+    not confirm that an id exists.
+    """
+    project = get_object_or_404(UserRoadmapItem.objects.select_related('user'), id=project_id)
+
+    if project.user_id == user.pk:
+        return project
+
+    owner = project.user
+    if (
+        project.status != 'completed'
+        or not project.project_submission_link
+        or owner.profile_visibility == 'private'
+    ):
+        raise Http404("No such project.")
+
+    return project
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_project_comments(request, project_id):
-    """Get all comments for a project."""
-    project = get_object_or_404(UserRoadmapItem, id=project_id)
+    """
+    Get all comments for a project.
+
+    Scoped to projects that are actually published. The previous version
+    did ``get_object_or_404(UserRoadmapItem, id=project_id)`` with no
+    ownership or visibility filter, so any authenticated user could
+    enumerate ids and read the comment thread on another user's locked,
+    never-submitted, or explicitly private modules.
+    """
+    project = _get_commentable_project(request.user, project_id)
     comments = ProjectComment.objects.filter(project=project).select_related('author')
     serializer = ProjectCommentSerializer(comments, many=True)
     return Response(serializer.data)
@@ -2292,18 +2358,20 @@ def get_project_comments(request, project_id):
 @permission_classes([IsAuthenticated])
 def create_comment(request, project_id):
     """Create a new comment on a project."""
-    project = get_object_or_404(UserRoadmapItem, id=project_id)
-    
+    # Same scoping as the read path -- posting into someone else's private
+    # module was equally reachable before.
+    project = _get_commentable_project(request.user, project_id)
+
     text = request.data.get('text', '').strip()
     if not text or len(text) > 2000:
         return Response({"error": "Comment must be 1-2000 characters"}, status=400)
-    
+
     comment = ProjectComment.objects.create(
         project=project,
         author=request.user,
         text=text
     )
-    
+
     serializer = ProjectCommentSerializer(comment)
     return Response(serializer.data, status=201)
 
@@ -2651,32 +2719,54 @@ def delete_saved_resource(request, resource_id):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def search_community(request):
-    """Search community posts with Postgres full-text search."""
-    from django.contrib.postgres.search import SearchVector, SearchQuery, SearchRank
-    
+    """
+    Search community posts.
+
+    Rewritten to work on both Postgres and SQLite. The previous version
+    imported ``django.contrib.postgres.search``, which is Postgres-only and
+    raised NotSupportedError on the SQLite fallback that settings.py
+    defaults to -- and it read ``r.votes``, a field CommunityPost has never
+    had (it is ``upvotes``), so it 500'd on any non-empty result even on
+    Postgres.
+
+    Ranking is plain relevance: title matches outrank body matches, with
+    recency as the tiebreak. No Postgres-only features, no per-row
+    to_tsvector, no N+1 on author or reply counts.
+    """
     query_str = request.query_params.get('q', '').strip()
-    post_type = request.query_params.get('type', None)  # question, discussion, showcase
-    page = int(request.query_params.get('page', 1))
+    post_type = request.query_params.get('type') or None
+
+    try:
+        page = max(int(request.query_params.get('page', 1)), 1)
+    except (TypeError, ValueError):
+        return Response({"error": "page must be an integer"}, status=400)
+
     page_size = 20
-    
-    posts = CommunityPost.objects.all()
-    
+    posts = CommunityPost.objects.select_related('author').prefetch_related('replies')
+
     if query_str:
-        search_vector = SearchVector('title', weight='A') + SearchVector('content', weight='B')
-        search_query = SearchQuery(query_str)
+        posts = posts.filter(
+            Q(title__icontains=query_str) | Q(content__icontains=query_str)
+        )
+        # Title hits first, then newest. Case-insensitive, so it behaves the
+        # same on every backend.
         posts = posts.annotate(
-            rank=SearchRank(search_vector, search_query)
-        ).filter(rank__gte=0.3).order_by('-rank', '-created_at')
+            _title_hit=Case(
+                When(title__icontains=query_str, then=Value(1)),
+                default=Value(0),
+                output_field=IntegerField(),
+            )
+        ).order_by('-_title_hit', '-created_at')
     else:
         posts = posts.order_by('-created_at')
-    
+
     if post_type:
         posts = posts.filter(post_type=post_type)
-    
+
     total_count = posts.count()
     offset = (page - 1) * page_size
     results = posts[offset:offset + page_size]
-    
+
     return Response({
         "total": total_count,
         "page": page,
@@ -2687,14 +2777,15 @@ def search_community(request):
                 "title": r.title,
                 "content": r.content[:200],
                 "author": r.author.username,
-                "author_avatar": r.author.avatar_url if hasattr(r.author, 'avatar_url') else '',
+                "author_avatar": getattr(r.author, "avatar_url", ""),
                 "post_type": r.post_type,
-                "votes": r.votes,
-                "reply_count": r.replies.count(),
+                # The field is upvotes. ``votes`` never existed.
+                "votes": r.upvotes,
+                "reply_count": len(r.replies.all()),
                 "created_at": r.created_at,
             }
             for r in results
-        ]
+        ],
     })
 
 
@@ -2818,151 +2909,6 @@ def share_profile(request):
         "username": user.username,
         "message": "Profile link copied to clipboard"
     })
-
-
-# ==========================================
-# EMPLOYER JOB MANAGEMENT
-# ==========================================
-
-@api_view(['GET', 'POST'])
-@permission_classes([IsAuthenticated])
-def employer_jobs(request):
-    """List employer's jobs or create a new job posting."""
-    from .employer_models import EmployerProfile, JobPosting
-    
-    try:
-        employer = EmployerProfile.objects.get(user=request.user)
-    except EmployerProfile.DoesNotExist:
-        return Response({
-            "nodes": nodes,
-            "edges": edges,
-            "provider_used": (ai_meta or {}).get("provider"),
-            "ai_meta": ai_meta,
-        })
-    
-    if request.method == 'GET':
-        jobs = JobPosting.objects.filter(employer=employer).order_by('-created_at')
-        
-        return Response([
-            {
-                "id": job.id,
-                "title": job.title,
-                "description": job.description,
-                "level": job.level,
-                "location": job.location,
-                "salary_range": job.salary_range,
-                "required_skills": job.required_skills,
-                "is_active": job.is_active,
-                "is_approved": job.is_approved,
-                "created_at": job.created_at,
-                "applications": job.applications.count() if hasattr(job, 'applications') else 0,
-            }
-            for job in jobs
-        ])
-    
-    elif request.method == 'POST':
-        data = request.data
-        
-        try:
-            job = JobPosting.objects.create(
-                employer=employer,
-                title=data.get('title', ''),
-                description=data.get('description', ''),
-                level=data.get('level', 'entry'),
-                location=data.get('location', 'Remote'),
-                salary_range=data.get('salary_range', ''),
-                required_skills=data.get('required_skills', []),
-                is_active=True,
-                is_approved=False,  # Admin review required
-            )
-            
-            return Response({
-                "id": job.id,
-                "message": "Job posted successfully. Pending admin approval."
-            }, status=201)
-        except Exception as e:
-            return Response({"error": str(e)}, status=400)
-
-
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def get_job_listings(request):
-    """Get all active, approved job listings (public endpoint)."""
-    from .employer_models import JobPosting
-    
-    jobs = JobPosting.objects.filter(
-        is_active=True,
-        is_approved=True
-    ).order_by('-created_at')
-    
-    search = request.query_params.get('search', '').strip()
-    if search:
-        from django.db.models import Q
-        jobs = jobs.filter(
-            Q(title__icontains=search) | 
-            Q(description__icontains=search) |
-            Q(required_skills__contains=[search])
-        )
-    
-    return Response([
-        {
-            "id": job.id,
-            "title": job.title,
-            "employer": job.employer.company_name,
-            "employer_logo": job.employer.company_logo_url,
-            "description": job.description[:200],
-            "level": job.level,
-            "location": job.location,
-            "salary_range": job.salary_range,
-            "required_skills": job.required_skills,
-            "created_at": job.created_at,
-        }
-        for job in jobs
-    ])
-
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def apply_to_job(request, job_id):
-    """Apply to a job posting."""
-    from .employer_models import JobPosting, CandidateApplication
-    
-    try:
-        job = JobPosting.objects.get(id=job_id, is_active=True, is_approved=True)
-    except JobPosting.DoesNotExist:
-        return Response({"error": "Job not found"}, status=404)
-    
-    # Check if already applied
-    existing = CandidateApplication.objects.filter(
-        job_posting=job,
-        candidate=request.user
-    ).first()
-    
-    if existing:
-        return Response({"error": "You've already applied to this job"}, status=400)
-    
-    try:
-        # Calculate skill match
-        user_skills = request.user.skills if hasattr(request.user, 'skills') else []
-        required_skills = job.required_skills or []
-        
-        match_count = sum(1 for skill in user_skills if skill.lower() in [s.lower() for s in required_skills])
-        match_score = int((match_count / len(required_skills) * 100)) if required_skills else 0
-        
-        application = CandidateApplication.objects.create(
-            job_posting=job,
-            candidate=request.user,
-            status='applied',
-            match_score=match_score,
-        )
-        
-        return Response({
-            "id": application.id,
-            "message": "Application submitted successfully",
-            "match_score": match_score,
-        }, status=201)
-    except Exception as e:
-        return Response({"error": str(e)}, status=400)
 
 
 # ==========================================
