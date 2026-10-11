@@ -1,0 +1,17 @@
+{% extends "emails/base_email.html" %}
+
+{% block content %}
+<p style="margin:0 0 12px;color:#9aa3af;font-size:13px;">{{ reply.author.username }} replied to you.</p>
+
+<p style="margin:0 0 16px;font-weight:600;color:#e6e8eb;">
+  {{ post.title }}
+</p>
+
+<blockquote style="margin:0 0 16px;padding:12px 16px;border-left:2px solid #ff8a3d;background:#1b1f25;color:#c7ccd1;font-size:14px;line-height:1.6;">
+  {{ reply.content|truncatechars:280 }}
+</blockquote>
+
+<p style="margin:0;color:#9aa3af;font-size:14px;">
+  Open the thread to reply.
+</p>
+{% endblock %}

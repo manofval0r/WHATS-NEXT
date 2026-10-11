@@ -1,0 +1,15 @@
+{% extends "emails/base_email.html" %}
+
+{% block content %}
+<p style="margin:0 0 12px;color:#9aa3af;font-size:13px;">Hi {{ user.username }},</p>
+
+<p style="margin:0 0 16px;">
+  You have a <strong style="color:#ff8a3d;">{{ streak }}-day streak</strong> going.
+  It stays alive as long as you do one thing today — a lesson, a quiz, or a
+  project submission all count.
+</p>
+
+<p style="margin:0;color:#9aa3af;font-size:14px;">
+  Pick up where you left off and it keeps going.
+</p>
+{% endblock %}

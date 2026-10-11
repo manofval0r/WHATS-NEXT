@@ -288,13 +288,9 @@ CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60
 CELERY_TASK_SOFT_TIME_LIMIT = 25 * 60
 CELERY_WORKER_HIJACK_ROOT_LOGGER = False
-CELERY_BEAT_SCHEDULE = {
-    "daily-streak-reminders": {
-        "task": "core.email_tasks.send_streak_reminder_emails",
-        # 09:00 UTC every day
-        "schedule": 86400.0,
-    },
-}
+# Beat schedule lives in whats_next_backend/celery.py, next to the
+# `namespace="CELERY"` that determines how these keys are resolved.
+# Defining it in both places meant the one here was silently overridden.
 
 # ==============================================================
 # EMAIL

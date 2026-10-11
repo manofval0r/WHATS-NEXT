@@ -1,0 +1,26 @@
+{% extends "emails/base_email.html" %}
+
+{% block content %}
+<p style="margin:0 0 12px;color:#9aa3af;font-size:13px;">Nice work, {{ user.username }}.</p>
+
+<p style="margin:0 0 16px;">
+  <strong style="color:#ff8a3d;">{{ item.label }}</strong> is done.
+</p>
+
+{% if item.project_submission_link %}
+<p style="margin:0 0 16px;font-size:14px;color:#9aa3af;">
+  Submitted project:<br>
+  <a href="{{ item.project_submission_link }}" style="color:#ff8a3d;word-break:break-all;">{{ item.project_submission_link }}</a>
+</p>
+{% endif %}
+
+{% if item.github_score %}
+<p style="margin:0 0 16px;font-size:14px;color:#9aa3af;">
+  Repository score: <strong style="color:#e6e8eb;">{{ item.github_score }}/100</strong>
+</p>
+{% endif %}
+
+<p style="margin:0;color:#9aa3af;font-size:14px;">
+  It is now on your portfolio and counts toward your CV export.
+</p>
+{% endblock %}

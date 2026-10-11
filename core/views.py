@@ -280,65 +280,75 @@ from django.conf import settings
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.decorators import login_required
 
-@login_required
+@api_view(["GET"])
+@permission_classes([AllowAny])
 def social_login_success(request):
     """
-    Callback after successful social login.
-    Generates JWT tokens and redirects to frontend with tokens in URL.
-    Includes 'needs_onboarding' flag if user hasn't completed profile.
+    Landing point after an allauth social login.
+
+    Hands the SPA a JWT pair via the URL *fragment*, not the query string.
+
+    Why the fragment matters: query strings are written to browser history,
+    persisted by proxies, and forwarded in the ``Referer`` header to every
+    third party the page then loads — Google Fonts, PostHog, avatar hosts.
+    A fragment is never sent anywhere except the browser, and the SPA reads
+    it and immediately clears it.
+
+    Also stops hardcoding the frontend origin. Three different hostnames
+    were previously baked into this project; they are all env-driven now.
     """
     user = request.user
-    refresh = RefreshToken.for_user(user)
-    
-    # Add custom claim to indicate if user needs onboarding
-    needs_onboarding = not user.target_career or user.target_career.strip() == ''
-    refresh['needs_onboarding'] = needs_onboarding
-    
-    access_token = str(refresh.access_token)
-    refresh_token = str(refresh)
-    
-    # PostHog: identify + track
-    ph_identify(user)
-    ph_capture(user, 'user_registered', {'method': 'oauth'})
 
-    # Determine frontend URL based on environment
-    # In production, settings.DEBUG is False
-    frontend_url = "https://whats-next-1.onrender.com/auth-callback"
-    if settings.DEBUG:
-        frontend_url = "http://localhost:5173/auth-callback"
-        
-    return redirect(f"{frontend_url}?access={access_token}&refresh={refresh_token}")
+    if not user.is_authenticated:
+        return Response(
+            {"error": "Not authenticated. Start the OAuth flow again."},
+            status=401,
+        )
+
+    refresh = RefreshToken.for_user(user)
+    # Carried so the SPA can skip onboarding without a second request.
+    refresh["needs_onboarding"] = not (user.target_career or "").strip()
+
+    ph_identify(user)
+    ph_capture(user, "user_registered", {"method": "oauth"})
+
+    frontend_url = getattr(settings, "FRONTEND_URL", "http://localhost:5173").rstrip("/")
+
+    # urlencode into the fragment: a token is base64 and can contain
+    # characters that need escaping.
+    from urllib.parse import quote
+
+    fragment = (
+        f"access={quote(str(refresh.access_token))}"
+        f"&refresh={quote(str(refresh))}"
+    )
+
+    return redirect(f"{frontend_url}/auth-callback#{fragment}")
+
 
 class RegisterView(generics.CreateAPIView):
     """
     Handles creating a new user account.
     """
+
     permission_classes = [AllowAny]
     serializer_class = RegisterSerializer
 
     def create(self, request, *args, **kwargs):
-        print("DEBUG: RegisterView.create called")
-        print(f"DEBUG: Request data: {request.data}")
+        # No logging of request.data: it contains the plaintext password, and
+        # this used to print it to the platform log on every signup.
+        response = super().create(request, *args, **kwargs)
+
         try:
-            response = super().create(request, *args, **kwargs)
-            # PostHog: identify + track registration
-            try:
-                from .models import User as UserModel
-                user = UserModel.objects.get(username=request.data.get('username', ''))
-                ph_identify(user)
-                ph_capture(user, 'user_registered', {'method': 'email'})
-            except Exception:
-                pass
-            return response
-        except Exception as e:
-            import traceback
-            print(f"REGISTER ERROR: {str(e)}")
-            traceback.print_exc()
-            return Response({
-                "error": str(e),
-                "type": type(e).__name__,
-                "trace": traceback.format_exc()
-            }, status=500)
+            from .models import User as UserModel
+
+            user = UserModel.objects.get(username=request.data.get("username", ""))
+            ph_identify(user)
+            ph_capture(user, "user_registered", {"method": "email"})
+        except Exception:  # noqa: BLE001 - analytics must never break signup
+            logger.debug("post-signup analytics failed", exc_info=True)
+
+        return response
 
 # ==========================================
 # 1b. COURSE NORMALIZATION (Smart Onboarding)
@@ -990,6 +1000,16 @@ def submit_project(request, node_id):
         # Keyed on the item id, so resubmitting the same project pays once.
         xp_award(user, "project_verified", reference=str(node.id))
         xp_award(user, "module_completed", reference=str(node.id))
+
+        # Fire-and-forget. Dispatched through the shared_task handle so a
+        # missing broker degrades to "no email" rather than a 500 on the
+        # request that just completed the user's module.
+        try:
+            from .email_tasks import send_module_completion_email
+
+            send_module_completion_email.delay(user.pk, node.id)
+        except Exception:  # noqa: BLE001
+            logger.warning("could not dispatch completion email", exc_info=True)
 
         award_badges(user)
         
@@ -1763,6 +1783,13 @@ class CommunityReplyViewSet(viewsets.ModelViewSet):
 
         CommunityPost.objects.filter(pk=post.pk).update(reply_count=F('reply_count') + 1)
         xp_award(self.request.user, "community_reply", reference=f"reply:{reply.id}")
+
+        try:
+            from .email_tasks import send_reply_notification_email
+
+            send_reply_notification_email.delay(reply.id)
+        except Exception:  # noqa: BLE001
+            logger.warning("could not dispatch reply notification", exc_info=True)
 
     @action(detail=True, methods=['post'])
     def upvote(self, request, pk=None):

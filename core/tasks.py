@@ -67,3 +67,12 @@ def generate_roadmap_async(self, user_id, role_key):
             raise self.retry(exc=e, countdown=60)
         except self.MaxRetriesExceededError:
             return {"status": "error", "message": f"Failed after retries: {str(e)}"}
+
+
+# Celery's autodiscovery only imports an app's ``tasks`` module, so every
+# other module carrying @shared_task must be imported from here or its tasks
+# are never registered and silently never run. That is exactly how every
+# task in core/email_tasks.py went missing while everything looked fine.
+from . import email_tasks  # noqa: E402,F401  (imported for side effects)
+
+__all__ = ["generate_roadmap_async", "email_tasks"]
