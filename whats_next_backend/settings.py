@@ -257,15 +257,27 @@ CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS", CORS_ALLOWED_ORIGINS)
 # SECURITY
 # ==============================================================
 
-# Render terminates TLS and redirects; set this so request.is_secure()
-# is correct behind the proxy rather than always False.
+# Render terminates TLS and forwards plain HTTP to the app, setting
+# X-Forwarded-Proto. Trusting that header is what makes request.is_secure()
+# correct behind the proxy rather than always False.
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
-# HSTS is safe on Render. SECURE_SSL_REDIRECT is deliberately NOT enabled:
-# Render already redirects to https, and enabling both risks a redirect loop.
+# HSTS is safe on Render.
 SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
 SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
 SECURE_HSTS_PRELOAD = not DEBUG
+
+# Belt and braces: Render's edge already redirects http to https, so this is
+# not load-bearing there -- but it only redirects when the request already
+# looks secure, and SECURE_PROXY_SSL_HEADER above is what makes that true.
+# Safe to enable for the same reason; leaving it off only leaves a warning
+# from `check --deploy` that says the app will serve plain HTTP if a proxy
+# ever stops terminating TLS.
+#
+# Set it to false if you put this behind a proxy that does NOT set
+# X-Forwarded-Proto: Django would never see a secure request and would
+# redirect in a loop.
+SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", not DEBUG)
 
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
