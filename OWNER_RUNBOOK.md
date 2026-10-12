@@ -120,28 +120,70 @@ git log --all --oneline -- .env db.sqlite3
 
 ## 3. Render deployment
 
+> **Read this first.** There is now a `render.yaml` in the repository root
+> that declares all three services, the database and the Redis instance, with
+> the environment variables marked `sync: false` left for you to fill in.
+> The fastest path is:
+>
+> 1. Push the branch, then in Render choose **New → Blueprint**.
+> 2. Point it at the repository. Render reads `render.yaml` and creates the
+>    web service, the Celery worker, the Celery beat, Postgres and Redis.
+> 3. Fill in every `sync: false` variable it lists — `SECRET_KEY`, the SMTP
+>    trio, `OPENROUTER_API_KEY`, `FRONTEND_URL`, `POSTHOG_API_KEY`.
+> 4. Deploy. `build.sh` installs Python, installs Node, runs `npm ci`,
+>    builds the front end, **fails the build if the AI credentials are
+>    dead**, collects static files and migrates.
+> 5. Set `FRONTEND_URL` to the resulting URL and deploy again, so CORS and
+>    `ALLOWED_HOSTS` match. Both are also derived from `RENDER_EXTERNAL_URL`,
+>    which Render sets automatically on the web service.
+>
+> The manual steps below describe the same thing, and are worth reading once
+> even if you use the blueprint, because they explain what each setting is
+> for.
+
 ### 3.1 Create the services
 
-1. <https://render.com> → **New** → **Web Service** → connect the repo.
-2. **Environment:** `Python`, using `.python-version` or Render's default.
-3. **Build command:**
-   ```
-   pip install -r requirements.txt && python manage.py collectstatic --no-input && npm install --prefix frontend && npm run build --prefix frontend
-   ```
-4. **Start command:**
-   ```
-   gunicorn whats_next_backend.wsgi:application --timeout 120
-   ```
-5. **Health check path:** `/api/health/`
+You need **three**, not one. The previous deployment ran only the web
+service, so the scheduled jobs and the slow exports had nowhere to run.
 
-> The old `build.sh` never built the frontend at all. If you use Render's
-> static-site build instead, set the publish directory to `frontend/dist`.
+| Service | Type | Start command |
+| --- | --- | --- |
+| `whatsnext-web` | Web Service | `gunicorn whats_next_backend.wsgi:application --timeout 120 --workers 2` |
+| `whatsnext-worker` | Background Worker | `celery -A whats_next_backend worker -l info --concurrency 2` |
+| `whatsnext-beat` | Background Worker | `celery -A whats_next_backend beat -l info --schedule .celerybeat-schedule` |
+
+For the web service:
+
+1. **Environment:** `Python`, `PYTHON_VERSION` `3.12.11`.
+2. **Build command:** `./build.sh`
+3. **Health check path:** `/api/health/`
+
+> `build.sh` now builds the front end. The previous version only installed
+> Python dependencies and ran `collectstatic`, so every deployment served a
+> working API in front of no website at all. The build also runs
+> `manage.py check_ai_providers`, which exits non-zero if the OpenRouter key
+> is dead or a model id has gone stale — three of them were, and the product
+> shipped silently broken because of it.
+
+The front end is served **by Django**, not by a separate static site: the
+built `frontend/dist` is mounted at `/` through WhiteNoise's `WHITENOISE_ROOT`,
+because Vite emits root-absolute URLs (`/assets/…`, `/figure-locks.html`)
+that running through `collectstatic` would rewrite under `/static/` and
+break. `core/spa.py` returns `index.html` for any path that is not an API
+route, so `/case-study` survives a hard refresh and a shared link. If you
+ever deploy the front end separately instead, set `FRONTEND_URL` and add its
+origin to `CORS_ALLOWED_ORIGINS` — it is in `.env.example`.
 
 ### 3.2 Add the datastores
 
 1. **Postgres:** *New* → *Postgres*. Copy `DATABASE_URL` from the connection
    string. **Use a paid instance** — the free one self-deletes.
 2. **Key Value (Redis):** *New* → *Key Value*. Copy the `REDIS URL`.
+
+Both are declared in `render.yaml`. Redis is not optional: with
+`CELERY_BROKER_URL` unset, the cache falls back to a per-process local one,
+which means the worker and the web service do not share cache state, and the
+job-match ranking is recomputed independently on each.
 
 ### 3.3 Set the environment variables
 
@@ -180,9 +222,16 @@ celery -A whats_next_backend beat -l info
 ### 3.5 Verify before you share the URL
 
 ```powershell
-curl https://<your-api>/api/health/
-curl https://<your-api>/api/roles/
+curl https://<your-app>/api/health/
+curl https://<your-app>/api/roles/
+curl -s -o /dev/null -w "%{http_code}" https://<your-app>/case-study
 ```
+
+The third one must return `200`, not `404`. If it returns 404 the front end
+was never built — check that the build command is `./build.sh` and not the
+old one-liner. Also open `https://<your-app>/figure-locks.html` directly: it
+should draw the lock figure. If that 404s, the build ran but the directory
+mount is wrong.
 
 Then open the frontend, sign up, complete a module, and submit a project.
 **Do this yourself before putting the link in your README** — a recruiter who
@@ -195,8 +244,9 @@ python manage.py check_ai_providers
 ```
 
 Exits non-zero if a model ID has been removed from OpenRouter or a key has
-been revoked. Worth adding to CI so a rotated catalogue fails at deploy time
-rather than in production.
+been revoked. `build.sh` runs this, so it is already wired into the deploy;
+worth adding to CI as well so a rotated catalogue fails at deploy time rather
+than in production.
 
 ---
 

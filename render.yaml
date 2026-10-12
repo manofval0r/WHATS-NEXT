@@ -1,0 +1,136 @@
+# Render blueprint for WHATS-NEXT.
+#
+# Three services, because the product has three runtimes and pretending
+# otherwise is what made the previous deployment a blank page in front of a
+# working API:
+#
+#   web     Django + DRF, and it also serves the built single-page app
+#   worker  Celery: module-completion email, CV export, account export
+#   beat    Celery beat: the scheduled jobs
+#
+# Database and Redis are both required. SQLite was the original choice and
+# it cannot back two workers or a beat schedule.
+
+databases:
+  - name: whatsnext-db
+    databaseName: whatsnext
+    user: whatsnext
+    plan: free
+
+services:
+  # ── API + front end ────────────────────────────────────────────────────
+  - type: web
+    name: whatsnext-web
+    runtime: python
+    plan: free
+    rootDir: .
+    buildCommand: ./build.sh
+    startCommand: >-
+      gunicorn whats_next_backend.wsgi:application
+      --timeout 120 --workers 2 --access-logfile -
+    healthCheckPath: /api/health/
+    autoDeploy: false
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.11"
+      - key: NODE_VERSION
+        value: "22.11.0"
+      - key: DEBUG
+        value: "false"
+      # Generate with: python -c "import secrets; print(secrets.token_urlsafe(64))"
+      - key: SECRET_KEY
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: whatsnext-db
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: redis
+          name: whatsnext-redis
+          property: connectionString
+      # Mandatory verification means signing up does not complete without
+      # real SMTP. See OWNER_RUNBOOK.md section 2.
+      - key: EMAIL_HOST
+        sync: false
+      - key: EMAIL_HOST_USER
+        sync: false
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+      # Free-tier models only. check_ai_providers fails the build if any of
+      # these is stale, so a revoked key cannot ship quietly.
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: POSTHOG_API_KEY
+        sync: false
+
+  # ── Celery worker ──────────────────────────────────────────────────────
+  - type: worker
+    name: whatsnext-worker
+    runtime: python
+    plan: free
+    rootDir: .
+    buildCommand: pip install --disable-pip-version-check -r requirements.txt
+    startCommand: celery -A whats_next_backend worker -l info --concurrency 2
+    autoDeploy: false
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.11"
+      - key: DEBUG
+        value: "false"
+      - key: SECRET_KEY
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: whatsnext-db
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: redis
+          name: whatsnext-redis
+          property: connectionString
+      - key: EMAIL_HOST
+        sync: false
+      - key: EMAIL_HOST_USER
+        sync: false
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+
+  # ── Celery beat ────────────────────────────────────────────────────────
+  - type: worker
+    name: whatsnext-beat
+    runtime: python
+    plan: free
+    rootDir: .
+    buildCommand: pip install --disable-pip-version-check -r requirements.txt
+    startCommand: celery -A whats_next_backend beat -l info --schedule .celerybeat-schedule
+    autoDeploy: false
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.11"
+      - key: DEBUG
+        value: "false"
+      - key: SECRET_KEY
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: whatsnext-db
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: redis
+          name: whatsnext-redis
+          property: connectionString
+
+# Render attaches this automatically for the web service; declaring it
+# here as well is what lets ALLOWED_HOSTS and CORS pick up the real URL.
+# envVars:
+#   - key: RENDER
+#     fromService:
+#       type: web
+#       name: whatsnext-web
+#       envVarKey: RENDER_EXTERNAL_URL

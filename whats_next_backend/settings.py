@@ -219,6 +219,24 @@ STORAGES = {
     },
 }
 
+# The built single-page app, served from the ROOT of the site.
+#
+# Vite emits root-absolute URLs -- /assets/index-*.js, /figure-locks.html,
+# /manifest.json -- and routing happens in the browser. Running that build
+# through collectstatic would rewrite every one of them under /static/ and
+# break the app, because collectstatic only knows the STATIC_URL prefix.
+#
+# WHITENOISE_ROOT mounts the directory at / instead, which is what the build
+# output expects. The API is unaffected: it lives under /api/ and is
+# resolved by Django before WhiteNoise is consulted.
+#
+# Nothing here exists until `npm run build` has run. The SPA index view says
+# so plainly rather than raising a 500, because "build the frontend" is the
+# fix and a stack trace is not.
+FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
+WHITENOISE_ROOT = FRONTEND_DIST if FRONTEND_DIST.is_dir() else None
+WHITENOISE_INDEX_FILE = True
+
 # ==============================================================
 # CORS / CSRF
 # ==============================================================

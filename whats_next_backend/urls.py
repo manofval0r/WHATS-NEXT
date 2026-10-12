@@ -7,7 +7,7 @@ as a map of the product rather than a flat list.
 """
 
 from django.contrib import admin
-from django.urls import include, path
+from django.urls import include, path, re_path
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
@@ -24,6 +24,7 @@ from core.api import resources as resource_views
 from core.api import roadmap as roadmap_views
 from core.api import social as social_views
 from core.lesson_endpoint import generate_module_lessons
+from core.spa import spa_index
 
 router = DefaultRouter()
 router.register(
@@ -42,6 +43,12 @@ router.register(
 # unreachable (GET 404 / POST 405).
 
 urlpatterns = [
+    # The front end, at the root. Declared here rather than relying on the
+    # catch-all at the bottom, because DefaultRouter contributes its own
+    # `^$` API-root view and a catch-all registered after it never gets the
+    # chance: hitting "/" returned the browsable API index instead of the
+    # landing page.
+    path("", spa_index, name="spa_root"),
     path("admin/", admin.site.urls),
     path("accounts/", include("allauth.urls")),
     path("api/health/", health_views.health_check, name="health_check"),
@@ -162,3 +169,9 @@ urlpatterns = [
 ]
 
 urlpatterns += router.urls
+
+# The front end routes in the browser, so every path that is not one of the
+# patterns above hands back the built index.html. It must stay last.
+urlpatterns += [
+    re_path(r"^(?P<path>.*)$", spa_index),
+]

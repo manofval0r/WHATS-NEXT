@@ -1,6 +1,7 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { GoeyToaster } from 'goey-toast';
 import Landing from './Landing';
+import CaseStudy from './CaseStudy';
 import AuthPage from './AuthPage';
 import ProfilePage from './ProfilePage';
 
@@ -53,17 +54,38 @@ function LandingRoute() {
   return <Landing />;
 }
 
+/**
+ * App chrome, decided per route.
+ *
+ * JADA is the in-product tutor. It greets you with a toast and sits in the
+ * corner as an avatar, which is right once someone is using the product and
+ * wrong on a marketing page -- a robot introducing itself before you have
+ * signed up is the first thing a visitor sees, and it is the least useful
+ * thing on the screen.
+ */
+function AppChrome() {
+  const { pathname } = useLocation();
+  const marketing = pathname === '/' || pathname === '/case-study';
+
+  return (
+    <>
+      {!marketing && <JadaOverlay />}
+      <GoeyToaster position="bottom-right" theme="dark" />
+    </>
+  );
+}
+
 export default function App() {
   return (
     <ErrorBoundary>
       <PostHogAppProvider>
       <Router>
         <JadaProvider>
-          <JadaOverlay />
-          <GoeyToaster position="bottom-right" theme="dark" />
+          <AppChrome />
           <Routes>
           {/* Public Route - Landing Page */}
           <Route path="/" element={<LandingRoute />} />
+        <Route path="/case-study" element={<CaseStudy />} />
 
           {/* Auth Route - Sign up/Login */}
           <Route path="/auth" element={<AuthPage />} />
