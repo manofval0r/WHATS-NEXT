@@ -57,16 +57,29 @@
   --border-strong:  #3d424b;
   --border-active:  #ff8a3d;
 
-  /* ── Text ────────────────────────────────────────────────────────────
-     Contrast against --bg-base (#0b0c0e):
-       primary   15.3:1   AAA
-       secondary  8.1:1   AAA
-       muted      4.8:1   AA   (was 3.0:1 before — below AA)
-       faint      3.1:1   large text / non-essential only */
+  /* - Text ---------------------------------------------------------------
+     Three steps, not four, and that is a measurement rather than a taste.
+
+     Contrast measured as the WORST case across all three surfaces a token
+     can land on (--bg-base #0b0c0e, --bg-raised #131417, --bg-panel #17191d):
+
+       primary    15.16:1   AAA
+       secondary   7.89:1   AAA
+       muted       4.55:1   AA
+
+     A fourth, fainter step cannot exist. Lifting the old --text-faint far
+     enough to clear AA lands it at 4.54:1 -- within 0.01 of --text-muted, so
+     it would be a second name for the same colour rather than a step. So
+     faint is a rule colour, not a text colour, held to the 3:1 floor that
+     borders and meaningful glyphs need.
+
+     (This comment previously claimed 15.3 / 8.1 / 4.8 / 3.1. The real
+     figures were 15.16 / 7.89 / 4.24 / 2.30, the last two under their
+     floors. A token system that documents wrong numbers is worse than none.) */
   --text-primary:   #edeef0;
   --text-secondary: #a8aeb8;
-  --text-muted:     #767d89;
-  --text-faint:     #4e545d;
+  --text-muted:     #7b828e;
+  --text-faint:     #60666f;
   --text-inverse:   #0b0c0e;
 
   --text-header: var(--text-primary);
@@ -80,7 +93,6 @@
      the costume. */
   --accent:        #ff8a3d;
   --accent-hover:  #ff9d5c;
-  --accent-press:  #e8762c;
   --accent-muted:  rgba(255, 138, 61, 0.12);
   --accent-line:   rgba(255, 138, 61, 0.32);
   --accent-contrast: #0b0c0e;
@@ -109,7 +121,6 @@
   --radius-md:   8px;
   --radius-lg:   12px;
   --radius-xl:   16px;
-  --radius-2xl:  22px;
   --radius-full: 999px;
 
   /* ── Shadows ────────────────────────────────────────────────────────
@@ -120,7 +131,6 @@
   --shadow-md:   0 2px 6px rgba(0, 0, 0, 0.45);
   --shadow-lg:   0 10px 30px -10px rgba(0, 0, 0, 0.6);
   --shadow-xl:   0 24px 60px -20px rgba(0, 0, 0, 0.75);
-  --shadow-accent: 0 6px 24px -8px rgba(255, 138, 61, 0.45);
 
   /* ── Type ───────────────────────────────────────────────────────────
      --font-code was referenced in three files and never defined, so those

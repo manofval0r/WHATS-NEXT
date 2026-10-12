@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AmbientField from './AmbientField';
 import './Landing.css';
@@ -12,16 +12,61 @@ import './Landing.css';
  * above it does not wait for it.
  */
 const LocksFigure = lazy(() => {
-  const Figure = () => (
-    <div className="figure">
-      <iframe
-        src="/figure-locks.html?theme=dark&play=1"
-        title="An interactive drawing of four canal locks stepping down a hillside. Pointing at a lock empties it: the gates part and the water falls to the level below."
-        loading="lazy"
-        scrolling="no"
-      />
-    </div>
-  );
+  const SRC = '/figure-locks.html?theme=dark&play=1';
+
+  const Figure = () => {
+    const [state, setState] = useState('checking');
+
+    useEffect(() => {
+      let live = true;
+      const controller = new AbortController();
+
+      // Pre-flight rather than trusting the iframe's onError. An iframe does
+      // not fire onError for an HTTP error status -- it fires for network
+      // failures on the subresource -- so a 404 from a bad build path renders
+      // an empty panel and says nothing. That is the worst possible failure
+      // for the hero of the page: the reader sees a hole and no reason why.
+      // One HEAD request turns that into a sentence.
+      fetch('/figure-locks.html', {
+        method: 'HEAD',
+        signal: controller.signal,
+      })
+        .then((r) => live && setState(r.ok ? 'ready' : 'failed'))
+        .catch((e) => {
+          if (e.name === 'AbortError' || !live) return;
+          setState('failed');
+        });
+
+      return () => {
+        live = false;
+        controller.abort();
+      };
+    }, []);
+
+    if (state === 'failed') {
+      return (
+        <div className="figure figure--failed">
+          <p>The drawing could not be loaded.</p>
+          <a href="/figure-locks.html" target="_blank" rel="noreferrer">
+            Open it on its own page
+          </a>
+        </div>
+      );
+    }
+
+    if (state === 'checking') return <div className="figure figure--loading" />;
+
+    return (
+      <div className="figure">
+        <iframe
+          src={SRC}
+          title="An interactive drawing of four canal locks stepping down a hillside. Pointing at a lock empties it: the gates part and the water falls to the level below."
+          loading="lazy"
+          scrolling="no"
+        />
+      </div>
+    );
+  };
   return Promise.resolve({ default: Figure });
 });
 
