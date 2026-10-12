@@ -12,6 +12,7 @@ from datetime import timedelta
 
 import dj_database_url
 from dotenv import load_dotenv
+from django.core.exceptions import ImproperlyConfigured
 
 load_dotenv()
 
@@ -372,7 +373,43 @@ ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_UNIQUE_EMAIL = True
 ACCOUNT_USERNAME_REQUIRED = True
 ACCOUNT_AUTHENTICATION_METHOD = "username_email"
-ACCOUNT_EMAIL_VERIFICATION = "mandatory"
+
+# ── Email verification ─────────────────────────────────────────────────
+#
+# Verification is mandatory exactly when there is a real transport to
+# deliver it on. Those are the same condition: allauth refuses to let
+# anyone sign in until they click a link, and with the console backend that
+# link is printed to stdout and goes nowhere -- so "mandatory" without SMTP
+# does not make the product stricter, it makes it unusable. Nobody can
+# register, and the failure looks like a bug rather than a policy.
+#
+# Deriving it from the transport means the secure setting is the default
+# wherever the secure setting is possible, and the demo is usable where it
+# is not. An explicit ACCOUNT_EMAIL_VERIFICATION overrides both.
+#
+# Overriding to "mandatory" with no SMTP_HOST is refused rather than
+# downgraded: somebody asked for a guarantee the system cannot deliver, and
+# quietly starting without it is the failure mode worth refusing.
+
+_VERIFICATION_VALUES = {"mandatory", "optional", "none"}
+_verification_requested = os.getenv("ACCOUNT_EMAIL_VERIFICATION", "").strip().lower()
+
+if _verification_requested and _verification_requested not in _VERIFICATION_VALUES:
+    raise ImproperlyConfigured(
+        f"ACCOUNT_EMAIL_VERIFICATION is {_verification_requested!r}. "
+        f"Valid values are: {', '.join(sorted(_VERIFICATION_VALUES))}."
+    )
+
+if _verification_requested == "mandatory" and not os.getenv("SMTP_HOST", "").strip():
+    raise ImproperlyConfigured(
+        "ACCOUNT_EMAIL_VERIFICATION=mandatory requires a real mail transport, "
+        "but SMTP_HOST is not set, so verification emails go to stdout and "
+        "nobody can complete signup. Set SMTP_HOST, or use 'optional'."
+    )
+
+ACCOUNT_EMAIL_VERIFICATION = (
+    _verification_requested or ("mandatory" if os.getenv("SMTP_HOST", "").strip() else "optional")
+)
 
 SOCIALACCOUNT_LOGIN_ON_GET = True
 SOCIALACCOUNT_PROVIDERS = {

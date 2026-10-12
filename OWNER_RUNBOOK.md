@@ -204,6 +204,33 @@ Use the values from `.env.example`, plus:
 `ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS` and the old hardcoded hostnames are
 now all driven by env vars. There is no hostname baked into the code any more.
 
+#### Email and signup — read this before sharing the URL
+
+Two variables, and they interact:
+
+| Variable | Meaning |
+| --- | --- |
+| `SMTP_HOST`, `SMTP_USERNAME`, `SMTP_PASSWORD` | Real mail transport. Unset means Django's console backend, which prints to stdout. |
+| `ACCOUNT_EMAIL_VERIFICATION` | `mandatory` / `optional` / `none`. Leave unset to let it follow `SMTP_HOST`. |
+
+The mail backend is **derived** from `SMTP_HOST`; there is no `EMAIL_BACKEND`
+variable to set, and setting one does nothing.
+
+Leave `ACCOUNT_EMAIL_VERIFICATION` unset and it is `mandatory` when `SMTP_HOST`
+is set and `optional` when it is not. That is deliberate: the setting was
+hardcoded to `mandatory`, and with the console backend allauth blocks sign-in
+until the address is confirmed — the confirmation link is printed to stdout,
+so **nobody could complete signup at all**. It read as a strict security
+setting and behaved as an outage.
+
+Setting it explicitly to `mandatory` while `SMTP_HOST` is unset is **refused at
+startup** rather than quietly downgraded. If you turn on SMTP and want
+verification, set both together.
+
+So: **a deployed demo with no SMTP is usable** — every visitor can sign up and
+click through. Configure SMTP (Resend, Postmark, SES, or Gmail app password)
+and verification switches itself on.
+
 ### 3.4 Add the worker
 
 The `Procfile` currently starts only `web:`. Add a second Render service
