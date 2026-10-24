@@ -17,8 +17,14 @@ databases:
     user: whatsnext
     plan: free
 
+# Redis for Celery broker + cache. Free plan is fine for the demo.
 services:
-  # ── API + front end ────────────────────────────────────────────────────
+  - type: redis
+    name: whatsnext-redis
+    plan: free
+    maxmemoryPolicy: allkeys-lru
+
+# ── API + front end ────────────────────────────────────────────────────
   - type: web
     name: whatsnext-web
     runtime: python
