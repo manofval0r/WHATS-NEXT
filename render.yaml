@@ -23,6 +23,8 @@ services:
     name: whatsnext-redis
     plan: free
     maxmemoryPolicy: allkeys-lru
+    ipAllowList:
+      - "0.0.0.0/0"
 
 # ── API + front end ────────────────────────────────────────────────────
   - type: web
